@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Form</title>
+    <style>
+      #raynetLeadForm {
+        max-width: 600px; /* Adjust based on your preference */
+        margin: 0 auto;
+      }
+
+      #raynetLeadForm label {
+        display: block;
+        margin-top: 20px;
+      }
+
+      #raynetLeadForm input[type="text"],
+      #raynetLeadForm input[type="email"],
+      #raynetLeadForm input[type="submit"] {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+      }
+
+      #raynetLeadForm .half-input {
+        display: inline-block;
+        width: 215px; /* Adjusting for potential margins */
+      }
+
+      #raynetLeadForm .half-input:last-child {
+        margin-right: 0;
+      }
+
+      #raynetLeadForm textarea {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+        height: 100px; /* Adjust based on your preference */
+      }
+
+      #formNotification p {
+        margin-top: 10px;
+        padding: 10px;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="raynetLeadForm">
+      <div class="half-input">
+        <label for="firstName">Jméno:</label>
+        <input
+          type="text"
+          id="firstName"
+          name="firstName"
+          placeholder="Jméno"
+          required
+        />
+      </div>
+
+      <div class="half-input">
+        <label for="lastName">Příjmení:</label>
+        <input
+          type="text"
+          id="lastName"
+          name="lastName"
+          placeholder="Příjmení"
+          required
+        />
+      </div>
+
+      <label for="topic">Předmět:</label>
+      <input
+        type="text"
+        id="topic"
+        name="topic"
+        placeholder="Předmět"
+        required
+      />
+
+      <label for="email">E-mail</label>
+      <input type="email" id="email" name="email" placeholder="E-mail" />
+
+      <label for="textArea">Zpráva:</label>
+      <textarea
+        name="textArea"
+        id="textArea"
+        placeholder="Zde napište Vaší zprávu..."
+        required
+      ></textarea>
+
+      <input type="submit" value="Odeslat" />
+      <div id="formNotification"></div>
+    </form>
+  </body>
+</html>
