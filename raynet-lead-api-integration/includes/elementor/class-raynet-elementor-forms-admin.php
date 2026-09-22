@@ -200,7 +200,7 @@ class Raynet_Elementor_Forms_Admin {
 														class="button-link raynet-elm__undo"
 														<?php if ( $stale ) : ?>
 															<?php /* force is raised here and nowhere else, so with scripting off the server refuses and explains instead of overwriting silently. */ ?>
-															onclick="if ( ! confirm( '<?php echo esc_js( __( 'Stránka byla od nasazení upravena v Elementoru. Vrácení o tyto úpravy připraví. Pokračovat?', 'raynet-lead-api-integration' ) ); ?>' ) { return false; } document.getElementById( 'raynet-force-<?php echo (int) $form['post_id']; ?>' ).value = '1';"
+															onclick="if ( ! confirm( '<?php echo esc_js( __( 'Stránka byla od nasazení upravena v Elementoru. Vrácení o tyto úpravy připraví. Pokračovat?', 'raynet-lead-api-integration' ) ); ?>' ) ) { return false; } document.getElementById( 'raynet-force-<?php echo (int) $form['post_id']; ?>' ).value = '1';"
 														<?php endif; ?>
 													>
 														<?php esc_html_e( 'Vrátit zpět', 'raynet-lead-api-integration' ); ?>

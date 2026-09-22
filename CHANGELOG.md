@@ -35,6 +35,7 @@ Zápis do `_elementor_data` prošel nezávislým adversariálním review, které
 - Chybová hláška se brala z adresního řádku. Nešlo o XSS, ale kdo přiměl správce kliknout na upravený odkaz, mohl mu podstrčit vlastní text ve WordPressové hlášce. Putuje jen kód, text je v pluginu.
 - Jedno pole namapované zároveň na celé jméno i na jméno zapsalo do jména „Jan Novák" místo „Jan".
 - Styl administrace se načítal jen na stránce nastavení, takže nová obrazovka byla bez layoutu.
+- Potvrzení u tlačítka „Vrátit zpět" mělo v obsluze překlep a skončilo chybou dřív, než se stihlo zeptat. Na změněné stránce tak návrat nešel dokončit vůbec. (Zachyceno klikáním v prohlížeči; testy teď obsluhu parsují.)
 
 ## [2.3.1] — 2026-09-22
 

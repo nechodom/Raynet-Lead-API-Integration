@@ -144,6 +144,7 @@ class Raynet_Lead_Form_Builder_Admin {
 					'customLabel'   => __( 'Vlastní pole', 'raynet-lead-api-integration' ),
 					'consentNote'   => __( 'Text u zaškrtávátka. Odkazy jsou povolené. Datum souhlasu se zapíše do poznámky leadu.', 'raynet-lead-api-integration' ),
 					'customNote'    => __( 'Hodnota se zapíše do poznámky leadu pod tímto popiskem.', 'raynet-lead-api-integration' ),
+					/* translators: %s: name of the RAYNET lead attribute the field is mapped to. */
 					'mappedNote'    => __( 'Jde do RAYNETu jako %s.', 'raynet-lead-api-integration' ),
 					'empty'         => __( 'Formulář zatím nemá žádné pole. Přidejte první níže.', 'raynet-lead-api-integration' ),
 					'previewFailed' => __( 'Náhled se nepodařilo načíst. Editace polí funguje dál.', 'raynet-lead-api-integration' ),

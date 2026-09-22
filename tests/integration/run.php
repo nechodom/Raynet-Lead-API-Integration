@@ -677,6 +677,41 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'záloha spotřebována', Raynet_Elementor_Forms::has_backup( $scan_page ), false );
 		check( 'druhý návrat selže', is_wp_error( Raynet_Elementor_Forms::restore( $scan_page ) ), true );
 
+		// The rollback control is a button in a form of its own, and the confirm
+		// dialog is what raises force. A typo in that inline handler throws before
+		// it can, so the screen is fetched and the attribute parsed.
+		Raynet_Elementor_Forms::apply( $scan_page, $widget_id, array( 'priority' => 'MINOR' ), true );
+		$edited = json_decode( get_post_meta( $scan_page, '_elementor_data', true ), true );
+		$edited[0]['settings']['padding'] = '60px';
+		update_post_meta( $scan_page, '_elementor_data', wp_slash( wp_json_encode( $edited ) ) );
+
+		$stale_screen = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true );
+		check( 'zastaralý řádek varuje', false !== strpos( $stale_screen['body'], 'raynet-elm__stale' ), true );
+		check( 'vrácení je tlačítko', false !== strpos( $stale_screen['body'], 'form="raynet-restore-' . $scan_page . '"' ), true );
+		check( 'vrácení má vlastní formulář', false !== strpos( $stale_screen['body'], 'id="raynet-restore-' . $scan_page . '"' ), true );
+		check( 'force začíná na nule', false !== strpos( $stale_screen['body'], 'id="raynet-force-' . $scan_page . '" name="force" value="0"' ), true );
+
+		preg_match( '/onclick="([^"]*raynet-force-' . $scan_page . '[^"]*)"/', $stale_screen['body'], $onclick );
+		$handler = isset( $onclick[1] ) ? html_entity_decode( $onclick[1], ENT_QUOTES, 'UTF-8' ) : '';
+		check( 'potvrzení je na tlačítku', false !== strpos( $handler, 'confirm(' ), true );
+		check( 'potvrzení zvedá force', (bool) preg_match( '/raynet-force-' . $scan_page . "'\\s*\\)\\.value = '1'/", $handler ), true );
+
+		$depth  = 0;
+		$broken = false;
+		foreach ( str_split( preg_replace( "/'[^']*'/", "''", $handler ) ) as $char ) {
+			if ( '(' === $char ) {
+				$depth++;
+			} elseif ( ')' === $char ) {
+				$depth--;
+			}
+			if ( $depth < 0 ) {
+				$broken = true;
+			}
+		}
+		check( 'obsluha má vyvážené závorky', 0 === $depth && ! $broken, true );
+
+		Raynet_Elementor_Forms::restore( $scan_page, true );
+
 		// --- Templates ------------------------------------------------------
 		delete_option( Raynet_Elementor_Forms::TEMPLATES_OPTION );
 		$slug = Raynet_Elementor_Forms::save_template( 'Poptávky z webu', array( 'priority' => 'MINOR', 'owner' => '3' ) );
