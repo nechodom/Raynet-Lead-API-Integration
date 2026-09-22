@@ -2,6 +2,33 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.3.0] — 2026-09-22
+
+### Přidáno
+
+- **Akce pro Elementor Pro Forms.** Formuláře postavené v Elementoru umí zakládat leady v RAYNETu. Ve widgetu formuláře se v **Actions After Submit** objeví **RAYNET CRM** a s ní sekce nastavení: mapování polí na atributy leadu a per-formulář nastavení leadu — předmět, priorita, typ leadu, předpona poznámky, číselníková ID, štítky a notifikační e-maily. Prázdná hodnota dědí z nastavení pluginu.
+
+  Mapování používá Elementorův vlastní `fields_map` control, takže se pole vybírají podle popisků, ne podle ID. Seznam deseti atributů RAYNETu je statický a nevyžaduje žádný dotaz z editoru.
+
+  Vyžaduje Elementor Pro; bez něj se soubor s třídou vůbec nenačte.
+
+- Přepínač **Zapsat udělení souhlasu**, ve výchozím stavu vypnutý. Formulář, který se na souhlas neptá, tak do CRM nenapíše, že padl.
+- Přepínač **Uvést URL stránky**, odvozený z ID příspěvku, ne z referreru pod kontrolou odesílatele.
+
+### Změněno
+
+- `Raynet_Lead_Form::submit_lead()` je nový veřejný vstupní bod pro konec pipeline — sestavení payloadu, odeslání a ošetření selhání. Zkratka i akce Elementoru jím procházejí, takže dokumentované hooky `raynet_lead_payload`, `raynet_lead_created` a `raynet_lead_failed` i záložní e-mail existují jen jednou. `collect_values()` a `merge_lead_settings()` jsou nově veřejné.
+- Chyba z API nese v datech `WP_Error` klíč `diagnostic` se skutečným důvodem. Návštěvníkovi se dál ukazuje jen obecná hláška; Elementor diagnostiku zobrazí v kanálu viditelném pouze uživatelům s právem editovat stránku.
+- `submit_lead()` vrací i `lead_id`. Elementor ho předá do odpovědi jako `raynet_lead_id`.
+
+### Co Elementor obstarává sám
+
+Validaci, nonce, reCAPTCHA i honeypot řeší Elementor a plugin je znovu nekontroluje — vlastní časová past ani limit na IP by odmítaly legitimní odeslání. Zůstává pravidlo RAYNETu, které Elementor nezná: lead musí nést e-mail nebo telefon.
+
+### Testy
+
+23 integračních kontrol proti skutečnému Elementor Pro 4.1.1: registrace akce mezi vestavěné, mapování polí včetně zahození neznámého atributu a chybějícího pole, přebití globálních hodnot, zápis souhlasu a URL do poznámky, předání ID leadu, odmítnutí bez kontaktu, výjimka s diagnostikou při selhání API a `on_export`.
+
 ## [2.2.4] — 2026-09-22
 
 ### Opraveno

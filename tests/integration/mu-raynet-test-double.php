@@ -13,6 +13,11 @@ defined( 'ABSPATH' ) || exit;
 add_filter(
 	'pre_http_request',
 	function ( $preempt, $args, $url ) {
+		// Let a more specific filter win; this one is only the default.
+		if ( false !== $preempt ) {
+			return $preempt;
+		}
+
 		$calls   = get_option( 'raynet_test_http_calls', array() );
 		$calls[] = array(
 			'url'    => $url,

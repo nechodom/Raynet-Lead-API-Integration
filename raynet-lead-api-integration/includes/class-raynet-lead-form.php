@@ -421,17 +421,36 @@ class Raynet_Lead_Form {
 			);
 		}
 
+		return $this->submit_lead( $values, $settings, $input );
+	}
+
+	/**
+	 * Builds the payload, sends the lead and handles failure.
+	 *
+	 * The shared end of the pipeline. Every caller does its own validation and
+	 * anti-spam first; from here on the work is identical, so the documented
+	 * hooks and the fallback path exist exactly once.
+	 *
+	 * @param array<string,string> $values   Sanitized values, keyed by supported field.
+	 * @param array<string,mixed>  $settings Effective settings for this submission.
+	 * @param array<string,mixed>  $context  Optional context: raynet_fixed_topic,
+	 *                                       raynet_source_url, raynet_extras and
+	 *                                       raynet_has_consent.
+	 * @return array<string,mixed>|WP_Error Result, or an error.
+	 */
+	public function submit_lead( array $values, array $settings, array $context = array() ) {
 		if ( ! Raynet_Lead_Settings::is_configured() ) {
 			$this->log_error( 'Plugin is not configured; lead was not sent.' );
 			$this->send_fallback_email( $values, __( 'Plugin není nastaven.', 'raynet-lead-api-integration' ) );
 
 			return new WP_Error(
 				'raynet_not_configured',
-				$this->public_error_message( $settings )
+				$this->public_error_message( $settings ),
+				array( 'diagnostic' => __( 'Plugin není nastaven.', 'raynet-lead-api-integration' ) )
 			);
 		}
 
-		$payload = $this->build_payload( $values, $settings, $input );
+		$payload = $this->build_payload( $values, $settings, $context );
 
 		/**
 		 * Filters the lead payload right before it is sent to RAYNET.
@@ -459,7 +478,14 @@ class Raynet_Lead_Form {
 			 */
 			do_action( 'raynet_lead_failed', $response, $payload );
 
-			return new WP_Error( 'raynet_api_error', $this->public_error_message( $settings ) );
+			// The visitor gets the configured wording; the real reason travels in
+			// the data so a caller with somewhere to put it — Elementor's
+			// admin-only error channel — can surface it.
+			return new WP_Error(
+				'raynet_api_error',
+				$this->public_error_message( $settings ),
+				array( 'diagnostic' => $response->get_error_message() )
+			);
 		}
 
 		$lead_id = isset( $response['data']['id'] ) ? (int) $response['data']['id'] : 0;
@@ -479,6 +505,7 @@ class Raynet_Lead_Form {
 		return array(
 			'message'  => $message,
 			'redirect' => (string) $settings['redirect_url'],
+			'lead_id'  => $lead_id,
 		);
 	}
 
@@ -567,7 +594,7 @@ class Raynet_Lead_Form {
 	 * @param array<int,array<string,mixed>> $fields Field definitions. Empty means all supported fields.
 	 * @return array<string,string> Sanitized values.
 	 */
-	private function collect_values( array $input, array $fields = array() ) {
+	public function collect_values( array $input, array $fields = array() ) {
 		$values  = array();
 		$allowed = self::SUPPORTED_FIELDS;
 
@@ -655,7 +682,7 @@ class Raynet_Lead_Form {
 	 * @param array<string,mixed> $lead     Per-form lead settings.
 	 * @return array<string,mixed> Effective settings.
 	 */
-	private function merge_lead_settings( array $settings, array $lead ) {
+	public function merge_lead_settings( array $settings, array $lead ) {
 		$text = array(
 			'topic'           => 'default_topic',
 			'priority'        => 'priority',

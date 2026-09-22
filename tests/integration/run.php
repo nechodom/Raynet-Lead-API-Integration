@@ -328,6 +328,162 @@ if ( isset( $result->response[ $basename ] ) ) {
 	check( 'balíček z GitHubu', false !== strpos( $result->response[ $basename ]->package, 'github.com' ), true );
 }
 
+echo "\n=== Elementor Pro Forms ===\n";
+
+if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorPro\\Modules\\Forms\\Classes\\Integration_Base' ) ) {
+	echo "     přeskočeno, Elementor Pro není nainstalované\n";
+} else {
+	$forms  = \ElementorPro\Plugin::instance()->modules_manager->get_modules( 'forms' );
+	$action = $forms->actions_registrar->get( 'raynet_crm' );
+
+	check( 'akce je zaregistrovaná', null !== $action && is_object( $action ), true );
+
+	if ( is_object( $action ) ) {
+		check( 'akce je Integration_Base', $action instanceof \ElementorPro\Modules\Forms\Classes\Integration_Base, true );
+		check( 'název akce', $action->get_name(), 'raynet_crm' );
+		check( 'popisek akce', $action->get_label(), 'RAYNET CRM' );
+
+		$settings_row['category'] = 1;
+		$settings_row['tags']     = 'globalni';
+		update_option( Raynet_Lead_Settings::OPTION, $settings_row );
+		update_option( 'raynet_test_http_calls', array() );
+
+		$form_settings = array(
+			'form_post_id'          => $page_id,
+			'raynet_crm_fields_map' => array(
+				array( 'remote_id' => 'email', 'local_id' => 'f_mail' ),
+				array( 'remote_id' => 'firstName', 'local_id' => 'f_name' ),
+				array( 'remote_id' => 'message', 'local_id' => 'f_msg' ),
+				// Neither survives: an unknown attribute, and a field the form
+				// does not have.
+				array( 'remote_id' => 'nesmysl', 'local_id' => 'f_name' ),
+				array( 'remote_id' => 'phone', 'local_id' => 'f_chybi' ),
+			),
+			'raynet_crm_topic'        => 'Poptávka z Elementoru',
+			'raynet_crm_priority'     => 'CRITICAL',
+			'raynet_crm_category'     => '5',
+			'raynet_crm_tags'         => 'elementor',
+			'raynet_crm_consent_note' => 'yes',
+			'raynet_crm_source_url'   => 'yes',
+		);
+
+		$record = new class( $form_settings, array(
+			'f_mail' => array( 'value' => 'jan@example.cz' ),
+			'f_name' => array( 'value' => 'Jan' ),
+			'f_msg'  => array( 'value' => 'Mám zájem.' ),
+		) ) {
+			private $fs;
+			private $f;
+			public function __construct( $fs, $f ) {
+				$this->fs = $fs;
+				$this->f  = $f;
+			}
+			public function get( $k ) {
+				return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+			}
+		};
+
+		$handler = new class {
+			public $data = array();
+			public function add_response_data( $k, $v ) {
+				$this->data[ $k ] = $v;
+			}
+		};
+
+		$threw = '';
+
+		try {
+			$action->run( $record, $handler );
+		} catch ( \Exception $e ) {
+			$threw = $e->getMessage();
+		}
+
+		check( 'run() nevyhodí výjimku', $threw, '' );
+		check( 'ID leadu předáno Elementoru', isset( $handler->data['raynet_lead_id'] ), true );
+
+		wp_cache_flush();
+		$elm_lead = null;
+
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/lead/' ) ) {
+				$elm_lead = json_decode( $call['body'], true );
+			}
+		}
+
+		check( 'RAYNET zavolán', null !== $elm_lead, true );
+
+		if ( $elm_lead ) {
+			check( 'namapovaný e-mail', $elm_lead['contactInfo']['email'], 'jan@example.cz' );
+			check( 'namapované jméno', $elm_lead['firstName'], 'Jan' );
+			check( 'neznámý atribut zahozen', isset( $elm_lead['companyName'] ), false );
+			check( 'chybějící pole nezaložilo telefon', isset( $elm_lead['contactInfo']['tel1'] ), false );
+			check( 'předmět z formuláře', $elm_lead['topic'], 'Poptávka z Elementoru' );
+			check( 'priorita z formuláře', $elm_lead['priority'], 'CRITICAL' );
+			check( 'kategorie z formuláře přebíjí globální', $elm_lead['category'], 5 );
+			check( 'štítky z formuláře přebíjí globální', $elm_lead['tags'], 'elementor' );
+			check( 'zpráva v poznámce', false !== strpos( $elm_lead['notice'], 'Mám zájem.' ), true );
+			check( 'souhlas v poznámce', false !== strpos( $elm_lead['notice'], 'Souhlas' ), true );
+		}
+
+		// A form mapping neither e-mail nor phone is refused before any request.
+		update_option( 'raynet_test_http_calls', array() );
+		$empty = new class( array( 'raynet_crm_fields_map' => array() ), array() ) {
+			private $fs;
+			private $f;
+			public function __construct( $fs, $f ) {
+				$this->fs = $fs;
+				$this->f  = $f;
+			}
+			public function get( $k ) {
+				return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+			}
+		};
+
+		$refused_msg = '';
+
+		try {
+			$action->run( $empty, $handler );
+		} catch ( \Exception $e ) {
+			$refused_msg = $e->getMessage();
+		}
+
+		check( 'bez kontaktu vyhodí výjimku', '' !== $refused_msg, true );
+		wp_cache_flush();
+		check( 'bez kontaktu se nevolá RAYNET', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+
+		// The exception carries the diagnostic, which Elementor shows to admins
+		// only; the visitor sees the form's own error message.
+		add_filter(
+			'pre_http_request',
+			function () {
+				return array(
+					'headers'  => array(),
+					'cookies'  => array(),
+					'filename' => null,
+					'body'     => wp_json_encode( array( 'message' => 'bad creds' ) ),
+					'response' => array( 'code' => 401, 'message' => 'Unauthorized' ),
+				);
+			},
+			5
+		);
+
+		$failed_msg = '';
+
+		try {
+			$action->run( $record, $handler );
+		} catch ( \Exception $e ) {
+			$failed_msg = $e->getMessage();
+		}
+
+		check( 'selhání API vyhodí výjimku', '' !== $failed_msg, true );
+		check( 'výjimka nese diagnostiku', false !== strpos( $failed_msg, '401' ), true );
+
+		$exported = $action->on_export( array( 'settings' => array( 'raynet_crm_owner' => 7, 'jine' => 'zustane' ) ) );
+		check( 'on_export maže pod settings', isset( $exported['settings']['raynet_crm_owner'] ), false );
+		check( 'on_export nechá cizí klíče', $exported['settings']['jine'], 'zustane' );
+	}
+}
+
 echo "\n=== PHP chyby ===\n";
 
 $log      = WP_CONTENT_DIR . '/debug.log';

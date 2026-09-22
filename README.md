@@ -14,6 +14,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - [Nastavení](#nastavení)
 - [Aktualizace](#aktualizace)
 - [Builder formulářů](#builder-formulářů)
+- [Elementor Pro Forms](#elementor-pro-forms)
 - [Vložení formuláře](#vložení-formuláře)
 - [Atributy zkratky](#atributy-zkratky)
 - [Jak vypadá lead v RAYNETu](#jak-vypadá-lead-v-raynetu)
@@ -32,6 +33,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 
 - **Builder formulářů** — pole vyberete, přetažením seřadíte a přepíšete jim popisky, bez editoru kódu. Formulářů můžete mít víc, každý s vlastním nastavením leadu.
 - **Zkratka `[raynet_lead_form]`** — formulář vložíte do libovolné stránky, příspěvku nebo widgetu.
+- **Elementor Pro Forms** — leady umí zakládat i formuláře postavené v Elementoru, přes akci po odeslání.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
 - **Podpora všech čtyř regionů RAYNETu** (`.cz`, `.sk`, `.com`, `eu.`) i vlastní adresy.
 - **Test spojení** přímo v administraci — ověří údaje proti `GET /security/info` a rovnou vypíše ID číselníků (kategorie, stav leadu, zdroj kontaktu).
@@ -175,6 +177,45 @@ V pravém sloupci nastavíte pro tenhle formulář předmět, prioritu, typ lead
 ### Výchozí formulář
 
 Jeden formulář lze označit jako **výchozí**. Ten obslouží zkratku `[raynet_lead_form]` bez atributu `id`.
+
+---
+
+## Elementor Pro Forms
+
+Formuláře postavené v Elementoru mohou leady zakládat taky. Není k tomu potřeba vlastní pole — plugin přidá **akci po odeslání**, stejným mechanismem, jakým fungují vestavěné integrace na Mailchimp nebo HubSpot.
+
+> Vyžaduje **Elementor Pro**. Widget Formulář ve free verzi není.
+
+### Zapnutí
+
+Ve widgetu formuláře otevřete **Actions After Submit** a přidejte **RAYNET CRM**. Objeví se sekce se dvěma částmi.
+
+**Mapování polí** — ke každému atributu RAYNETu vyberete pole formuláře. Nabídka ukazuje popisky polí, ne jejich ID. Nenamapované atributy se neodesílají.
+
+**Nastavení leadu** — předmět, priorita, typ leadu, předpona poznámky, číselníková ID, štítky a notifikační e-maily, zvlášť pro tenhle formulář. Prázdné pole znamená zdědit z nastavení pluginu, stejně jako u builderu.
+
+Dva přepínače navíc:
+
+- **Zapsat udělení souhlasu** — zapněte jen tehdy, když formulář obsahuje pole se souhlasem. Do poznámky leadu se pak zapíše datum a čas. Vypnuté je záměrně: formulář, který se na souhlas neptá, nesmí do CRM napsat, že padl.
+- **Uvést URL stránky** — připíše do poznámky adresu stránky, ze které poptávka přišla.
+
+### Co obstarává Elementor a co plugin
+
+Validaci, nonce, reCAPTCHA i honeypot řeší Elementor. Plugin je **znovu nekontroluje** — vlastní časová past ani limit na IP by se s Elementorem tloukly a odmítaly by legitimní odeslání.
+
+Co zůstává na pluginu, je pravidlo RAYNETu, které Elementor nezná: **lead musí nést e-mail nebo telefon**. Bez jednoho z nich se odeslání odmítne.
+
+### Když se odeslání nepovede
+
+Návštěvník uvidí chybovou hlášku, kterou si nastavíte přímo v Elementoru (*Additional Options → Custom Messages → Error Message*).
+
+Skutečný důvod — třeba `RAYNET odmítl přihlášení (401)` — se zobrazí **jen přihlášenému uživateli s právem stránku editovat**. Elementor na to má vlastní kanál a diagnostika se tak k návštěvníkovi nedostane.
+
+Lead navíc zachytí záložní e-mail, pokud ho máte v nastavení vyplněný. U Elementoru to doporučuji dvojnásob: odeslání je synchronní, žádná fronta na opakování neexistuje.
+
+### Export šablony
+
+Při exportu formuláře jako šablony se mapování polí, číselníková ID, vlastník, štítky i notifikační e-maily odstraní. Jsou vázané na jednu instanci RAYNETu a v cizím webu by zakládaly leady pod cizí kategorií. Přihlašovací údaje v nastavení Elementoru vůbec nejsou — zůstávají v nastavení pluginu.
 
 ---
 
@@ -403,6 +444,8 @@ bin/wp-test.sh         # 58 kontrol
 Ověřuje pořadí hooků, že `manage_options` zůstává funkční, položky menu, načtení skriptů builderu, vykreslení formuláře na veřejné stránce, skutečné odeslání přes `admin-ajax.php` až k payloadu pro RAYNET, a aktualizační transient. Odchozí HTTP zachytává testovací dvojník, takže běh nikdy nesáhne na RAYNET ani na GitHub.
 
 Adresář `.wp-test/` je mimo git a dá se kdykoliv zahodit; `bin/wp-test-setup.sh --fresh` ho postaví znovu.
+
+Akce pro Elementor se testuje jen tehdy, když je Elementor Pro v testovací instalaci přítomné. Nakopírujte `elementor` a `elementor-pro` do `.wp-test/wp/wp-content/plugins/`, aktivujte je a sada přidá dalších 23 kontrol; jinak tuhle část přeskočí.
 
 Historie změn je v [CHANGELOG.md](CHANGELOG.md).
 

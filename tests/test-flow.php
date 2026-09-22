@@ -135,6 +135,7 @@ $r = process( $form, valid_input() );
 check( 'api failure surfaces generic error', code( $r ), 'raynet_api_error' );
 check( 'visitor sees custom message', $r->get_error_message(), 'Nepovedlo se.' );
 check( 'visitor never sees 401 detail', str_contains( $r->get_error_message(), '401' ), false );
+check( 'diagnostika je v datech chyby', str_contains( (string) ( $r->get_error_data()['diagnostic'] ?? '' ), '401' ), true );
 check( 'fallback email sent', count( $GLOBALS['wp_mails'] ), 1 );
 check( 'fallback carries the lead', str_contains( $GLOBALS['wp_mails'][0]['body'], 'jan@example.cz' ), true );
 check( 'last error stored for admin', str_contains( get_option( 'raynet_lead_last_error' )['message'], '401' ), true );
