@@ -8,6 +8,7 @@ require __DIR__ . '/wp-stubs.php';
 $raynet_includes = dirname( __DIR__ ) . '/raynet-lead-api-integration/includes/';
 require_once $raynet_includes . 'class-raynet-settings.php';
 require_once $raynet_includes . 'class-raynet-form-definition.php';
+require_once $raynet_includes . 'class-raynet-form-post-type.php';
 
 $pass = 0; $fail = 0;
 function check( $label, $got, $want ) {
@@ -76,6 +77,30 @@ check( 'cizí klíč vypadl',          isset( $lead['cizi_klic'] ), false );
 check( 'prázdné zůstane prázdné',   $lead['lead_phase'], 0 );
 check( 'předmět prošel',            $lead['topic'], 'Poptávka' );
 check( 'neznámá priorita = zdědit', Raynet_Lead_Form_Definition::sanitize_lead_settings( array( 'priority' => 'x' ) )['priority'], '' );
+
+// ---------- Post type: storage and resolution ----------
+$id = Raynet_Lead_Form_Post_Type::create( 'Kontakt', Raynet_Lead_Form_Definition::default_fields(), array() );
+check( 'formulář založen',        $id > 0, true );
+check( 'pole uložena',            count( Raynet_Lead_Form_Post_Type::get_fields( $id ) ), 6 );
+check( 'nastavení leadu prázdné', Raynet_Lead_Form_Post_Type::get_lead_settings( $id )['priority'], '' );
+
+Raynet_Lead_Form_Post_Type::set_default( $id );
+check( 'výchozí nalezen bez id', Raynet_Lead_Form_Post_Type::resolve( '' ), $id );
+check( 'nalezen podle čísla',    Raynet_Lead_Form_Post_Type::resolve( (string) $id ), $id );
+check( 'nalezen podle slugu',    Raynet_Lead_Form_Post_Type::resolve( 'kontakt' ), $id );
+check( 'neznámý slug = 0',       Raynet_Lead_Form_Post_Type::resolve( 'neexistuje' ), 0 );
+check( 'cizí typ = 0',           Raynet_Lead_Form_Post_Type::resolve( '999' ), 0 );
+
+Raynet_Lead_Form_Post_Type::save_lead_settings( $id, array( 'priority' => 'MINOR', 'owner' => '4' ) );
+check( 'nastavení leadu uloženo', Raynet_Lead_Form_Post_Type::get_lead_settings( $id )['owner'], 4 );
+
+Raynet_Lead_Form_Post_Type::save_fields( $id, array( array( 'source' => 'email', 'label' => 'Mail' ) ) );
+check( 'pole přepsána',          count( Raynet_Lead_Form_Post_Type::get_fields( $id ) ), 1 );
+check( 'uložené pole prošlo sanitizací', Raynet_Lead_Form_Post_Type::get_fields( $id )[0]['type'], 'email' );
+
+$GLOBALS['wp_posts'][ $id ]['post_status'] = 'trash';
+check( 'formulář v koši = 0', Raynet_Lead_Form_Post_Type::resolve( 'kontakt' ), 0 );
+$GLOBALS['wp_posts'][ $id ]['post_status'] = 'publish';
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

@@ -38,6 +38,34 @@ function get_option( $name, $default = false ) {
 function update_option( $name, $value, $autoload = null ) { $GLOBALS['wp_options'][ $name ] = $value; return true; }
 function delete_option( $name ) { unset( $GLOBALS['wp_options'][ $name ] ); return true; }
 
+defined( 'OBJECT' ) || define( 'OBJECT', 'OBJECT' );
+
+$GLOBALS['wp_posts'] = array();
+$GLOBALS['wp_meta']  = array();
+
+function register_post_type( ...$a ) {}
+function get_post( $id ) { return isset( $GLOBALS['wp_posts'][ $id ] ) ? (object) $GLOBALS['wp_posts'][ $id ] : null; }
+function get_post_meta( $id, $key, $single = false ) {
+	$v = isset( $GLOBALS['wp_meta'][ $id ][ $key ] ) ? $GLOBALS['wp_meta'][ $id ][ $key ] : '';
+	return $single ? $v : array( $v );
+}
+function update_post_meta( $id, $key, $value ) { $GLOBALS['wp_meta'][ $id ][ $key ] = $value; return true; }
+function get_page_by_path( $slug, $output = OBJECT, $type = 'post' ) {
+	foreach ( $GLOBALS['wp_posts'] as $p ) {
+		if ( $p['post_name'] === $slug && $p['post_type'] === $type ) { return (object) $p; }
+	}
+	return null;
+}
+function wp_insert_post( $args ) {
+	$id = count( $GLOBALS['wp_posts'] ) + 1;
+	$GLOBALS['wp_posts'][ $id ] = array_merge(
+		array( 'post_name' => sanitize_title( isset( $args['post_title'] ) ? $args['post_title'] : '' ), 'post_status' => 'publish', 'post_type' => 'post' ),
+		$args,
+		array( 'ID' => $id )
+	);
+	return $id;
+}
+
 function get_transient( $key ) { return isset( $GLOBALS['wp_transients'][ $key ] ) ? $GLOBALS['wp_transients'][ $key ] : false; }
 function set_transient( $key, $value, $ttl = 0 ) { $GLOBALS['wp_transients'][ $key ] = $value; return true; }
 
