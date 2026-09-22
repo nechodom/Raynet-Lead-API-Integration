@@ -137,5 +137,40 @@ $xss = Raynet_Lead_Form_Renderer::render_fields( array(
 check( 'popisek escapován',     str_contains( $xss, '<script' ), false );
 check( 'textarea je textarea',  str_contains( Raynet_Lead_Form_Renderer::render_fields( array( mkfield( array( 'source' => 'message', 'type' => 'textarea' ) ) ), 'u' ), '<textarea' ), true );
 
+// ---------- Migration from 2.0 ----------
+$GLOBALS['wp_options'] = array(); $GLOBALS['wp_posts'] = array(); $GLOBALS['wp_meta'] = array();
+update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array(
+	'region' => 'cz', 'username' => 'u@e.cz', 'api_key' => 'K', 'instance_name' => 'i',
+	'consent_enabled' => '1', 'consent_label' => 'Souhlasím s <a href="/gdpr">podmínkami</a>.',
+	'notice_prefix' => 'Z webu', 'category' => '5',
+) ) );
+
+Raynet_Lead_Form_Post_Type::maybe_migrate();
+$fid = Raynet_Lead_Form_Post_Type::default_id();
+check( 'výchozí formulář vznikl', $fid > 0, true );
+
+$mf      = Raynet_Lead_Form_Post_Type::get_fields( $fid );
+$sources = array_column( $mf, 'source' );
+check( 'stejná pole jako stará zkratka', $sources,
+	array( 'firstName', 'lastName', 'email', 'phone', 'topic', 'message', 'consent' ) );
+check( 'e-mail povinný',   $mf[2]['required'], true );
+check( 'zpráva povinná',   $mf[5]['required'], true );
+check( 'telefon nepovinný', $mf[3]['required'], false );
+check( 'popisek souhlasu převzat', str_contains( $mf[6]['label'], 'podmínkami' ), true );
+
+$mlead = Raynet_Lead_Form_Post_Type::get_lead_settings( $fid );
+check( 'nastavení leadu se dědí, nekopíruje', $mlead['category'], 0 );
+
+Raynet_Lead_Form_Post_Type::maybe_migrate();
+check( 'migrace běží jednou', count( $GLOBALS['wp_posts'] ), 1 );
+
+// Bez globálního souhlasu se pole souhlasu nepřidá.
+$GLOBALS['wp_options'] = array(); $GLOBALS['wp_posts'] = array(); $GLOBALS['wp_meta'] = array();
+update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array( 'region' => 'cz' ) ) );
+Raynet_Lead_Form_Post_Type::maybe_migrate();
+check( 'bez globálního souhlasu žádné pole souhlasu',
+	in_array( 'consent', array_column( Raynet_Lead_Form_Post_Type::get_fields( Raynet_Lead_Form_Post_Type::default_id() ), 'source' ), true ),
+	false );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

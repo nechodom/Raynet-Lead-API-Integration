@@ -212,6 +212,65 @@ class Raynet_Lead_Form_Post_Type {
 	}
 
 	/**
+	 * Creates the form a 2.0 site was already rendering, once.
+	 *
+	 * The field list is the one the 2.0 shortcode produced by default, so pages
+	 * that already carry [raynet_lead_form] keep rendering what they rendered
+	 * before the upgrade.
+	 *
+	 * Lead settings are left empty on purpose. Empty means inherit, so the
+	 * global settings stay the single place those values are edited, and a later
+	 * change to them still reaches this form.
+	 *
+	 * @return void
+	 */
+	public static function maybe_migrate() {
+		if ( get_option( 'raynet_lead_migrated_forms' ) ) {
+			return;
+		}
+
+		if ( self::resolve( '' ) ) {
+			// A default form already exists; nothing to carry over.
+			update_option( 'raynet_lead_migrated_forms', 1 );
+			return;
+		}
+
+		$settings = Raynet_Lead_Settings::all();
+		$fields   = array();
+
+		foreach ( Raynet_Lead_Form_Definition::default_fields() as $field ) {
+			if ( 'consent' === $field['source'] ) {
+				if ( empty( $settings['consent_enabled'] ) ) {
+					continue;
+				}
+
+				if ( '' !== trim( (string) $settings['consent_label'] ) ) {
+					$field['label'] = $settings['consent_label'];
+				}
+			}
+
+			// The 2.0 shortcode defaulted to required="email,message".
+			if ( Raynet_Lead_Form_Definition::is_lead_source( $field['source'] ) ) {
+				$field['required'] = in_array( $field['source'], array( 'email', 'message' ), true );
+			}
+
+			$fields[] = $field;
+		}
+
+		$post_id = self::create(
+			__( 'Kontaktní formulář', 'raynet-lead-api-integration' ),
+			$fields,
+			array()
+		);
+
+		if ( $post_id ) {
+			self::set_default( $post_id );
+		}
+
+		update_option( 'raynet_lead_migrated_forms', 1 );
+	}
+
+	/**
 	 * Tells whether a post id names a published form.
 	 *
 	 * @param int $post_id Candidate id.
