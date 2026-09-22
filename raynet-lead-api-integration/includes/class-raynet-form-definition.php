@@ -225,6 +225,7 @@ class Raynet_Lead_Form_Definition {
 				array( 'source' => 'lastName', 'width' => 'half' ),
 				array( 'source' => 'email', 'required' => true ),
 				array( 'source' => 'phone' ),
+				array( 'source' => 'topic' ),
 				array( 'source' => 'message', 'required' => true ),
 				array( 'source' => 'consent' ),
 			)

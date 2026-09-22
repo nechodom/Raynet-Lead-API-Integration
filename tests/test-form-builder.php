@@ -45,7 +45,7 @@ $again = Raynet_Lead_Form_Definition::sanitize_fields( $fields );
 check( 'existující id se zachová', $again[0]['id'], $fields[0]['id'] );
 
 check( 'katalog má deset zdrojů + souhlas', count( Raynet_Lead_Form_Definition::catalogue() ), 11 );
-check( 'výchozí sada má šest polí', count( Raynet_Lead_Form_Definition::default_fields() ), 6 );
+check( 'výchozí sada kopíruje starou zkratku', count( Raynet_Lead_Form_Definition::default_fields() ), 7 );
 check( 'prázdný popisek se doplní z katalogu',
 	Raynet_Lead_Form_Definition::sanitize_fields( array( array( 'source' => 'city' ) ) )[0]['label'], 'Město' );
 check( 'jen jeden souhlas',
@@ -82,7 +82,7 @@ check( 'neznámá priorita = zdědit', Raynet_Lead_Form_Definition::sanitize_lea
 // ---------- Post type: storage and resolution ----------
 $id = Raynet_Lead_Form_Post_Type::create( 'Kontakt', Raynet_Lead_Form_Definition::default_fields(), array() );
 check( 'formulář založen',        $id > 0, true );
-check( 'pole uložena',            count( Raynet_Lead_Form_Post_Type::get_fields( $id ) ), 6 );
+check( 'pole uložena',            count( Raynet_Lead_Form_Post_Type::get_fields( $id ) ), 7 );
 check( 'nastavení leadu prázdné', Raynet_Lead_Form_Post_Type::get_lead_settings( $id )['priority'], '' );
 
 Raynet_Lead_Form_Post_Type::set_default( $id );

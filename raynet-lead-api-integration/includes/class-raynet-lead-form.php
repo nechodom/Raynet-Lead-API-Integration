@@ -372,14 +372,40 @@ class Raynet_Lead_Form {
 			return $spam;
 		}
 
-		if ( ! empty( $settings['consent_enabled'] ) && empty( $input['consent'] ) ) {
+		// The definition comes from the database, never from the request, so a
+		// hand-crafted POST cannot add fields the visitor was never shown.
+		$form_post_id = Raynet_Lead_Form_Post_Type::resolve(
+			isset( $input['raynet_form_id'] ) ? (string) $input['raynet_form_id'] : ''
+		);
+
+		$fields = $form_post_id ? Raynet_Lead_Form_Post_Type::get_fields( $form_post_id ) : array();
+
+		if ( $form_post_id ) {
+			$settings = $this->merge_lead_settings(
+				$settings,
+				Raynet_Lead_Form_Post_Type::get_lead_settings( $form_post_id )
+			);
+		}
+
+		$has_consent = false;
+
+		foreach ( $fields as $field ) {
+			if ( 'consent' === $field['source'] ) {
+				$has_consent = true;
+				break;
+			}
+		}
+
+		if ( $has_consent && empty( $input['consent'] ) ) {
 			return new WP_Error(
 				'raynet_consent_required',
 				__( 'Bez souhlasu se zpracováním údajů nelze formulář odeslat.', 'raynet-lead-api-integration' )
 			);
 		}
 
-		$values = $this->collect_values( $input );
+		$values                      = $this->collect_values( $input, $fields );
+		$input['raynet_extras']      = $this->collect_custom( $input, $fields );
+		$input['raynet_has_consent'] = $has_consent;
 
 		if ( '' === $values['email'] && '' === $values['phone'] ) {
 			return new WP_Error(
@@ -530,16 +556,35 @@ class Raynet_Lead_Form {
 	}
 
 	/**
-	 * Extracts and sanitizes every known form field.
+	 * Extracts and sanitizes the lead attributes a form actually asks for.
 	 *
-	 * @param array<string,mixed> $input Raw request data.
+	 * The returned array always carries every supported key, so callers can read
+	 * $values['email'] without checking. Attributes the form does not contain
+	 * stay empty, which is what stops a hand-crafted POST from filling a field
+	 * the visitor was never shown.
+	 *
+	 * @param array<string,mixed>            $input  Raw request data.
+	 * @param array<int,array<string,mixed>> $fields Field definitions. Empty means all supported fields.
 	 * @return array<string,string> Sanitized values.
 	 */
-	private function collect_values( array $input ) {
-		$values = array();
+	private function collect_values( array $input, array $fields = array() ) {
+		$values  = array();
+		$allowed = self::SUPPORTED_FIELDS;
+
+		if ( ! empty( $fields ) ) {
+			$allowed = array();
+
+			foreach ( $fields as $field ) {
+				if ( Raynet_Lead_Form_Definition::is_lead_source( $field['source'] ) ) {
+					$allowed[] = $field['source'];
+				}
+			}
+		}
 
 		foreach ( self::SUPPORTED_FIELDS as $field ) {
-			$raw = isset( $input[ $field ] ) ? (string) $input[ $field ] : '';
+			$raw = in_array( $field, $allowed, true ) && isset( $input[ $field ] )
+				? (string) $input[ $field ]
+				: '';
 
 			if ( 'message' === $field ) {
 				$values[ $field ] = mb_substr( sanitize_textarea_field( $raw ), 0, 5000 );
@@ -551,6 +596,93 @@ class Raynet_Lead_Form {
 		}
 
 		return $values;
+	}
+
+	/**
+	 * Reads the custom fields a form declares.
+	 *
+	 * Values are keyed by the label the admin gave the field, because that label
+	 * is what ends up in the lead note.
+	 *
+	 * @param array<string,mixed>            $input  Raw request data.
+	 * @param array<int,array<string,mixed>> $fields Field definitions.
+	 * @return array<string,string> Label => value.
+	 */
+	private function collect_custom( array $input, array $fields ) {
+		$raw = isset( $input['raynet_custom'] ) && is_array( $input['raynet_custom'] )
+			? $input['raynet_custom']
+			: array();
+
+		$extras = array();
+
+		foreach ( $fields as $field ) {
+			if ( 'custom' !== $field['source'] ) {
+				continue;
+			}
+
+			$value = isset( $raw[ $field['id'] ] ) ? $raw[ $field['id'] ] : '';
+
+			if ( is_array( $value ) ) {
+				$value = implode( ', ', array_map( 'strval', $value ) );
+			}
+
+			$value = mb_substr( sanitize_text_field( (string) $value ), 0, 500 );
+
+			if ( 'checkbox' === $field['type'] ) {
+				// An unticked box is an answer too, and often the interesting one.
+				$extras[ $field['label'] ] = '' !== $value
+					? __( 'ano', 'raynet-lead-api-integration' )
+					: __( 'ne', 'raynet-lead-api-integration' );
+				continue;
+			}
+
+			if ( '' === trim( $value ) ) {
+				continue;
+			}
+
+			$extras[ $field['label'] ] = $value;
+		}
+
+		return $extras;
+	}
+
+	/**
+	 * Lays a form's own lead settings over the global ones.
+	 *
+	 * An empty string, or zero for the code-list ids, means the form inherits.
+	 *
+	 * @param array<string,mixed> $settings Global plugin settings.
+	 * @param array<string,mixed> $lead     Per-form lead settings.
+	 * @return array<string,mixed> Effective settings.
+	 */
+	private function merge_lead_settings( array $settings, array $lead ) {
+		$text = array(
+			'topic'           => 'default_topic',
+			'priority'        => 'priority',
+			'notice_prefix'   => 'notice_prefix',
+			'tags'            => 'tags',
+			'notify_emails'   => 'notify_emails',
+			'success_message' => 'success_message',
+			'redirect_url'    => 'redirect_url',
+		);
+
+		foreach ( $text as $from => $to ) {
+			if ( '' !== trim( (string) $lead[ $from ] ) ) {
+				$settings[ $to ] = $lead[ $from ];
+			}
+		}
+
+		foreach ( array( 'category', 'lead_phase', 'contact_source', 'owner', 'security_level' ) as $key ) {
+			if ( (int) $lead[ $key ] > 0 ) {
+				$settings[ $key ] = (int) $lead[ $key ];
+			}
+		}
+
+		if ( '' !== (string) $lead['lead_person'] ) {
+			$settings['lead_person'] = (int) $lead['lead_person'];
+		}
+
+		return $settings;
 	}
 
 	/**
@@ -587,7 +719,13 @@ class Raynet_Lead_Form {
 			'firstName'   => $values['firstName'],
 			'lastName'    => $values['lastName'],
 			'companyName' => $values['companyName'],
-			'notice'      => $this->build_notice( $values, $settings, $source_url ),
+			'notice'      => $this->build_notice(
+				$values,
+				$settings,
+				$source_url,
+				isset( $input['raynet_extras'] ) && is_array( $input['raynet_extras'] ) ? $input['raynet_extras'] : array(),
+				! empty( $input['raynet_has_consent'] )
+			),
 			'contactInfo' => array_filter(
 				array(
 					'email' => $values['email'],
@@ -644,10 +782,12 @@ class Raynet_Lead_Form {
 	 *
 	 * @param array<string,string> $values     Sanitized form values.
 	 * @param array<string,mixed>  $settings   Plugin settings.
-	 * @param string               $source_url URL the form was submitted from.
+	 * @param string               $source_url  URL the form was submitted from.
+	 * @param array<string,string> $extras      Custom field labels and values.
+	 * @param bool                 $has_consent Whether the form carried a consent box.
 	 * @return string Note text.
 	 */
-	private function build_notice( array $values, array $settings, $source_url ) {
+	private function build_notice( array $values, array $settings, $source_url, array $extras = array(), $has_consent = false ) {
 		$parts = array();
 
 		if ( '' !== trim( (string) $settings['notice_prefix'] ) ) {
@@ -658,6 +798,16 @@ class Raynet_Lead_Form {
 			$parts[] = $values['message'];
 		}
 
+		if ( ! empty( $extras ) ) {
+			$lines = array();
+
+			foreach ( $extras as $label => $value ) {
+				$lines[] = $label . ': ' . $value;
+			}
+
+			$parts[] = implode( "\n", $lines );
+		}
+
 		if ( '' !== $source_url ) {
 			$parts[] = sprintf(
 				/* translators: %s: page URL. */
@@ -666,7 +816,8 @@ class Raynet_Lead_Form {
 			);
 		}
 
-		if ( ! empty( $settings['consent_enabled'] ) ) {
+		// Only a form that actually showed a consent box may claim one was given.
+		if ( $has_consent ) {
 			$parts[] = sprintf(
 				/* translators: %s: date and time of the consent. */
 				__( 'Souhlas se zpracováním údajů udělen: %s', 'raynet-lead-api-integration' ),

@@ -129,7 +129,9 @@ check( 'first name trimmed', $values['firstName'], 'Jan' );
 check( 'email trimmed',      $values['email'], 'jan@example.cz' );
 
 $payload = call_private( $form, 'build_payload', array( $values, $settings, array(
-	'raynet_source_url' => 'https://example.test/kontakt/',
+	'raynet_source_url'  => 'https://example.test/kontakt/',
+	'raynet_has_consent' => true,
+	'raynet_extras'      => array( 'Odkud jste se o nás dozvěděli?' => 'Google' ),
 ) ) );
 
 check( 'topic from form',        $payload['topic'], 'Poptávka' );
@@ -147,6 +149,10 @@ check( 'message inside notice',  str_contains( $payload['notice'], 'cenovou nab�
 check( 'prefix inside notice',   str_contains( $payload['notice'], 'Z webu example.cz' ), true );
 check( 'source url in notice',   str_contains( $payload['notice'], 'example.test/kontakt' ), true );
 check( 'consent noted',          str_contains( $payload['notice'], 'Souhlas' ), true );
+check( 'custom field noted',     str_contains( $payload['notice'], 'Odkud jste se o nás dozvěděli?: Google' ), true );
+
+$no_consent = call_private( $form, 'build_payload', array( $values, $settings, array() ) );
+check( 'no consent claimed without a consent field', str_contains( $no_consent['notice'], 'Souhlas' ), false );
 check( 'leadDate is today',      $payload['leadDate'], date( 'Y-m-d' ) );
 
 $company_values = $values;

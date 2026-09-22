@@ -80,12 +80,22 @@ check( 'day-old form rejected', code( process( $form, valid_input( array(
 	'raynet_ts' => (string) $old, 'raynet_ts_hash' => wp_hash( 'raynet_lead_ts|' . $old ),
 ) ) ) ), 'raynet_too_fast' );
 
-// Consent.
+// Consent now follows the form definition, not a global switch.
 configure();
-check( 'missing consent rejected', code( process( $form, valid_input( array( 'consent' => '' ) ) ) ), 'raynet_consent_required' );
-configure( array( 'consent_enabled' => '' ) );
+$consent_form = Raynet_Lead_Form_Post_Type::create( 'Se souhlasem', Raynet_Lead_Form_Definition::default_fields(), array() );
+check( 'missing consent rejected',
+	code( process( $form, valid_input( array( 'raynet_form_id' => (string) $consent_form, 'consent' => '' ) ) ) ),
+	'raynet_consent_required' );
+
+configure();
+$plain_form = Raynet_Lead_Form_Post_Type::create( 'Bez souhlasu', Raynet_Lead_Form_Definition::sanitize_fields( array(
+	array( 'source' => 'email', 'required' => true ),
+	array( 'source' => 'message', 'required' => true ),
+) ), array() );
 $GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":1}}' );
-check( 'consent optional when disabled', code( process( $form, valid_input( array( 'consent' => '' ) ) ) ), 'OK' );
+check( 'consent optional when the form has no consent field',
+	code( process( $form, valid_input( array( 'raynet_form_id' => (string) $plain_form, 'consent' => '' ) ) ) ),
+	'OK' );
 
 // Contact validation.
 configure();
@@ -142,6 +152,69 @@ process( $form, valid_input( array( 'message' => str_repeat( 'á', 9000 ), 'topi
 $sent = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
 check( 'topic capped at 255', mb_strlen( $sent['topic'] ), 255 );
 check( 'message capped at 5000', mb_strlen( $sent['notice'] ) <= 10000, true );
+
+// Custom fields land in the lead note under their label.
+configure();
+$custom_fields = Raynet_Lead_Form_Definition::sanitize_fields( array(
+	array( 'source' => 'email', 'required' => true ),
+	array( 'source' => 'message', 'required' => true ),
+	array( 'source' => 'custom', 'type' => 'text', 'label' => 'Odkud jste se o nás dozvěděli?' ),
+	array( 'source' => 'custom', 'type' => 'checkbox', 'label' => 'Chci newsletter' ),
+	array( 'source' => 'consent' ),
+) );
+$custom_form = Raynet_Lead_Form_Post_Type::create( 'S vlastními poli', $custom_fields, array() );
+
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":9}}' );
+$r = process( $form, valid_input( array(
+	'raynet_form_id' => (string) $custom_form,
+	'raynet_custom'  => array( $custom_fields[2]['id'] => 'Google' ),
+	'consent'        => '1',
+) ) );
+check( 'odesláno s vlastními poli', code( $r ), 'OK' );
+$sent = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'vlastní pole v poznámce',   str_contains( $sent['notice'], 'Odkud jste se o nás dozvěděli?: Google' ), true );
+check( 'nezaškrtnuté zaškrtávátko je odpověď', str_contains( $sent['notice'], 'Chci newsletter: ne' ), true );
+check( 'souhlas v poznámce',        str_contains( $sent['notice'], 'Souhlas' ), true );
+
+// A field the form does not declare cannot be smuggled in.
+configure();
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":10}}' );
+process( $form, valid_input( array(
+	'raynet_form_id' => (string) $custom_form,
+	'consent'        => '1',
+	'firstName'      => 'Podvrh',
+	'companyName'    => 'Podvržená s.r.o.',
+	'raynet_custom'  => array( 'f_zzzzzz' => 'cizí pole' ),
+) ) );
+$spoof = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'nedeklarované jméno se zahodí',  isset( $spoof['firstName'] ), false );
+check( 'nedeklarovaná firma se zahodí',  isset( $spoof['companyName'] ), false );
+check( 'cizí vlastní pole se zahodí',    str_contains( $spoof['notice'], 'cizí pole' ), false );
+
+// Per-form lead settings win over the global ones.
+configure( array( 'category' => '1', 'priority' => 'DEFAULT', 'tags' => 'globalni' ) );
+$tuned = Raynet_Lead_Form_Post_Type::create( 'Ceník', Raynet_Lead_Form_Definition::sanitize_fields( array(
+	array( 'source' => 'email', 'required' => true ),
+) ), array( 'category' => '5', 'owner' => '7', 'priority' => 'CRITICAL', 'tags' => 'cenik' ) );
+
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":11}}' );
+process( $form, valid_input( array( 'raynet_form_id' => (string) $tuned, 'consent' => '' ) ) );
+$tuned_payload = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'kategorie z formuláře', $tuned_payload['category'], 5 );
+check( 'vlastník z formuláře',  $tuned_payload['owner'], 7 );
+check( 'priorita z formuláře',  $tuned_payload['priority'], 'CRITICAL' );
+check( 'štítky z formuláře',    $tuned_payload['tags'], 'cenik' );
+
+// A form that inherits keeps the global values.
+configure( array( 'category' => '1', 'tags' => 'globalni' ) );
+$inherit = Raynet_Lead_Form_Post_Type::create( 'Dědí', Raynet_Lead_Form_Definition::sanitize_fields( array(
+	array( 'source' => 'email', 'required' => true ),
+) ), array() );
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":12}}' );
+process( $form, valid_input( array( 'raynet_form_id' => (string) $inherit, 'consent' => '' ) ) );
+$inherited = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'kategorie zděděna', $inherited['category'], 1 );
+check( 'štítky zděděny',    $inherited['tags'], 'globalni' );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
