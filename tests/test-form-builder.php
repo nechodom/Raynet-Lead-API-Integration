@@ -9,6 +9,7 @@ $raynet_includes = dirname( __DIR__ ) . '/raynet-lead-api-integration/includes/'
 require_once $raynet_includes . 'class-raynet-settings.php';
 require_once $raynet_includes . 'class-raynet-form-definition.php';
 require_once $raynet_includes . 'class-raynet-form-post-type.php';
+require_once $raynet_includes . 'class-raynet-form-renderer.php';
 
 $pass = 0; $fail = 0;
 function check( $label, $got, $want ) {
@@ -101,6 +102,40 @@ check( 'uložené pole prošlo sanitizací', Raynet_Lead_Form_Post_Type::get_fie
 $GLOBALS['wp_posts'][ $id ]['post_status'] = 'trash';
 check( 'formulář v koši = 0', Raynet_Lead_Form_Post_Type::resolve( 'kontakt' ), 0 );
 $GLOBALS['wp_posts'][ $id ]['post_status'] = 'publish';
+
+// ---------- Renderer ----------
+function mkfield( array $over ) {
+	return array_merge( array(
+		'id' => 'f_aaaaaa', 'source' => 'firstName', 'type' => 'text', 'label' => 'X',
+		'placeholder' => '', 'help' => '', 'required' => false, 'width' => 'full', 'options' => array(),
+	), $over );
+}
+
+$html = Raynet_Lead_Form_Renderer::render_fields( array(
+	mkfield( array( 'id' => 'f_aaaaaa', 'source' => 'firstName', 'type' => 'text', 'label' => 'Křestní', 'width' => 'half' ) ),
+	mkfield( array( 'id' => 'f_bbbbbb', 'source' => 'email', 'type' => 'email', 'label' => 'E-mail', 'placeholder' => 'a@b.cz', 'help' => 'Nápověda', 'required' => true ) ),
+	mkfield( array( 'id' => 'f_cccccc', 'source' => 'custom', 'type' => 'select', 'label' => 'Odkud?', 'options' => array( 'Google', 'Známý' ) ) ),
+	mkfield( array( 'id' => 'f_dddddd', 'source' => 'consent', 'type' => 'consent', 'label' => 'Souhlasím', 'required' => true ) ),
+), 'raynet-form-1' );
+
+check( 'atribut RAYNETu má své jméno',   str_contains( $html, 'name="firstName"' ), true );
+check( 'vlastní pole má jmenný prostor', str_contains( $html, 'name="raynet_custom[f_cccccc]"' ), true );
+check( 'souhlas se jmenuje consent',     str_contains( $html, 'name="consent"' ), true );
+check( 'popisek správce vyhrál',         str_contains( $html, 'Křestní' ), true );
+check( 'placeholder vykreslen',          str_contains( $html, 'placeholder="a@b.cz"' ), true );
+check( 'nápověda vykreslena',            str_contains( $html, 'Nápověda' ), true );
+check( 'povinné má required',            (bool) preg_match( '/name="email"[^>]*required/', $html ), true );
+check( 'nepovinné nemá required',        (bool) preg_match( '/name="firstName"[^>]*required/', $html ), false );
+check( 'půlená šířka má modifikátor',    str_contains( $html, 'raynet-lead-form__row--half' ), true );
+check( 'select má prázdnou + dvě volby', substr_count( $html, '<option' ), 3 );
+check( 'pořadí zachováno',               strpos( $html, 'name="firstName"' ) < strpos( $html, 'name="email"' ), true );
+check( 'nápověda propojena přes aria',   str_contains( $html, 'aria-describedby="raynet-form-1-f_bbbbbb-help"' ), true );
+
+$xss = Raynet_Lead_Form_Renderer::render_fields( array(
+	mkfield( array( 'source' => 'city', 'label' => '<script>alert(1)</script>', 'placeholder' => '"><script>x</script>' ) ),
+), 'uid' );
+check( 'popisek escapován',     str_contains( $xss, '<script' ), false );
+check( 'textarea je textarea',  str_contains( Raynet_Lead_Form_Renderer::render_fields( array( mkfield( array( 'source' => 'message', 'type' => 'textarea' ) ) ), 'u' ), '<textarea' ), true );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
