@@ -34,3 +34,25 @@
 	overflow-y: auto;
 	list-style: disc;
 }
+
+.raynet-update-status {
+	margin: 8px 0 4px;
+	color: #3c434a;
+}
+
+.raynet-update-result {
+	margin-left: 8px;
+}
+
+.raynet-update-result.is-success {
+	color: #1e7a3c;
+}
+
+.raynet-update-result.is-available {
+	color: #8a6116;
+	font-weight: 600;
+}
+
+.raynet-update-result.is-error {
+	color: #b32d2e;
+}

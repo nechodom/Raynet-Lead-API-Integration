@@ -12,6 +12,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - [Požadavky](#požadavky)
 - [Instalace](#instalace)
 - [Nastavení](#nastavení)
+- [Aktualizace](#aktualizace)
 - [Builder formulářů](#builder-formulářů)
 - [Vložení formuláře](#vložení-formuláře)
 - [Atributy zkratky](#atributy-zkratky)
@@ -39,6 +40,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - **Záložní e-mail** — když RAYNET lead nepřijme, poptávka dorazí na zadanou adresu a neztratí se.
 - **Skutečná kontrola chyb** — plugin rozlišuje HTTP 201, 401, 429 i výpadek spojení a chybu zapíše do logu.
 - **Hooky a filtry** pro úpravu payloadu i navázání vlastní logiky.
+- **Aktualizace přímo ve WordPressu** — plugin se hlásí o nové verze z GitHubu, včetně automatické aktualizace.
 - Plně lokalizovatelné, čeština v základu.
 
 ---
@@ -104,6 +106,25 @@ Priorita (`MINOR` / `DEFAULT` / `CRITICAL`), výchozí předmět, poznámka vkl�
 ### Chování formuláře
 
 Hlášky po odeslání i při chybě, přesměrování po úspěchu, text a povinnost souhlasu se zpracováním údajů, nastavení ochrany proti spamu, záložní e-mail, zapisování chyb do logu a mazání dat při odinstalaci.
+
+---
+
+## Aktualizace
+
+Plugin není na wordpress.org, takže si o nové verze říká sám — sleduje vydané verze v tomto repozitáři.
+
+V **RAYNET CRM → Nastavení → Aktualizace** vidíte nainstalovanou i poslední vydanou verzi a tlačítkem **Zkontrolovat aktualizace** se zeptáte hned. Jinak se plugin ptá dvakrát denně, spolu s tím, jak WordPress kontroluje ostatní pluginy.
+
+Nová verze se pak nabídne na stránce **Pluginy** jako u každého jiného pluginu, včetně odkazu **Zapnout automatické aktualizace**.
+
+### Co to dělá a co ne
+
+- Dotaz jde na veřejné API GitHubu, odpověď se drží 12 hodin v cache. Bez tokenu, bez odesílání čehokoliv o vašem webu.
+- Instaluje se výhradně archiv přiložený k vydané verzi na `github.com`. Odkaz kamkoliv jinam se odmítne.
+- Když je GitHub nedostupný nebo vyčerpá limit dotazů, kontrola tiše selže a stránka Pluginy funguje dál.
+- Kontrolu vypnete zaškrtávátkem v nastavení.
+
+> Verze 2.1.0 a starší tohle neumí. Z nich je potřeba na 2.2.0 přejít ručně; od ní už to jde z administrace.
 
 ---
 

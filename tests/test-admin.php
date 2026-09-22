@@ -14,7 +14,6 @@ function submit_button( $text = null ) { echo '<button type="submit">Uložit</bu
 function selected( $a, $b, $echo = true ) { $r = (string) $a === (string) $b ? " selected='selected'" : ''; if ( $echo ) { echo $r; } return $r; }
 function checked( $a, $b = true, $echo = true ) { $r = (string) $a === (string) $b ? " checked='checked'" : ''; if ( $echo ) { echo $r; } return $r; }
 function wp_date( $format, $ts = null ) { return date( $format, $ts ); }
-function plugin_basename( $file ) { return 'raynet-lead-api-integration/raynet-lead-api-integration.php'; }
 function add_menu_page( ...$a ) { return 'toplevel_page_raynet-lead-integration'; }
 function register_setting( ...$a ) {}
 function wp_enqueue_script( ...$a ) {}

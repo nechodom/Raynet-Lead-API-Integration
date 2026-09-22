@@ -2,8 +2,9 @@
 /**
  * Plugin Name:       Raynet Lead API Integration
  * Plugin URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
+ * Update URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
  * Description:       Builder formulářů, který odesílá poptávky do RAYNET CRM jako Leady přes REST API v2. Přihlašovací údaje nikdy neopustí server.
- * Version:           2.1.0
+ * Version:           2.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Matěj Kevin Nechodom
@@ -18,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'RAYNET_LEAD_VERSION', '2.1.0' );
+define( 'RAYNET_LEAD_VERSION', '2.2.0' );
 define( 'RAYNET_LEAD_FILE', __FILE__ );
 define( 'RAYNET_LEAD_PATH', plugin_dir_path( __FILE__ ) );
 define( 'RAYNET_LEAD_URL', plugin_dir_url( __FILE__ ) );
@@ -31,6 +32,7 @@ require_once RAYNET_LEAD_PATH . 'includes/class-raynet-api-client.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-lead-form.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-builder-admin.php';
+require_once RAYNET_LEAD_PATH . 'includes/class-raynet-updater.php';
 
 /**
  * Boots the plugin once all plugins are loaded.
@@ -50,6 +52,7 @@ function raynet_lead_bootstrap() {
 	Raynet_Lead_Form_Post_Type::maybe_migrate();
 
 	( new Raynet_Lead_Form() )->register();
+	( new Raynet_Lead_Updater() )->register();
 
 	if ( is_admin() ) {
 		( new Raynet_Lead_Admin() )->register();

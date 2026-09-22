@@ -66,6 +66,21 @@ function wp_insert_post( $args ) {
 	return $id;
 }
 
+defined( 'HOUR_IN_SECONDS' ) || define( 'HOUR_IN_SECONDS', 3600 );
+
+$GLOBALS['wp_site_transients'] = array();
+$GLOBALS['wp_http_queue']      = array();
+
+function plugin_basename( $file ) { return 'raynet-lead-api-integration/raynet-lead-api-integration.php'; }
+function get_site_transient( $key ) { return isset( $GLOBALS['wp_site_transients'][ $key ] ) ? $GLOBALS['wp_site_transients'][ $key ] : false; }
+function set_site_transient( $key, $value, $ttl = 0 ) { $GLOBALS['wp_site_transients'][ $key ] = $value; return true; }
+function delete_site_transient( $key ) { unset( $GLOBALS['wp_site_transients'][ $key ] ); return true; }
+function wp_remote_get( $url, $args = array() ) {
+	$GLOBALS['wp_requests'][] = array( 'url' => $url, 'args' => $args );
+	$next = array_shift( $GLOBALS['wp_http_queue'] );
+	return null === $next ? array( 'code' => 200, 'body' => '{}' ) : $next;
+}
+
 function get_transient( $key ) { return isset( $GLOBALS['wp_transients'][ $key ] ) ? $GLOBALS['wp_transients'][ $key ] : false; }
 function set_transient( $key, $value, $ttl = 0 ) { $GLOBALS['wp_transients'][ $key ] = $value; return true; }
 
@@ -132,5 +147,6 @@ require_once $raynet_includes . 'class-raynet-settings.php';
 require_once $raynet_includes . 'class-raynet-form-definition.php';
 require_once $raynet_includes . 'class-raynet-form-post-type.php';
 require_once $raynet_includes . 'class-raynet-form-renderer.php';
+require_once $raynet_includes . 'class-raynet-updater.php';
 require_once $raynet_includes . 'class-raynet-api-client.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';

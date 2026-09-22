@@ -89,6 +89,7 @@ class Raynet_Lead_Settings {
 			'redirect_url'      => '',
 			'fallback_email'    => '',
 			'log_errors'        => 1,
+			'updates_enabled'   => 1,
 			'delete_on_uninstall' => 0,
 		);
 	}
@@ -231,6 +232,7 @@ class Raynet_Lead_Settings {
 		$clean['fallback_email'] = is_email( $fallback ) ? $fallback : '';
 
 		$clean['log_errors']          = empty( $input['log_errors'] ) ? 0 : 1;
+		$clean['updates_enabled']     = empty( $input['updates_enabled'] ) ? 0 : 1;
 		$clean['delete_on_uninstall'] = empty( $input['delete_on_uninstall'] ) ? 0 : 1;
 
 		return $clean;

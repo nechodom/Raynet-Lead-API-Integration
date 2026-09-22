@@ -2,6 +2,26 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.2.0] — 2026-09-22
+
+### Přidáno
+
+- **Aktualizace z administrace.** Plugin sleduje vydané verze na GitHubu a novou nabídne na stránce Pluginy jako kterýkoliv jiný plugin — včetně odkazu „Zapnout automatické aktualizace“.
+- V nastavení přibyla sekce **Aktualizace**: nainstalovaná i poslední vydaná verze a tlačítko „Zkontrolovat aktualizace“.
+- Zaškrtávátko, kterým se kontrola vypne.
+
+### Poznámky k bezpečnosti
+
+- Instaluje se výhradně archiv přiložený k vydané verzi a stažený z `github.com`. Odkaz na jiný host se odmítne, takže podvržená odpověď API nemůže WordPressu podstrčit cizí archiv.
+- Zdrojový archiv GitHubu (`zipball`) se vědomě nepoužívá: jeho kořenová složka se jmenuje podle tagu a plugin by se nainstaloval do špatného adresáře.
+- Poznámky k vydání se v okně s detaily zobrazují escapované, ne jako HTML.
+- Odpověď se drží 12 hodin v cache, aby sdílená IP adresa nevyčerpala hodinový limit GitHubu. Neúspěšný dotaz se drží hodinu.
+- Hlavička `Update URI` brání tomu, aby aktualizaci převzal stejnojmenný plugin z wordpress.org.
+
+### Upgrade
+
+Verze 2.1.0 a starší updater neobsahují, proto se na 2.2.0 musí přejít ručně. Od ní už aktualizace běží z administrace.
+
 ## [2.1.0] — 2026-09-22
 
 Formulář se skládá v administraci, ne ve zkratce.

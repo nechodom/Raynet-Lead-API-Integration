@@ -32,6 +32,8 @@ foreach ( $raynet_options as $raynet_option ) {
 	delete_option( $raynet_option );
 }
 
+delete_site_transient( 'raynet_lead_latest_release' );
+
 // Forms are posts, so they take their meta with them.
 $raynet_forms = get_posts(
 	array(

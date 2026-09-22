@@ -79,9 +79,67 @@
 		} );
 	}
 
+	/**
+	 * Wires the "check for updates" button.
+	 */
+	function initUpdates() {
+		var button = document.getElementById( 'raynet-check-update' );
+		var output = document.getElementById( 'raynet-update-result' );
+
+		if ( ! button || ! output ) {
+			return;
+		}
+
+		button.addEventListener( 'click', function () {
+			button.disabled = true;
+			output.className = 'raynet-update-result';
+			output.textContent = config.checking || '';
+
+			var data = new FormData();
+			data.append( 'action', 'raynet_lead_check_update' );
+			data.append( 'nonce', config.updateNonce );
+
+			fetch( config.ajaxUrl, { method: 'POST', body: data, credentials: 'same-origin' } )
+				.then( function ( response ) {
+					return response.json();
+				} )
+				.then( function ( payload ) {
+					if ( ! payload || ! payload.success ) {
+						output.className = 'raynet-update-result is-error';
+						output.textContent = payload && payload.data && payload.data.message
+							? payload.data.message
+							: config.checkFailed;
+						return;
+					}
+
+					output.className = 'raynet-update-result ' + ( payload.data.available ? 'is-available' : 'is-success' );
+					output.textContent = payload.data.message;
+
+					if ( payload.data.available && payload.data.updateUrl ) {
+						var link = document.createElement( 'a' );
+						link.href = payload.data.updateUrl;
+						link.textContent = config.goToPlugins || '';
+						output.appendChild( document.createTextNode( ' ' ) );
+						output.appendChild( link );
+					}
+				} )
+				.catch( function () {
+					output.className = 'raynet-update-result is-error';
+					output.textContent = config.checkFailed;
+				} )
+				.then( function () {
+					button.disabled = false;
+				} );
+		} );
+	}
+
 	if ( 'loading' === document.readyState ) {
-		document.addEventListener( 'DOMContentLoaded', init );
+		document.addEventListener( 'DOMContentLoaded', function () {
+			init();
+			initUpdates();
+		} );
 	} else {
 		init();
+		initUpdates();
 	}
 })();

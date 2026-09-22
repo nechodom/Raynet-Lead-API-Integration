@@ -118,6 +118,10 @@ class Raynet_Lead_Admin {
 				'nonce'   => wp_create_nonce( 'raynet_lead_test_connection' ),
 				'testing' => __( 'Testuji spojení…', 'raynet-lead-api-integration' ),
 				'failed'  => __( 'Test spojení se nezdařil.', 'raynet-lead-api-integration' ),
+				'updateNonce'   => wp_create_nonce( 'raynet_lead_check_update' ),
+				'checking'      => __( 'Zjišťuji…', 'raynet-lead-api-integration' ),
+				'checkFailed'   => __( 'Kontrolu se nepodařilo provést.', 'raynet-lead-api-integration' ),
+				'goToPlugins'   => __( 'Přejít na Pluginy', 'raynet-lead-api-integration' ),
 			)
 		);
 	}
@@ -181,6 +185,7 @@ class Raynet_Lead_Admin {
 		}
 
 		$settings   = Raynet_Lead_Settings::all();
+		$updates    = ( new Raynet_Lead_Updater() )->status();
 		$option     = Raynet_Lead_Settings::OPTION;
 		$last_error = get_option( 'raynet_lead_last_error' );
 		?>
@@ -412,6 +417,44 @@ class Raynet_Lead_Admin {
 						<td>
 							<input type="email" class="regular-text" id="raynet-fallback-email" name="<?php echo esc_attr( $option ); ?>[fallback_email]" value="<?php echo esc_attr( $settings['fallback_email'] ); ?>" />
 							<p class="description"><?php esc_html_e( 'Když RAYNET lead nepřijme, pošle se obsah formuláře na tuto adresu, aby se poptávka neztratila.', 'raynet-lead-api-integration' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Aktualizace', 'raynet-lead-api-integration' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="<?php echo esc_attr( $option ); ?>[updates_enabled]" value="1" <?php checked( $settings['updates_enabled'], 1 ); ?> />
+								<?php esc_html_e( 'Nabízet aktualizace pluginu z GitHubu.', 'raynet-lead-api-integration' ); ?>
+							</label>
+
+							<p class="raynet-update-status">
+								<?php
+								printf(
+									/* translators: %s: version number. */
+									esc_html__( 'Nainstalovaná verze: %s', 'raynet-lead-api-integration' ),
+									'<strong>' . esc_html( $updates['current'] ) . '</strong>'
+								);
+								?>
+								<?php if ( '' !== $updates['latest'] ) : ?>
+									&nbsp;&middot;&nbsp;
+									<?php
+									printf(
+										/* translators: %s: version number. */
+										esc_html__( 'Poslední vydaná: %s', 'raynet-lead-api-integration' ),
+										'<strong>' . esc_html( $updates['latest'] ) . '</strong>'
+									);
+									?>
+								<?php endif; ?>
+							</p>
+
+							<p>
+								<button type="button" class="button" id="raynet-check-update"><?php esc_html_e( 'Zkontrolovat aktualizace', 'raynet-lead-api-integration' ); ?></button>
+								<span id="raynet-update-result" class="raynet-update-result"></span>
+							</p>
+
+							<p class="description">
+								<?php esc_html_e( 'Aktualizace se stahují z vydaných verzí na GitHubu. Samotnou instalaci spustíte na stránce Pluginy, kde lze zapnout i automatickou aktualizaci.', 'raynet-lead-api-integration' ); ?>
+							</p>
 						</td>
 					</tr>
 					<tr>
