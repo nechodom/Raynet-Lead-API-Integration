@@ -44,7 +44,7 @@ check( 'textarea je vždy celá šířka',  $fields[2]['width'], 'full' );
 $again = Raynet_Lead_Form_Definition::sanitize_fields( $fields );
 check( 'existující id se zachová', $again[0]['id'], $fields[0]['id'] );
 
-check( 'katalog má deset zdrojů + souhlas', count( Raynet_Lead_Form_Definition::catalogue() ), 11 );
+check( 'katalog: 10 atributů + celé jméno + souhlas', count( Raynet_Lead_Form_Definition::catalogue() ), 12 );
 check( 'výchozí sada kopíruje starou zkratku', count( Raynet_Lead_Form_Definition::default_fields() ), 7 );
 check( 'prázdný popisek se doplní z katalogu',
 	Raynet_Lead_Form_Definition::sanitize_fields( array( array( 'source' => 'city' ) ) )[0]['label'], 'Město' );
@@ -215,6 +215,182 @@ check( 'náhled má stále popisky',         str_contains( $preview, 'Odkud?' ),
 check( 'náhled má stále souhlas',         str_contains( $preview, 'Souhlasím' ), true );
 check( 'ostrý formulář má name',          str_contains( $live, 'name="email"' ), true );
 check( 'ostrý formulář nemá disabled',    str_contains( $live, 'disabled' ), false );
+
+// ---------- Rozdělení jména ----------
+$split = fn( $s ) => Raynet_Lead_Form_Definition::split_name( $s );
+
+check( 'dvě slova',          $split( 'Jan Novák' ), array( 'firstName' => 'Jan', 'lastName' => 'Novák' ) );
+check( 'tři slova',          $split( 'Jan Petr Novák' ), array( 'firstName' => 'Jan Petr', 'lastName' => 'Novák' ) );
+check( 'jedno slovo je příjmení', $split( 'Novák' ), array( 'firstName' => '', 'lastName' => 'Novák' ) );
+check( 'přebytečné mezery',  $split( '  Jan   Novák  ' ), array( 'firstName' => 'Jan', 'lastName' => 'Novák' ) );
+check( 'prázdné',            $split( '' ), array( 'firstName' => '', 'lastName' => '' ) );
+
+check( 'celé jméno je zdrojem leadu', Raynet_Lead_Form_Definition::is_lead_source( 'fullName' ), true );
+
+// Asking for the whole name and one of its halves at once is refused, because
+// one would overwrite the other.
+check( 'celé jméno + jméno se vyloučí',
+	count( Raynet_Lead_Form_Definition::sanitize_fields( array(
+		array( 'source' => 'fullName' ),
+		array( 'source' => 'firstName' ),
+	) ) ), 1 );
+check( 'jméno + celé jméno se vyloučí',
+	count( Raynet_Lead_Form_Definition::sanitize_fields( array(
+		array( 'source' => 'lastName' ),
+		array( 'source' => 'fullName' ),
+	) ) ), 1 );
+
+$nameform = new Raynet_Lead_Form();
+$vals = ( new ReflectionMethod( $nameform, 'collect_values' ) )->invoke( $nameform,
+	array( 'fullName' => 'Jan Novák' ),
+	Raynet_Lead_Form_Definition::sanitize_fields( array( array( 'source' => 'fullName' ) ) )
+);
+check( 'rozdělené jméno v hodnotách',   $vals['firstName'], 'Jan' );
+check( 'rozdělené příjmení v hodnotách', $vals['lastName'], 'Novák' );
+
+// The Elementor action maps by attribute name and passes no field list, so
+// both can arrive at once. The separately mapped one is the more deliberate
+// answer and wins.
+$vals2 = ( new ReflectionMethod( $nameform, 'collect_values' ) )->invoke( $nameform,
+	array( 'fullName' => 'Jan Novák', 'firstName' => 'Petr' )
+);
+check( 'samostatné jméno má přednost', $vals2['firstName'], 'Petr' );
+check( 'příjmení se doplní z rozdělení', $vals2['lastName'], 'Novák' );
+
+$vals3 = ( new ReflectionMethod( $nameform, 'collect_values' ) )->invoke( $nameform, array( 'fullName' => 'Eva Dvořáková' ) );
+check( 'celé jméno prochází i bez definice', $vals3['firstName'] . '/' . $vals3['lastName'], 'Eva/Dvořáková' );
+
+// ---------- Odhad mapování pro Elementor ----------
+function mapped_to( array $rows ) {
+	$out = array();
+	foreach ( $rows as $r ) {
+		if ( '' !== $r['local_id'] ) { $out[ $r['remote_id'] ] = $r['local_id']; }
+	}
+	return $out;
+}
+
+$guess = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'f1', 'type' => 'text',     'label' => 'Jméno' ),
+	array( 'id' => 'f2', 'type' => 'text',     'label' => 'Příjmení' ),
+	array( 'id' => 'f3', 'type' => 'email',    'label' => 'Kontakt na vás' ),
+	array( 'id' => 'f4', 'type' => 'tel',      'label' => 'Číslo' ),
+	array( 'id' => 'f5', 'type' => 'textarea', 'label' => 'O co jde' ),
+	array( 'id' => 'f6', 'type' => 'text',     'label' => 'Firma' ),
+) ) );
+
+check( 'typ email rozhodne',    $guess['email'], 'f3' );
+check( 'typ tel rozhodne',      $guess['phone'], 'f4' );
+check( 'typ textarea rozhodne', $guess['message'], 'f5' );
+check( 'popisek Jméno',         $guess['firstName'], 'f1' );
+check( 'popisek Příjmení',      $guess['lastName'], 'f2' );
+check( 'popisek Firma',         $guess['companyName'], 'f6' );
+
+// Diacritics must not matter, and one field cannot feed two attributes.
+$guess2 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'a', 'type' => 'text', 'label' => 'PSČ' ),
+	array( 'id' => 'b', 'type' => 'text', 'label' => 'Město' ),
+	array( 'id' => 'c', 'type' => 'text', 'label' => 'Ulice a číslo popisné' ),
+) ) );
+check( 'PSČ bez diakritiky', $guess2['zipCode'], 'a' );
+check( 'Město',              $guess2['city'], 'b' );
+check( 'Ulice',              $guess2['street'], 'c' );
+
+// A single name box maps to the whole-name attribute, not to one half.
+$guess3 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'n', 'type' => 'text',  'label' => 'Jméno a příjmení' ),
+	array( 'id' => 'e', 'type' => 'email', 'label' => 'E-mail' ),
+) ) );
+check( 'celé jméno rozpoznáno',   $guess3['fullName'], 'n' );
+check( 'nenastavuje se firstName', isset( $guess3['firstName'] ), false );
+
+// With both halves present the whole-name row is dropped, so nothing overwrites.
+$guess4 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'x', 'type' => 'text', 'label' => 'Celé jméno' ),
+	array( 'id' => 'y', 'type' => 'text', 'label' => 'Příjmení' ),
+) ) );
+check( 'při konfliktu vyhraje půlka', isset( $guess4['fullName'] ), false );
+check( 'příjmení zůstává',            $guess4['lastName'], 'y' );
+
+$all = Raynet_Elementor_Forms::auto_map( array() );
+check( 'vždy 11 řádků',       count( $all ), 11 );
+check( 'souhlas není v mapě', in_array( 'consent', array_column( $all, 'remote_id' ), true ), false );
+check( 'řádky nesou popisek', ! empty( $all[0]['remote_label'] ), true );
+check( 'řádky nesou typ',     $all[0]['remote_type'], 'text' );
+
+// configure() turns the action on and writes the lead settings through.
+$configured = Raynet_Elementor_Forms::configure(
+	array( 'form_fields' => array( array( 'custom_id' => 'e', 'field_type' => 'email', 'field_label' => 'E-mail' ) ) ),
+	array( 'priority' => 'CRITICAL', 'category' => '5', 'tags' => 'web' ),
+	true
+);
+check( 'akce zapnuta',        in_array( 'raynet_crm', $configured['submit_actions'], true ), true );
+check( 'priorita zapsána',    $configured['raynet_crm_priority'], 'CRITICAL' );
+check( 'kategorie zapsána',   $configured['raynet_crm_category'], '5' );
+check( 'nula = zdědit',       $configured['raynet_crm_owner'], '' );
+check( 'mapa vytvořena',      mapped_to( $configured['raynet_crm_fields_map'] )['email'], 'e' );
+
+$twice = Raynet_Elementor_Forms::configure( $configured, array(), false );
+check( 'akce se nezdvojí', count( array_keys( $twice['submit_actions'], 'raynet_crm', true ) ), 1 );
+
+// ---------- Nálezy z adversariálního review ----------
+
+// Zaškrtávátko souhlasu nesmí ukrást e-mail jen proto, že má v popisku "mail".
+$r3 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'ok',   'type' => 'acceptance', 'label' => 'Chci dostávat novinky e-mailem' ),
+	array( 'id' => 'mail', 'type' => 'text',       'label' => 'Váš e-mail' ),
+	array( 'id' => 'tel',  'type' => 'tel',        'label' => 'Telefon' ),
+) ) );
+check( 'souhlas neukradne e-mail', $r3['email'], 'mail' );
+check( 'souhlas se nemapuje',      in_array( 'ok', $r3, true ), false );
+
+// "Vaše jméno" + "Vaše příjmení" musí dát obě půlky, ne celé jméno.
+$r4 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'a', 'type' => 'text',     'label' => 'Vaše jméno' ),
+	array( 'id' => 'b', 'type' => 'text',     'label' => 'Vaše příjmení' ),
+	array( 'id' => 'c', 'type' => 'email',    'label' => 'E-mail' ),
+	array( 'id' => 'd', 'type' => 'textarea', 'label' => 'Zpráva' ),
+) ) );
+check( 'jméno zvlášť',        $r4['firstName'], 'a' );
+check( 'příjmení zvlášť',     $r4['lastName'], 'b' );
+check( 'celé jméno se nepoužije', isset( $r4['fullName'] ), false );
+
+// Dvě textarea: rozhodne popisek, ne pořadí.
+$r5 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'addr', 'type' => 'textarea', 'label' => 'Fakturační adresa' ),
+	array( 'id' => 'msg',  'type' => 'textarea', 'label' => 'Vaše zpráva' ),
+	array( 'id' => 'e',    'type' => 'email',    'label' => 'E-mail' ),
+) ) );
+check( 'zpráva podle popisku', $r5['message'], 'msg' );
+check( 'adresa podle popisku', $r5['street'], 'addr' );
+
+// "E-mailová adresa" nesmí skončit jako ulice, ani když e-mail zabral jiný.
+$r6 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'mail1', 'type' => 'text',  'label' => 'E-mailová adresa' ),
+	array( 'id' => 'mail2', 'type' => 'email', 'label' => 'Potvrzení e-mailu' ),
+	array( 'id' => 'tel',   'type' => 'tel',   'label' => 'Telefon' ),
+) ) );
+check( 'e-mailová adresa není ulice', isset( $r6['street'] ), false );
+check( 'e-mail namapován',            $r6['email'], 'mail1' );
+
+// "Obecné poznámky" je zpráva, ne město.
+$r7 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
+	array( 'id' => 'note', 'type' => 'text',  'label' => 'Obecné poznámky' ),
+	array( 'id' => 'e',    'type' => 'email', 'label' => 'E-mail' ),
+) ) );
+check( 'poznámky jsou zpráva', $r7['message'], 'note' );
+check( 'nejsou město',         isset( $r7['city'] ), false );
+
+// Celé slovo versus kmen.
+check( 'město se pozná',      mapped_to( Raynet_Elementor_Forms::auto_map( array( array( 'id' => 'm', 'type' => 'text', 'label' => 'Město' ) ) ) )['city'], 'm' );
+check( 'obec se pozná',       mapped_to( Raynet_Elementor_Forms::auto_map( array( array( 'id' => 'o', 'type' => 'text', 'label' => 'Obec' ) ) ) )['city'], 'o' );
+check( 'poznámka i poznámky', mapped_to( Raynet_Elementor_Forms::auto_map( array( array( 'id' => 'p', 'type' => 'text', 'label' => 'Poznámka' ) ) ) )['message'], 'p' );
+
+// Jedno pole namapované na celé jméno i na jméno nesmí zdvojit příjmení.
+$dup = ( new ReflectionMethod( $nameform, 'collect_values' ) )->invoke( $nameform,
+	array( 'fullName' => 'Jan Novák', 'firstName' => 'Jan Novák' )
+);
+check( 'dvojí mapování nezdvojí', $dup['firstName'], 'Jan' );
+check( 'příjmení z rozdělení',    $dup['lastName'], 'Novák' );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

@@ -33,6 +33,14 @@ class Raynet_Lead_Form_Definition {
 	);
 
 	/**
+	 * Sources that feed a lead attribute without being one themselves.
+	 *
+	 * A form that asks for the whole name in one box still has to arrive in
+	 * RAYNET as firstName and lastName.
+	 */
+	const DERIVED_SOURCES = array( 'fullName' );
+
+	/**
 	 * Input types a custom field may choose.
 	 */
 	const CUSTOM_TYPES = array( 'text', 'textarea', 'select', 'checkbox' );
@@ -51,6 +59,7 @@ class Raynet_Lead_Form_Definition {
 	 */
 	public static function catalogue() {
 		return array(
+			'fullName'    => array( 'label' => __( 'Jméno a příjmení', 'raynet-lead-api-integration' ), 'autocomplete' => 'name' ),
 			'firstName'   => array( 'label' => __( 'Jméno', 'raynet-lead-api-integration' ), 'autocomplete' => 'given-name' ),
 			'lastName'    => array( 'label' => __( 'Příjmení', 'raynet-lead-api-integration' ), 'autocomplete' => 'family-name' ),
 			'companyName' => array( 'label' => __( 'Společnost', 'raynet-lead-api-integration' ), 'autocomplete' => 'organization' ),
@@ -93,13 +102,50 @@ class Raynet_Lead_Form_Definition {
 	}
 
 	/**
-	 * Tells whether a source feeds a RAYNET lead attribute.
+	 * Tells whether a source feeds the lead, directly or after a split.
 	 *
 	 * @param string $source Field source.
-	 * @return bool True for the ten mapped attributes.
+	 * @return bool True for a mapped attribute or a derived one.
 	 */
 	public static function is_lead_source( $source ) {
-		return in_array( $source, self::SOURCES, true );
+		return in_array( $source, self::SOURCES, true )
+			|| in_array( $source, self::DERIVED_SOURCES, true );
+	}
+
+	/**
+	 * Splits a whole name into the two attributes RAYNET stores.
+	 *
+	 * The last word is the surname and everything before it the given name, so
+	 * "Jan Novák" and "Jan Petr Novák" both land correctly. A single word
+	 * becomes the surname: that is the field a CRM is searched by.
+	 *
+	 * @param string $full Name as the visitor typed it.
+	 * @return array{firstName:string,lastName:string} The two parts.
+	 */
+	public static function split_name( $full ) {
+		$full = trim( preg_replace( '/\s+/u', ' ', (string) $full ) );
+
+		if ( '' === $full ) {
+			$parts = array( 'firstName' => '', 'lastName' => '' );
+		} else {
+			$words = explode( ' ', $full );
+			$last  = array_pop( $words );
+			$parts = array(
+				'firstName' => implode( ' ', $words ),
+				'lastName'  => $last,
+			);
+		}
+
+		/**
+		 * Filters how a single name field is split.
+		 *
+		 * Useful where the form asks for "Příjmení a jméno", or where titles
+		 * have to be stripped first.
+		 *
+		 * @param array{firstName:string,lastName:string} $parts The split.
+		 * @param string                                  $full  The original value.
+		 */
+		return apply_filters( 'raynet_lead_split_name', $parts, $full );
 	}
 
 	/**
@@ -154,6 +200,16 @@ class Raynet_Lead_Form_Definition {
 		$known = 'custom' === $source || isset( $catalogue[ $source ] );
 
 		if ( ! $known || in_array( $source, $used, true ) ) {
+			return null;
+		}
+
+		// Asking for the whole name and its halves at once would overwrite one
+		// with the other.
+		if ( 'fullName' === $source && ( in_array( 'firstName', $used, true ) || in_array( 'lastName', $used, true ) ) ) {
+			return null;
+		}
+
+		if ( in_array( $source, array( 'firstName', 'lastName' ), true ) && in_array( 'fullName', $used, true ) ) {
 			return null;
 		}
 

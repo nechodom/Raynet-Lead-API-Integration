@@ -2,6 +2,40 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.4.0] — 2026-09-22
+
+### Přidáno
+
+- **Jedno pole pro celé jméno.** V mapování přibyl atribut **Jméno a příjmení**. Namapujete na něj jediné pole a plugin ho rozdělí: poslední slovo je příjmení, všechno před ním jméno. Jedno slovo se bere jako příjmení, protože podle něj se v CRM vyhledává. Funguje ve zkratce i v Elementoru.
+
+  Namapovat současně celé jméno i jednu z jeho půlek nejde — jedno by přepsalo druhé. Builder takovou kombinaci odmítne, v Elementoru vyhraje samostatně namapovaná půlka. Pravidlo dělení jde přepsat filtrem `raynet_lead_split_name`.
+
+- **Obrazovka RAYNET CRM → Elementor formuláře.** Vypíše každý formulář Elementoru na webu — stránku, název, pole a jestli u něj RAYNET běží, s odkazem do editoru.
+
+- **Šablony.** Pojmenovaná sada nastavení leadu, kterou lze hromadně nasadit na vybrané formuláře. U každého se zapne akce RAYNET CRM a vyplní se nastavení ze šablony.
+
+- **Odhad mapování.** Při nasazení se pole přiřadí k atributům automaticky: nejdřív podle typu pole (Email → E-mail, Tel → Telefon, Textarea → Zpráva), pak podle popisku, bez ohledu na diakritiku. Jedno pole nikdy neobsadí dva atributy a kombinace celého jména s jeho půlkou se rozpouští ve prospěch půlek.
+
+- **Záloha a návrat.** Nasazení zapisuje do `_elementor_data`, tedy do obsahu stránek. Předchozí podoba se uloží a v tabulce se objeví odkaz Vrátit zpět. Záloha je jedna na stránku; druhé nasazení tu první přepíše.
+
+### Bezpečnost dat
+
+Zápis do `_elementor_data` prošel nezávislým adversariálním review, které našlo 14 potvrzených chyb. Všechny jsou opravené a pokryté testy. Dvě z nich byly kritické:
+
+- **Druhé nasazení přepsalo zálohu tou už změněnou.** Stránka se dvěma formuláři se v jednom odeslání nastavuje dvakrát; první zápis uložil původní podobu, druhý ji nahradil polovičatou. Záloha se nově zapisuje jen tehdy, když ještě žádná není, a nasazení se seskupuje po stránkách, takže se stránka zapisuje jednou.
+- **Vrácení přepsalo i novější úpravy.** „Vrátit zpět" vracelo uloženou podobu bez ohledu na to, co se se stránkou dělo mezitím — týdenní práce v Elementoru zmizela bez varování. Plugin si teď u zápisu poznamená otisk a při vracení pozná, že se stránka od té doby změnila. Odmítne to a vysvětlí proč; pokračovat jde jen po výslovném potvrzení. Vrácení je navíc POST, ne odkaz.
+
+### Opraveno
+
+- **Odhad mapování přepsán.** Rozhoduje popisek, teprve pak typ pole, takže formulář se dvěma poli typu textarea už nedá do zprávy fakturační adresu. Pole se přiřadí atributu, kterému jeho popisek sedí nejlépe, takže „E-mailová adresa" neskončí jako ulice. Zaškrtávátka, nahrávání souborů a reCAPTCHA se přeskakují, takže souhlas s popiskem „Chci novinky e-mailem" neukradne e-mail. Fragmenty se párují na celá slova nebo kmeny: „Obecné poznámky" je zpráva, ne město, a „Poznámky" se pozná stejně jako „Poznámka".
+- „Vaše jméno" a „Vaše příjmení" se namapují jako dvě půlky. Dřív první z nich spolkl atribut celého jména a druhé pole zůstalo nenamapované.
+- V Elementoru chyběl v mapování řádek **Jméno a příjmení**. Kdo akci zapínal ručně místo hromadně, neměl jak jediné pole rozdělit.
+- Prázdné ID widgetu se chovalo jako zástupný znak a přenastavilo všechny formuláře na stránce. Nově se odmítne.
+- Hromadné nasazení zahazovalo chyby a hlásilo jen počet úspěchů. Teď počítá i neúspěchy a upozorní na ně.
+- Chybová hláška se brala z adresního řádku. Nešlo o XSS, ale kdo přiměl správce kliknout na upravený odkaz, mohl mu podstrčit vlastní text ve WordPressové hlášce. Putuje jen kód, text je v pluginu.
+- Jedno pole namapované zároveň na celé jméno i na jméno zapsalo do jména „Jan Novák" místo „Jan".
+- Styl administrace se načítal jen na stránce nastavení, takže nová obrazovka byla bez layoutu.
+
 ## [2.3.1] — 2026-09-22
 
 ### Opraveno

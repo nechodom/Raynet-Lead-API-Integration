@@ -22,9 +22,10 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 	/**
 	 * Key in the registry and value inside `submit_actions`.
 	 *
-	 * Elementor compares it strictly, so it has to match character for character.
+	 * Elementor compares it strictly, so it has to match character for
+	 * character. The scanner owns the value because it loads without Elementor.
 	 */
-	const ACTION_NAME = 'raynet_crm';
+	const ACTION_NAME = Raynet_Elementor_Forms::ACTION_NAME;
 
 	/**
 	 * Action name, as stored on the form.
@@ -56,13 +57,18 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 	 * @return array<int,array<string,string>> Rows for the Fields_Map control.
 	 */
 	private function remote_fields() {
-		$catalogue = Raynet_Lead_Form_Definition::catalogue();
-		$rows      = array();
+		$rows = array();
 
-		foreach ( Raynet_Lead_Form_Definition::SOURCES as $source ) {
+		// Walk the catalogue rather than SOURCES, so the derived whole-name row
+		// is offered here exactly as the bulk-apply screen offers it.
+		foreach ( Raynet_Lead_Form_Definition::catalogue() as $source => $meta ) {
+			if ( 'consent' === $source ) {
+				continue;
+			}
+
 			$rows[] = array(
 				'remote_id'    => $source,
-				'remote_label' => $catalogue[ $source ]['label'],
+				'remote_label' => $meta['label'],
 				'remote_type'  => 'text',
 			);
 		}

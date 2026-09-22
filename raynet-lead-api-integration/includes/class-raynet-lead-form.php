@@ -595,8 +595,11 @@ class Raynet_Lead_Form {
 	 * @return array<string,string> Sanitized values.
 	 */
 	public function collect_values( array $input, array $fields = array() ) {
-		$values  = array();
-		$allowed = self::SUPPORTED_FIELDS;
+		$values = array();
+
+		// With no definition every attribute is allowed, the derived ones too:
+		// the Elementor action maps by attribute name and has no field list.
+		$allowed = array_merge( self::SUPPORTED_FIELDS, Raynet_Lead_Form_Definition::DERIVED_SOURCES );
 
 		if ( ! empty( $fields ) ) {
 			$allowed = array();
@@ -607,6 +610,10 @@ class Raynet_Lead_Form {
 				}
 			}
 		}
+
+		$whole_name = in_array( 'fullName', $allowed, true ) && isset( $input['fullName'] )
+			? (string) $input['fullName']
+			: '';
 
 		foreach ( self::SUPPORTED_FIELDS as $field ) {
 			$raw = in_array( $field, $allowed, true ) && isset( $input[ $field ] )
@@ -619,6 +626,22 @@ class Raynet_Lead_Form {
 				$values[ $field ] = sanitize_email( trim( $raw ) );
 			} else {
 				$values[ $field ] = mb_substr( sanitize_text_field( $raw ), 0, 255 );
+			}
+		}
+
+		if ( '' !== trim( $whole_name ) ) {
+			$split = Raynet_Lead_Form_Definition::split_name( sanitize_text_field( $whole_name ) );
+
+			$whole = trim( sanitize_text_field( $whole_name ) );
+
+			// A separately asked first or last name is the more deliberate
+			// answer, so it wins over the split. The exception is the same field
+			// mapped twice, which arrives as the whole name in both slots and
+			// would otherwise put "Jan Novák" in firstName.
+			foreach ( array( 'firstName', 'lastName' ) as $part ) {
+				if ( '' === $values[ $part ] || $values[ $part ] === $whole ) {
+					$values[ $part ] = mb_substr( $split[ $part ], 0, 255 );
+				}
 			}
 		}
 

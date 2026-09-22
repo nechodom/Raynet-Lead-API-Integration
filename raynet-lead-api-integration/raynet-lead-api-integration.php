@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
  * Update URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
  * Description:       Builder formulářů, který odesílá poptávky do RAYNET CRM jako Leady přes REST API v2. Přihlašovací údaje nikdy neopustí server.
- * Version:           2.3.1
+ * Version:           2.4.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Matěj Kevin Nechodom
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-defined( 'RAYNET_LEAD_VERSION' ) || define( 'RAYNET_LEAD_VERSION', '2.3.1' );
+defined( 'RAYNET_LEAD_VERSION' ) || define( 'RAYNET_LEAD_VERSION', '2.4.0' );
 defined( 'RAYNET_LEAD_FILE' ) || define( 'RAYNET_LEAD_FILE', __FILE__ );
 defined( 'RAYNET_LEAD_PATH' ) || define( 'RAYNET_LEAD_PATH', plugin_dir_path( __FILE__ ) );
 defined( 'RAYNET_LEAD_URL' ) || define( 'RAYNET_LEAD_URL', plugin_dir_url( __FILE__ ) );
@@ -33,6 +33,8 @@ require_once RAYNET_LEAD_PATH . 'includes/class-raynet-lead-form.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-builder-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-updater.php';
+require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms.php';
+require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms-admin.php';
 
 /**
  * Boots the plugin once all plugins are loaded.
@@ -54,6 +56,7 @@ function raynet_lead_bootstrap() {
 	if ( is_admin() ) {
 		( new Raynet_Lead_Admin() )->register();
 		( new Raynet_Lead_Form_Builder_Admin() )->register();
+		( new Raynet_Elementor_Forms_Admin() )->register();
 	}
 }
 add_action( 'plugins_loaded', 'raynet_lead_bootstrap' );

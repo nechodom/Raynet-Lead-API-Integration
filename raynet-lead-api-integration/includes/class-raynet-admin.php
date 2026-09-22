@@ -111,7 +111,8 @@ class Raynet_Lead_Admin {
 		// described in add_menu(), so match on the page instead.
 		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only screen check.
 
-		if ( self::PAGE !== $page ) {
+		// The Elementor forms screen shares this stylesheet.
+		if ( ! in_array( $page, array( self::PAGE, Raynet_Elementor_Forms_Admin::PAGE ), true ) ) {
 			return;
 		}
 
@@ -121,6 +122,10 @@ class Raynet_Lead_Admin {
 			array(),
 			RAYNET_LEAD_VERSION
 		);
+
+		if ( self::PAGE !== $page ) {
+			return;
+		}
 
 		wp_enqueue_script(
 			'raynet-lead-admin',

@@ -56,3 +56,73 @@
 .raynet-update-result.is-error {
 	color: #b32d2e;
 }
+
+/* The Elementor forms screen: templates beside the list of forms found. */
+.raynet-elm {
+	display: flex;
+	gap: 28px;
+	align-items: flex-start;
+	margin-top: 16px;
+}
+
+.raynet-elm__templates {
+	flex: 0 0 420px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 4px 20px 16px;
+}
+
+.raynet-elm__forms {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.raynet-elm__template-list {
+	margin: 0 0 16px;
+	padding-left: 18px;
+	list-style: disc;
+}
+
+.raynet-elm__on {
+	color: #1e7a3c;
+	font-weight: 600;
+}
+
+.raynet-elm__off {
+	color: #646970;
+}
+
+.raynet-elm__apply {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-top: 14px;
+}
+
+@media (max-width: 1200px) {
+	.raynet-elm {
+		flex-direction: column;
+	}
+
+	.raynet-elm__templates {
+		flex: 1 1 auto;
+		width: 100%;
+		box-sizing: border-box;
+	}
+}
+
+.raynet-elm__hidden-form {
+	display: none;
+}
+
+.raynet-elm__undo {
+	color: #b32d2e;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.raynet-elm__stale {
+	color: #8a6116;
+}

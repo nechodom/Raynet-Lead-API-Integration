@@ -97,6 +97,11 @@ function sanitize_text_field( $str ) { return trim( preg_replace( '/[\r\n\t]+|<[
 function sanitize_textarea_field( $str ) { return trim( preg_replace( '/<[^>]*>/', '', (string) $str ) ); }
 function sanitize_email( $email ) { return trim( (string) $email ); }
 function sanitize_key( $key ) { return strtolower( preg_replace( '/[^a-z0-9_\-]/i', '', (string) $key ) ); }
+function remove_accents( $s ) {
+	$map = array( 'á'=>'a','č'=>'c','ď'=>'d','é'=>'e','ě'=>'e','í'=>'i','ň'=>'n','ó'=>'o','ř'=>'r','š'=>'s','ť'=>'t','ú'=>'u','ů'=>'u','ý'=>'y','ž'=>'z',
+		'Á'=>'A','Č'=>'C','Ď'=>'D','É'=>'E','Ě'=>'E','Í'=>'I','Ň'=>'N','Ó'=>'O','Ř'=>'R','Š'=>'S','Ť'=>'T','Ú'=>'U','Ů'=>'U','Ý'=>'Y','Ž'=>'Z' );
+	return strtr( (string) $s, $map );
+}
 function sanitize_title( $t ) { return trim( strtolower( preg_replace( '/[^a-z0-9_-]+/i', '-', trim( (string) $t ) ) ), '-' ); }
 function absint( $v ) { return abs( (int) $v ); }
 function esc_url_raw( $url ) { return filter_var( (string) $url, FILTER_VALIDATE_URL ) ? (string) $url : ''; }
@@ -168,5 +173,6 @@ require_once $raynet_includes . 'class-raynet-form-definition.php';
 require_once $raynet_includes . 'class-raynet-form-post-type.php';
 require_once $raynet_includes . 'class-raynet-form-renderer.php';
 require_once $raynet_includes . 'class-raynet-updater.php';
+require_once $raynet_includes . 'elementor/class-raynet-elementor-forms.php';
 require_once $raynet_includes . 'class-raynet-api-client.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';

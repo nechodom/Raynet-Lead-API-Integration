@@ -157,6 +157,12 @@ check( 'tlačítko testu spojení', false !== strpos( $settings['body'], 'id="ra
 check( 'tlačítko kontroly aktualizací', false !== strpos( $settings['body'], 'id="raynet-check-update"' ), true );
 check( 'skript administrace načten', false !== strpos( $settings['body'], 'raynet-lead-admin.js' ), true );
 
+$elm_screen = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true );
+check( 'obrazovka Elementor formulářů se načte', $elm_screen['status'], 200 );
+check( 'obrazovka má styl', false !== strpos( $elm_screen['body'], 'raynet-lead-admin.css' ), true );
+check( 'obrazovka má tabulku', false !== strpos( $elm_screen['body'], 'raynet-elm__forms' ), true );
+check( 'obrazovka nabízí šablonu', false !== strpos( $elm_screen['body'], 'template_name' ), true );
+
 $list = req( '/wp-admin/edit.php?post_type=raynet_form', null, true );
 check( 'seznam formulářů se načte', $list['status'], 200 );
 check( 'seznam ukazuje zkratku', false !== strpos( $list['body'], 'raynet_lead_form id=' ), true );
@@ -365,7 +371,10 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 					check( 'repeater zná ' . $needed, in_array( $needed, $repeater_keys, true ), true );
 				}
 
-				check( 'nabízí deset atributů', count( $map_control['default'] ), 10 );
+				// The whole-name row has to be offered by hand as well as by the
+				// bulk screen, or a single name field cannot be split there.
+				check( 'nabízí i celé jméno', in_array( 'fullName', array_column( $map_control['default'], 'remote_id' ), true ), true );
+				check( 'nabízí jedenáct atributů', count( $map_control['default'] ), 11 );
 				check( 'atributy nesou popisek', ! empty( $map_control['default'][0]['remote_label'] ), true );
 
 				// A row declaring anything but text would make Elementor's editor
@@ -486,19 +495,17 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 
 		// The exception carries the diagnostic, which Elementor shows to admins
 		// only; the visitor sees the form's own error message.
-		add_filter(
-			'pre_http_request',
-			function () {
-				return array(
-					'headers'  => array(),
-					'cookies'  => array(),
-					'filename' => null,
-					'body'     => wp_json_encode( array( 'message' => 'bad creds' ) ),
-					'response' => array( 'code' => 401, 'message' => 'Unauthorized' ),
-				);
-			},
-			5
-		);
+		$fail_http = function () {
+			return array(
+				'headers'  => array(),
+				'cookies'  => array(),
+				'filename' => null,
+				'body'     => wp_json_encode( array( 'message' => 'bad creds' ) ),
+				'response' => array( 'code' => 401, 'message' => 'Unauthorized' ),
+			);
+		};
+
+		add_filter( 'pre_http_request', $fail_http, 5 );
 
 		$failed_msg = '';
 
@@ -510,6 +517,177 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 
 		check( 'selhání API vyhodí výjimku', '' !== $failed_msg, true );
 		check( 'výjimka nese diagnostiku', false !== strpos( $failed_msg, '401' ), true );
+
+		// Everything after this point expects RAYNET to accept leads again.
+		remove_filter( 'pre_http_request', $fail_http, 5 );
+
+		// --- Scanning, applying a template and rolling back -----------------
+		$scan_page = (int) wp_insert_post(
+			array(
+				'post_type'   => 'page',
+				'post_title'  => 'Skenovaná stránka',
+				'post_status' => 'publish',
+			)
+		);
+
+		$widget_id = 'scanform';
+		$layout    = array(
+			array(
+				'id'       => 'scancont',
+				'elType'   => 'container',
+				'settings' => array(),
+				'elements' => array(
+					array(
+						'id'         => $widget_id,
+						'elType'     => 'widget',
+						'widgetType' => 'form',
+						'settings'   => array(
+							'form_name'   => 'Skenovaný',
+							'form_fields' => array(
+								array( '_id' => 's1', 'custom_id' => 's1', 'field_type' => 'text', 'field_label' => 'Jméno a příjmení' ),
+								array( '_id' => 's2', 'custom_id' => 's2', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+								array( '_id' => 's3', 'custom_id' => 's3', 'field_type' => 'textarea', 'field_label' => 'Zpráva' ),
+							),
+						),
+						'elements'   => array(),
+					),
+				),
+			),
+		);
+
+		update_post_meta( $scan_page, '_elementor_data', wp_slash( wp_json_encode( $layout ) ) );
+
+		$found = Raynet_Elementor_Forms::forms_in_post( $scan_page );
+		check( 'sken najde formulář', count( $found ), 1 );
+
+		if ( $found ) {
+			check( 'sken zná název', $found[0]['form_name'], 'Skenovaný' );
+			check( 'sken zná pole', count( $found[0]['fields'] ), 3 );
+			check( 'sken vidí vypnuto', $found[0]['enabled'], false );
+		}
+
+		check( 'sken celého webu najde i tenhle', count( Raynet_Elementor_Forms::scan() ) >= 1, true );
+
+		$applied = Raynet_Elementor_Forms::apply(
+			$scan_page,
+			$widget_id,
+			array( 'priority' => 'CRITICAL', 'category' => '9', 'tags' => 'sablona' ),
+			true
+		);
+
+		check( 'nasazení proběhlo', is_wp_error( $applied ), false );
+
+		$after = Raynet_Elementor_Forms::forms_in_post( $scan_page );
+		check( 'po nasazení zapnuto', $after[0]['enabled'], true );
+		check( 'po nasazení namapováno', $after[0]['mapped'] >= 3, true );
+		check( 'záloha existuje', Raynet_Elementor_Forms::has_backup( $scan_page ), true );
+
+		// The whole-name box has to reach RAYNET as two attributes.
+		$saved   = json_decode( get_post_meta( $scan_page, '_elementor_data', true ), true );
+		$applied_settings = $saved[0]['elements'][0]['settings'];
+		$applied_map      = array();
+
+		foreach ( $applied_settings['raynet_crm_fields_map'] as $row ) {
+			if ( ! empty( $row['local_id'] ) ) {
+				$applied_map[ $row['remote_id'] ] = $row['local_id'];
+			}
+		}
+
+		check( 'celé jméno namapováno', isset( $applied_map['fullName'] ) ? $applied_map['fullName'] : '', 's1' );
+		check( 'e-mail namapován', isset( $applied_map['email'] ) ? $applied_map['email'] : '', 's2' );
+		check( 'priorita v datech', $applied_settings['raynet_crm_priority'], 'CRITICAL' );
+		check( 'kategorie v datech', $applied_settings['raynet_crm_category'], '9' );
+
+		// A submission through that configuration splits the name.
+		update_option( 'raynet_test_http_calls', array() );
+
+		$scan_record = new class( $applied_settings, array(
+			's1' => array( 'value' => 'Jan Novák' ),
+			's2' => array( 'value' => 'jan@example.cz' ),
+			's3' => array( 'value' => 'Text.' ),
+		) ) {
+			private $fs;
+			private $f;
+			public function __construct( $fs, $f ) {
+				$this->fs = $fs;
+				$this->f  = $f;
+			}
+			public function get( $k ) {
+				return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+			}
+		};
+
+		$split_error = '';
+
+		try {
+			$action->run( $scan_record, $handler );
+		} catch ( \Exception $e ) {
+			$split_error = $e->getMessage();
+		}
+
+		check( 'odeslání přes nasazenou šablonu', $split_error, '' );
+
+		wp_cache_flush();
+		$split_lead = null;
+
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/lead/' ) ) {
+				$split_lead = json_decode( $call['body'], true );
+			}
+		}
+
+		check( 'jedno pole dalo jméno', isset( $split_lead['firstName'] ) ? $split_lead['firstName'] : '', 'Jan' );
+		check( 'jedno pole dalo příjmení', isset( $split_lead['lastName'] ) ? $split_lead['lastName'] : '', 'Novák' );
+		check( 'priorita ze šablony', isset( $split_lead['priority'] ) ? $split_lead['priority'] : '', 'CRITICAL' );
+
+		// A page holding two forms is applied to twice in one submit. The first
+		// write is the only rollback point; the second must not replace it with
+		// the half-applied copy.
+		$pristine = get_post_meta( $scan_page, Raynet_Elementor_Forms::BACKUP_META, true );
+		Raynet_Elementor_Forms::apply( $scan_page, $widget_id, array( 'priority' => 'MINOR' ), true );
+		check( 'druhé nasazení nepřepíše zálohu', get_post_meta( $scan_page, Raynet_Elementor_Forms::BACKUP_META, true ), $pristine );
+
+		// A form that does not name a widget must be refused, not treated as
+		// "every form on the page".
+		check( 'prázdné ID widgetu odmítnuto',
+			is_wp_error( Raynet_Elementor_Forms::apply( $scan_page, '', array(), false ) ), true );
+
+		// Editing the page in Elementor afterwards must block the rollback.
+		$current = json_decode( get_post_meta( $scan_page, '_elementor_data', true ), true );
+		$current[0]['settings']['padding'] = '40px';
+		update_post_meta( $scan_page, '_elementor_data', wp_slash( wp_json_encode( $current ) ) );
+
+		check( 'úprava se pozná', Raynet_Elementor_Forms::edited_since( $scan_page ), true );
+
+		$stale = Raynet_Elementor_Forms::restore( $scan_page );
+		check( 'zastaralá záloha se nevrátí', is_wp_error( $stale ), true );
+		check( 'a řekne proč', $stale->get_error_code(), 'raynet_stale_backup' );
+		check( 'úprava přežila', isset( json_decode( get_post_meta( $scan_page, '_elementor_data', true ), true )[0]['settings']['padding'] ), true );
+
+		check( 'vynucené vrácení projde', is_wp_error( Raynet_Elementor_Forms::restore( $scan_page, true ) ), false );
+
+		// Put the page back the way the rest of this block expects it.
+		Raynet_Elementor_Forms::apply( $scan_page, $widget_id, array( 'priority' => 'CRITICAL', 'category' => '9', 'tags' => 'sablona' ), true );
+
+		$restored = Raynet_Elementor_Forms::restore( $scan_page );
+		check( 'návrat proběhl', is_wp_error( $restored ), false );
+
+		$back = Raynet_Elementor_Forms::forms_in_post( $scan_page );
+		check( 'po návratu zase vypnuto', $back[0]['enabled'], false );
+		check( 'záloha spotřebována', Raynet_Elementor_Forms::has_backup( $scan_page ), false );
+		check( 'druhý návrat selže', is_wp_error( Raynet_Elementor_Forms::restore( $scan_page ) ), true );
+
+		// --- Templates ------------------------------------------------------
+		delete_option( Raynet_Elementor_Forms::TEMPLATES_OPTION );
+		$slug = Raynet_Elementor_Forms::save_template( 'Poptávky z webu', array( 'priority' => 'MINOR', 'owner' => '3' ) );
+
+		check( 'šablona uložena pod slugem', $slug, 'poptavky-z-webu' );
+		$stored = Raynet_Elementor_Forms::templates();
+		check( 'šablona má název', $stored[ $slug ]['name'], 'Poptávky z webu' );
+		check( 'šablona má nastavení', $stored[ $slug ]['lead']['owner'], 3 );
+
+		Raynet_Elementor_Forms::delete_template( $slug );
+		check( 'šablona smazána', count( Raynet_Elementor_Forms::templates() ), 0 );
 
 		$exported = $action->on_export( array( 'settings' => array( 'raynet_crm_owner' => 7, 'jine' => 'zustane' ) ) );
 		check( 'on_export maže pod settings', isset( $exported['settings']['raynet_crm_owner'] ), false );

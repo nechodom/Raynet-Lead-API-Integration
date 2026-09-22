@@ -34,6 +34,8 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - **Builder formulářů** — pole vyberete, přetažením seřadíte a přepíšete jim popisky, bez editoru kódu. Formulářů můžete mít víc, každý s vlastním nastavením leadu.
 - **Zkratka `[raynet_lead_form]`** — formulář vložíte do libovolné stránky, příspěvku nebo widgetu.
 - **Elementor Pro Forms** — leady umí zakládat i formuláře postavené v Elementoru, přes akci po odeslání.
+- **Hromadné nasazení** — plugin najde všechny formuláře Elementoru na webu a nastaví je podle šablony, včetně odhadu mapování polí.
+- **Jedno pole pro celé jméno** — „Jan Novák" se do RAYNETu rozdělí na jméno a příjmení.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
 - **Podpora všech čtyř regionů RAYNETu** (`.cz`, `.sk`, `.com`, `eu.`) i vlastní adresy.
 - **Test spojení** přímo v administraci — ověří údaje proti `GET /security/info` a rovnou vypíše ID číselníků (kategorie, stav leadu, zdroj kontaktu).
@@ -200,6 +202,51 @@ Dva přepínače navíc:
 
 - **Zapsat udělení souhlasu** — zapněte jen tehdy, když formulář obsahuje pole se souhlasem. Do poznámky leadu se pak zapíše datum a čas. Vypnuté je záměrně: formulář, který se na souhlas neptá, nesmí do CRM napsat, že padl.
 - **Uvést URL stránky** — připíše do poznámky adresu stránky, ze které poptávka přišla.
+
+### Jedno pole pro celé jméno
+
+Formuláře často mají jediné pole „Jméno a příjmení". RAYNET ale ukládá `firstName` a `lastName` zvlášť.
+
+V mapování je proto vedle Jména a Příjmení i atribut **Jméno a příjmení**. Namapujete na něj to jedno pole a plugin ho rozdělí: poslední slovo je příjmení, všechno před ním jméno.
+
+| Zadáno | firstName | lastName |
+|---|---|---|
+| `Jan Novák` | Jan | Novák |
+| `Jan Petr Novák` | Jan Petr | Novák |
+| `Novák` | – | Novák |
+
+Jedno slovo se bere jako příjmení, protože podle něj se v CRM vyhledává.
+
+Namapovat současně celé jméno i jednu z jeho půlek nejde — jedno by přepsalo druhé. V builderu se taková kombinace odmítne, v Elementoru vyhraje samostatně namapovaná půlka.
+
+Potřebujete-li jiné pravidlo, třeba pro formulář ptající se na „Příjmení a jméno", přepište ho filtrem:
+
+```php
+add_filter( 'raynet_lead_split_name', function ( $parts, $full ) {
+	$words = explode( ' ', $full, 2 );
+
+	return array(
+		'lastName'  => $words[0],
+		'firstName' => isset( $words[1] ) ? $words[1] : '',
+	);
+}, 10, 2 );
+```
+
+### Hromadné nasazení na víc formulářů
+
+V **RAYNET CRM → Elementor formuláře** plugin vypíše každý formulář Elementoru na webu: na které stránce je, jak se jmenuje, jaká má pole a jestli u něj RAYNET běží.
+
+**Šablona** nese nastavení leadu — předmět, prioritu, typ leadu, předponu poznámky, číselníková ID, štítky a notifikační e-maily. Šablon můžete mít víc, třeba zvlášť pro poptávky a zvlášť pro kontaktní formuláře.
+
+Vyberete formuláře, zvolíte šablonu a nasadíte. U každého se zapne akce RAYNET CRM, vyplní se nastavení ze šablony a pole se namapují odhadem.
+
+**Odhad mapování** se řídí nejdřív typem pole — pole typu E-mail je e-mail, ať se jmenuje jakkoliv — a pak popiskem. Pozná i „PSČ" nebo „Jméno a příjmení", diakritika nevadí. Jedno pole nikdy neobsadí dva atributy.
+
+Odhad není věštec. Po nasazení se vyplatí formulář otevřít v Elementoru a mapování zkontrolovat.
+
+> **Nasazení zapisuje do vašich stránek.** Předchozí podoba se uloží a v tabulce přibude **Vrátit zpět**.
+>
+> Záloha je jedna na stránku a vzniká při prvním nasazení; další nasazení ji nepřepíší, takže se vždy vracíte k původní podobě. Když stránku mezitím upravíte v Elementoru, plugin to pozná a vrácení odmítne — pokračovat jde jen po potvrzení, protože by o ty úpravy připravilo.
 
 ### Co obstarává Elementor a co plugin
 
