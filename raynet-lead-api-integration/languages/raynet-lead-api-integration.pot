@@ -1,0 +1,495 @@
+# Copyright (C) 2026 Matěj Kevin Nechodom
+# This file is distributed under the MIT license.
+msgid ""
+msgstr ""
+"Project-Id-Version: Raynet Lead API Integration 2.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/nechodom/Raynet-Lead-API-Integration/issues\n"
+"POT-Creation-Date: 2026-09-22 15:11\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
+"X-Domain: raynet-lead-api-integration\n"
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:43
+msgid "RAYNET Lead API"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:44
+msgid "RAYNET CRM"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:64
+msgid "Nastavení"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:119
+msgid "Testuji spojení…"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:120
+msgid "Test spojení se nezdařil."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:132
+msgid "Nemáte oprávnění."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:147
+msgid "Kategorie leadu (category)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:148
+msgid "Stav leadu (leadPhase)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:149
+msgid "Zdroj kontaktu (contactSource)"
+msgstr ""
+
+#. translators: 1: user name, 2: instance name.
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:164
+msgid "Spojení funguje. Přihlášen jako %1$s, instance %2$s."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:188
+msgid "RAYNET Lead API Integration"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:192
+msgid "Připojení zatím není kompletní. Vyplňte e-mail, API klíč a název instance."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:199
+msgid "Poslední chyba API:"
+msgstr ""
+
+#. translators: %s: shortcode.
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:212
+msgid "Formulář vložíte do stránky zkratkou %s."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:221
+msgid "Připojení k RAYNET CRM"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:224
+msgid "Region API"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:233
+msgid "Vlastní adresa…"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:236
+msgid "Vyberte doménu, na které běží vaše instance RAYNET CRM."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:240
+msgid "Vlastní adresa API"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:243
+msgid "Použije se jen při volbě „Vlastní adresa“. Zadejte základ API včetně /api/v2/."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:247
+msgid "Uživatelské jméno"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:250
+msgid "E-mail uživatele, na kterého je API klíč vydaný."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:254
+msgid "API klíč"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:256
+msgid "Uložen — ponechte prázdné pro zachování"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:257
+msgid "Klíč se nikdy nezobrazuje zpět. Prázdné pole znamená „ponechat stávající“."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:261
+msgid "Název instance"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:264
+msgid "Z adresy https://app.raynet.cz/mujraynet/ je to část „mujraynet“. Posílá se v hlavičce X-Instance-Name."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:268
+msgid "ID instance"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:271
+msgid "Volitelné. Má přednost před názvem instance a posílá se jako X-Instance-Id."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:275
+msgid "Timeout (s)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:281
+msgid "Test spojení"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:283
+msgid "Otestovat spojení"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:285
+msgid "Test se provádí proti uloženému nastavení — nejdřív změny uložte. Po úspěchu vypíše i ID číselníků."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:290
+msgid "Výchozí hodnoty leadu"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:293
+msgid "Priorita"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:303
+msgid "Výchozí předmět"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:306
+msgid "Použije se, když formulář nemá pole „Předmět“ ani atribut topic."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:310
+msgid "Poznámka k leadu"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:313
+msgid "Text se vloží před zprávu od návštěvníka, např. „Přidáno z webu example.cz“."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:317
+msgid "Fyzická osoba"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:321
+msgid "Zakládat leady jako fyzickou osobu (leadPerson)."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:323
+msgid "Když návštěvník vyplní pole Společnost, lead se založí jako firma bez ohledu na tuto volbu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:328
+msgid "Kategorie (ID)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:328
+msgid "ID z číselníku LeadCategory. 0 = neposílat."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:329
+msgid "Stav leadu (ID)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:329
+msgid "ID z číselníku LeadPhase. 0 = neposílat."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:330
+msgid "Zdroj kontaktu (ID)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:330
+msgid "ID z číselníku ContactSource. 0 = neposílat."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:331
+msgid "Vlastník (ID)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:331
+msgid "ID kontaktní osoby, která je zároveň uživatelem. 0 = neposílat."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:332
+msgid "Bezpečnostní úroveň (ID)"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:332
+msgid "0 = použije se výchozí úroveň instance."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:346
+msgid "Štítky"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:349
+msgid "Seznam štítků oddělených čárkou."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:353
+msgid "Notifikace z RAYNETu"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:356
+msgid "E-maily oddělené čárkou. RAYNET jim pošle upozornění na nový lead."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:361
+msgid "Chování formuláře"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:364
+msgid "Hláška po odeslání"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:368
+msgid "Hláška při chybě"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:371
+msgid "Návštěvníkovi se nikdy nezobrazí technický detail chyby — ten jde do logu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:375
+msgid "Přesměrovat po odeslání"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:379
+msgid "Souhlas se zpracováním"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:383
+msgid "Vyžadovat zaškrtnutí souhlasu (GDPR)."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:385
+msgid "Souhlasím se zpracováním osobních údajů…"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:386
+msgid "Text u zaškrtávátka. Odkazy jsou povolené. Datum souhlasu se zapíše do poznámky leadu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:390
+msgid "Ochrana proti spamu"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:394
+msgid "Skryté pole (honeypot)."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:397
+msgid "Minimální doba vyplňování (s):"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:401
+msgid "Pauza mezi odesláními z jedné IP (s):"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:407
+msgid "Záložní e-mail"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:410
+msgid "Když RAYNET lead nepřijme, pošle se obsah formuláře na tuto adresu, aby se poptávka neztratila."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:414
+msgid "Údržba"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:418
+msgid "Zapisovat chyby API do PHP logu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-admin.php:423
+msgid "Smazat všechna data pluginu při odinstalaci."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:162
+msgid "Není nastavena adresa RAYNET API."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:169
+msgid "Chybí uživatelské jméno nebo API klíč."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:176
+msgid "Chybí název instance (X-Instance-Name) ani její ID."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:205
+msgid "Data se nepodařilo zakódovat do JSON."
+msgstr ""
+
+#. translators: %s: transport error message.
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:218
+msgid "Spojení s RAYNET API selhalo: %s"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:257
+msgid "RAYNET odmítl přihlášení (401). Zkontrolujte e-mail, API klíč a název instance. Po 20 neúspěšných pokusech RAYNET blokuje IP adresu na 60 minut."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:260
+msgid "Uživatel nemá oprávnění zakládat leady (403)."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:263
+msgid "Endpoint nebyl nalezen (404). Zkontrolujte zvolený region RAYNET API."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:266
+msgid "Byl překročen limit RAYNET API (429). Zkuste to prosím za chvíli."
+msgstr ""
+
+#. translators: 1: HTTP status code, 2: error detail from the API.
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:283
+msgid "RAYNET API vrátilo chybu %1$d: %2$s"
+msgstr ""
+
+#. translators: 1: HTTP status code, 2: error detail from the API.
+#: raynet-lead-api-integration/includes/class-raynet-api-client.php:285
+msgid "bez dalších údajů."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:105
+msgid "Odeslání formuláře selhalo. Zkuste to prosím znovu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:106
+msgid "Odesílám…"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:143
+msgid "Odeslat"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:183
+msgid "Nevyplňujte toto pole"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:309
+msgid "Platnost formuláře vypršela. Zkuste to prosím znovu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:326
+msgid "Bez souhlasu se zpracováním údajů nelze formulář odeslat."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:335
+msgid "Vyplňte prosím e-mail nebo telefon."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:342
+msgid "Zadaná e-mailová adresa není platná."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:348
+msgid "Plugin není nastaven."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:399
+msgid "Formulář byl úspěšně odeslán. Děkujeme, ozveme se vám."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:418
+msgid "Odeslání formuláře selhalo."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:431
+msgid "Platnost formuláře vypršela. Načtěte prosím stránku znovu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:440
+msgid "Formulář byl odeslán příliš rychle. Zkuste to prosím znovu."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:448
+msgid "Počkejte prosím chvíli před dalším odesláním."
+msgstr ""
+
+#. translators: %s: site name.
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:525
+msgid "Poptávka z webu %s"
+msgstr ""
+
+#. translators: %s: lead topic.
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:582
+msgid "Nový lead z webu: %s"
+msgstr ""
+
+#. translators: %s: page URL.
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:612
+msgid "Odesláno ze stránky: %s"
+msgstr ""
+
+#. translators: %s: date and time of the consent.
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:620
+msgid "Souhlas se zpracováním údajů udělen: %s"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:643
+msgid "Lead se nepodařilo odeslat do RAYNET CRM."
+msgstr ""
+
+#. translators: %s: failure reason.
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:646
+msgid "Důvod: %s"
+msgstr ""
+
+#. translators: %s: site name.
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:662
+msgid "[%s] Neodeslaný lead z webového formuláře"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:681
+msgid "Odeslání formuláře se nezdařilo. Zkuste to prosím znovu později."
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:778
+msgid "Jméno"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:779
+msgid "Příjmení"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:780
+msgid "Společnost"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:781
+msgid "E-mail"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:782
+msgid "Telefon"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:783
+msgid "Předmět"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:784
+msgid "Zpráva"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:785
+msgid "Ulice"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:786
+msgid "Město"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:787
+msgid "PSČ"
+msgstr ""
+
+#: raynet-lead-api-integration/includes/class-raynet-lead-form.php:841
+msgid "Souhlasím se zpracováním osobních údajů za účelem vyřízení mé poptávky."
+msgstr ""

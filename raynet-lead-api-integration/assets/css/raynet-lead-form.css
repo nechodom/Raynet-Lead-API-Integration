@@ -1,0 +1,101 @@
+/**
+ * Minimal, theme-friendly styling for [raynet_lead_form].
+ * Everything is scoped so a theme's own form rules keep winning where it matters.
+ */
+
+.raynet-lead-form {
+	max-width: 40rem;
+}
+
+.raynet-lead-form__title {
+	margin-top: 0;
+}
+
+.raynet-lead-form__row {
+	margin-bottom: 1rem;
+}
+
+.raynet-lead-form__label {
+	display: block;
+	margin-bottom: 0.25rem;
+	font-weight: 600;
+}
+
+.raynet-lead-form__required {
+	color: #b32d2e;
+}
+
+.raynet-lead-form input[type="text"],
+.raynet-lead-form input[type="email"],
+.raynet-lead-form input[type="tel"],
+.raynet-lead-form textarea {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0.5rem;
+}
+
+.raynet-lead-form textarea {
+	min-height: 8rem;
+	resize: vertical;
+}
+
+.raynet-lead-form__consent {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	font-weight: 400;
+}
+
+.raynet-lead-form__consent input[type="checkbox"] {
+	margin-top: 0.25rem;
+	flex: 0 0 auto;
+}
+
+.raynet-lead-form__submit[disabled] {
+	opacity: 0.6;
+	cursor: progress;
+}
+
+/* Honeypot: hidden from people, still present for bots. */
+.raynet-lead-form__hp {
+	position: absolute !important;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(1px, 1px, 1px, 1px);
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.raynet-lead-form__notification:empty {
+	display: none;
+}
+
+.raynet-lead-form__notification {
+	margin-top: 0.75rem;
+	padding: 0.75rem 1rem;
+	border-left: 4px solid currentColor;
+}
+
+.raynet-lead-form__notification.is-success {
+	color: #1e7a3c;
+	background: #eaf7ee;
+}
+
+.raynet-lead-form__notification.is-error {
+	color: #b32d2e;
+	background: #fcebea;
+}
+
+@media (min-width: 40rem) {
+	.raynet-lead-form__row--firstName,
+	.raynet-lead-form__row--lastName {
+		display: inline-block;
+		width: calc(50% - 0.5rem);
+		vertical-align: top;
+	}
+
+	.raynet-lead-form__row--firstName {
+		margin-right: 1rem;
+	}
+}
