@@ -20,16 +20,42 @@ class Raynet_Lead_Form_Renderer {
 	 *
 	 * @param array<int,array<string,mixed>> $fields   Sanitized field definitions.
 	 * @param string                         $form_uid Unique prefix for element ids.
+	 * @param bool                           $preview  Render an inert copy for the builder.
 	 * @return string Markup.
 	 */
-	public static function render_fields( array $fields, $form_uid ) {
+	public static function render_fields( array $fields, $form_uid, $preview = false ) {
 		$html = '';
 
 		foreach ( $fields as $field ) {
-			$html .= self::render_one( $field, $form_uid );
+			$html .= self::render_one( $field, $form_uid, $preview );
 		}
 
 		return $html;
+	}
+
+	/**
+	 * Attributes that make a preview control inert.
+	 *
+	 * The builder's preview lives inside the post edit form. Left as-is, its
+	 * required fields block the Update button through browser validation and its
+	 * values ride along with the post. Disabled controls are exempt from both.
+	 *
+	 * @param bool $preview Whether this is the builder's preview.
+	 * @return string Attributes to append.
+	 */
+	private static function inert( $preview ) {
+		return $preview ? ' disabled' : '';
+	}
+
+	/**
+	 * Name attribute for a control, omitted in the preview.
+	 *
+	 * @param string $name    Input name.
+	 * @param bool   $preview Whether this is the builder's preview.
+	 * @return string Attribute.
+	 */
+	private static function name_attr( $name, $preview ) {
+		return $preview ? '' : ' name="' . esc_attr( $name ) . '"';
 	}
 
 	/**
@@ -37,14 +63,15 @@ class Raynet_Lead_Form_Renderer {
 	 *
 	 * @param array<string,mixed> $field    Sanitized field definition.
 	 * @param string              $form_uid Unique prefix for element ids.
+	 * @param bool                $preview  Render an inert copy.
 	 * @return string Markup.
 	 */
-	private static function render_one( array $field, $form_uid ) {
+	private static function render_one( array $field, $form_uid, $preview = false ) {
 		$element_id = $form_uid . '-' . $field['id'];
 		$name       = self::input_name( $field );
 
 		if ( 'consent' === $field['type'] ) {
-			return self::render_consent( $field, $element_id, $name );
+			return self::render_consent( $field, $element_id, $name, $preview );
 		}
 
 		$classes = 'raynet-lead-form__row raynet-lead-form__row--' . $field['source'];
@@ -62,7 +89,7 @@ class Raynet_Lead_Form_Renderer {
 		}
 
 		$html .= '</label>';
-		$html .= self::render_control( $field, $element_id, $name );
+		$html .= self::render_control( $field, $element_id, $name, $preview );
 
 		if ( '' !== trim( (string) $field['help'] ) ) {
 			$html .= '<p class="raynet-lead-form__help" id="' . esc_attr( $element_id ) . '-help">'
@@ -80,10 +107,13 @@ class Raynet_Lead_Form_Renderer {
 	 * @param array<string,mixed> $field      Field definition.
 	 * @param string              $element_id Element id.
 	 * @param string              $name       Input name.
+	 * @param bool                $preview    Render an inert copy.
 	 * @return string Markup.
 	 */
-	private static function render_control( array $field, $element_id, $name ) {
-		$required    = $field['required'] ? ' required' : '';
+	private static function render_control( array $field, $element_id, $name, $preview = false ) {
+		$required    = ( $field['required'] && ! $preview ) ? ' required' : '';
+		$inert       = self::inert( $preview );
+		$name_attr   = self::name_attr( $name, $preview );
 		$described   = '' !== trim( (string) $field['help'] )
 			? ' aria-describedby="' . esc_attr( $element_id ) . '-help"'
 			: '';
@@ -92,12 +122,12 @@ class Raynet_Lead_Form_Renderer {
 			: '';
 
 		if ( 'textarea' === $field['type'] ) {
-			return '<textarea id="' . esc_attr( $element_id ) . '" name="' . esc_attr( $name ) . '" rows="5"'
-				. $placeholder . $described . $required . '></textarea>';
+			return '<textarea id="' . esc_attr( $element_id ) . '"' . $name_attr . ' rows="5"'
+				. $placeholder . $described . $required . $inert . '></textarea>';
 		}
 
 		if ( 'select' === $field['type'] ) {
-			$html = '<select id="' . esc_attr( $element_id ) . '" name="' . esc_attr( $name ) . '"' . $described . $required . '>';
+			$html = '<select id="' . esc_attr( $element_id ) . '"' . $name_attr . $described . $required . $inert . '>';
 			$html .= '<option value="">' . esc_html__( 'Vyberte…', 'raynet-lead-api-integration' ) . '</option>';
 
 			foreach ( $field['options'] as $option ) {
@@ -109,14 +139,14 @@ class Raynet_Lead_Form_Renderer {
 
 		if ( 'checkbox' === $field['type'] ) {
 			return '<label class="raynet-lead-form__checkbox"><input type="checkbox" id="' . esc_attr( $element_id )
-				. '" name="' . esc_attr( $name ) . '" value="1"' . $described . $required . ' /> '
+				. '"' . $name_attr . ' value="1"' . $described . $required . $inert . ' /> '
 				. esc_html( $field['label'] ) . '</label>';
 		}
 
 		return '<input type="' . esc_attr( $field['type'] ) . '" id="' . esc_attr( $element_id )
-			. '" name="' . esc_attr( $name ) . '"' . $placeholder
+			. '"' . $name_attr . $placeholder
 			. ' autocomplete="' . esc_attr( self::autocomplete( $field ) ) . '"'
-			. $described . $required . ' />';
+			. $described . $required . $inert . ' />';
 	}
 
 	/**
@@ -128,12 +158,14 @@ class Raynet_Lead_Form_Renderer {
 	 * @param array<string,mixed> $field      Field definition.
 	 * @param string              $element_id Element id.
 	 * @param string              $name       Input name.
+	 * @param bool                $preview    Render an inert copy.
 	 * @return string Markup.
 	 */
-	private static function render_consent( array $field, $element_id, $name ) {
+	private static function render_consent( array $field, $element_id, $name, $preview = false ) {
 		return '<div class="raynet-lead-form__row raynet-lead-form__row--consent">'
 			. '<label class="raynet-lead-form__consent" for="' . esc_attr( $element_id ) . '">'
-			. '<input type="checkbox" id="' . esc_attr( $element_id ) . '" name="' . esc_attr( $name ) . '" value="1" required />'
+			. '<input type="checkbox" id="' . esc_attr( $element_id ) . '"' . self::name_attr( $name, $preview )
+			. ' value="1"' . ( $preview ? '' : ' required' ) . self::inert( $preview ) . ' />'
 			. '<span>' . wp_kses_post( $field['label'] ) . '</span>'
 			. '</label></div>';
 	}

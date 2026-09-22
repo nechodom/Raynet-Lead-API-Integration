@@ -2,6 +2,19 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.2.4] — 2026-09-22
+
+### Opraveno
+
+- **Formulář v builderu nešel uložit.** Náhled se vykresluje dovnitř editačního formuláře WordPressu a nesl `required` i skutečné `name`. Prohlížeč proto při kliknutí na *Aktualizovat* validoval pole náhledu, ohlásil „Vyplňte prosím toto pole" u e-mailu v náhledu a uložení zablokoval — u každého formuláře, který měl aspoň jedno povinné pole, tedy u všech. Pole náhledu se navíc odesílala spolu s příspěvkem. Náhled je nově vykreslovaný jako inertní: bez `required`, bez `name` a s `disabled`, což ho z validace i z odeslání vyřazuje. Vzhledově zůstává stejný.
+- Šipky pro posun pole si držely původní popisek v `aria-label`, dokud se seznam nepřekreslil. Při přejmenování pole tak čtečka obrazovky hlásila staré jméno.
+
+### Poznámka
+
+Obě chyby našlo proklikání builderu ve skutečném prohlížeči. První z nich dělala builder nepoužitelným a žádná z dosavadních sad ji neodhalila — stubovaná nevidí validaci prohlížeče, integrační kontrolovala jen odpověď serveru.
+
+Testy teď kontrolují, že náhled nenese `required` ani `name` a že je `disabled`, zatímco ostrý formulář obojí má.
+
 ## [2.2.3] — 2026-09-22
 
 Opravná verze. **Verze 2.1.0 až 2.2.2 rozbíjejí oprávnění `manage_options` pro celý web** — přejděte sem.

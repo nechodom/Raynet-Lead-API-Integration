@@ -254,3 +254,13 @@
 		width: 100%;
 	}
 }
+
+/* The preview's controls are disabled so they cannot block the Update button
+   or be saved with the post. They should still look like the real form. */
+.raynet-builder__preview :disabled {
+	background: #fff;
+	color: #1d2327;
+	opacity: 1;
+	-webkit-text-fill-color: #1d2327;
+	cursor: default;
+}

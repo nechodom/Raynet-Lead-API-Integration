@@ -404,10 +404,24 @@
 	 * @param {string} text New label.
 	 */
 	function headText( id, text ) {
-		var row = list.querySelector( '[aria-expanded="true"]' );
+		var toggle = list.querySelector( '[aria-expanded="true"]' );
 
-		if ( row && openId === id ) {
-			row.textContent = text;
+		if ( ! toggle || openId !== id ) {
+			return;
+		}
+
+		toggle.textContent = text;
+
+		// The move buttons name the field they act on, so they have to follow the
+		// rename too; the row is not re-rendered while its label is being typed.
+		var moves = toggle.parentNode.querySelectorAll( '.raynet-builder__move' );
+
+		if ( moves[ 0 ] ) {
+			moves[ 0 ].setAttribute( 'aria-label', ( i18n.moveUp || '' ) + ': ' + text );
+		}
+
+		if ( moves[ 1 ] ) {
+			moves[ 1 ].setAttribute( 'aria-label', ( i18n.moveDown || '' ) + ': ' + text );
 		}
 	}
 

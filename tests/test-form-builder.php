@@ -194,5 +194,27 @@ Raynet_Lead_Form_Post_Type::maybe_migrate();
 check( 'existující pole se nepřepíšou', count( Raynet_Lead_Form_Post_Type::get_fields( $kept ) ), 1 );
 check( 'existující formulář výchozím',  Raynet_Lead_Form_Post_Type::default_id(), $kept );
 
+// The builder's preview sits inside the post edit form. A required control
+// there blocks WordPress's own Update button through browser validation, and a
+// named one is submitted with the post. Disabled controls are exempt from both.
+$preview_fields = array(
+	mkfield( array( 'id' => 'f_111111', 'source' => 'email', 'type' => 'email', 'label' => 'E-mail', 'required' => true ) ),
+	mkfield( array( 'id' => 'f_222222', 'source' => 'message', 'type' => 'textarea', 'label' => 'Zpráva', 'required' => true ) ),
+	mkfield( array( 'id' => 'f_333333', 'source' => 'custom', 'type' => 'select', 'label' => 'Odkud?', 'options' => array( 'Google' ) ) ),
+	mkfield( array( 'id' => 'f_444444', 'source' => 'consent', 'type' => 'consent', 'label' => 'Souhlasím', 'required' => true ) ),
+);
+
+$live    = Raynet_Lead_Form_Renderer::render_fields( $preview_fields, 'uid' );
+$preview = Raynet_Lead_Form_Renderer::render_fields( $preview_fields, 'uid', true );
+
+check( 'ostrý formulář má required',      (bool) preg_match( '/\srequired[\s>\/]/', $live ), true );
+check( 'náhled nemá required',            (bool) preg_match( '/\srequired[\s>\/]/', $preview ), false );
+check( 'náhled nemá name',                str_contains( $preview, 'name="' ), false );
+check( 'náhled má disabled',              substr_count( $preview, 'disabled' ), 4 );
+check( 'náhled má stále popisky',         str_contains( $preview, 'Odkud?' ), true );
+check( 'náhled má stále souhlas',         str_contains( $preview, 'Souhlasím' ), true );
+check( 'ostrý formulář má name',          str_contains( $live, 'name="email"' ), true );
+check( 'ostrý formulář nemá disabled',    str_contains( $live, 'disabled' ), false );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

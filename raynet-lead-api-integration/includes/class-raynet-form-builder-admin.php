@@ -376,10 +376,12 @@ class Raynet_Lead_Form_Builder_Admin {
 		$decoded = json_decode( $json, true );
 		$fields  = Raynet_Lead_Form_Definition::sanitize_fields( is_array( $decoded ) ? $decoded : array() );
 
-		// The preview carries no nonce, timestamp or honeypot: it is a picture of
-		// the form, not a working one.
+		// The preview carries no nonce, timestamp or honeypot, and its controls
+		// are disabled: it is a picture of the form, not a working one. It sits
+		// inside the post edit form, where a required field would block Update
+		// and a named one would be saved with the post.
 		wp_send_json_success(
-			array( 'html' => Raynet_Lead_Form_Renderer::render_fields( $fields, 'raynet-preview' ) )
+			array( 'html' => Raynet_Lead_Form_Renderer::render_fields( $fields, 'raynet-preview', true ) )
 		);
 	}
 

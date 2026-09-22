@@ -170,6 +170,31 @@ check( 'builder načítá svůj skript', false !== strpos( $edit['body'], 'rayne
 check( 'builder načítá svůj styl', false !== strpos( $edit['body'], 'raynet-form-builder.css' ), true );
 check( 'builder je lokalizovaný', false !== strpos( $edit['body'], 'raynetFormBuilder' ), true );
 
+// The preview is rendered into the post edit form, so its controls must not
+// take part in it: a required one blocks Update, a named one is saved with the
+// post.
+preg_match( '/"previewNonce":"([^"]+)"/', $edit['body'], $nonce_match );
+check( 'nonce náhledu je na stránce', isset( $nonce_match[1] ), true );
+
+$preview_call = req(
+	'/wp-admin/admin-ajax.php',
+	array(
+		'action' => 'raynet_form_preview',
+		'nonce'  => isset( $nonce_match[1] ) ? $nonce_match[1] : '',
+		'fields' => wp_json_encode( Raynet_Lead_Form_Post_Type::get_fields( $default ) ),
+	),
+	true
+);
+
+$preview_json = json_decode( $preview_call['body'], true );
+$preview_html = isset( $preview_json['data']['html'] ) ? $preview_json['data']['html'] : '';
+
+check( 'náhled se vykreslí', '' !== $preview_html, true );
+check( 'náhled nese popisky', false !== strpos( $preview_html, 'raynet-lead-form__row' ), true );
+check( 'náhled nemá required', (bool) preg_match( '/\srequired[\s>\/]/', $preview_html ), false );
+check( 'náhled nemá name', false !== strpos( $preview_html, 'name="' ), false );
+check( 'náhled je disabled', false !== strpos( $preview_html, 'disabled' ), true );
+
 echo "\n=== Veřejný formulář ===\n";
 
 $page_id = (int) wp_insert_post(
