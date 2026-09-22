@@ -2,6 +2,27 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.2.3] — 2026-09-22
+
+Opravná verze. **Verze 2.1.0 až 2.2.2 rozbíjejí oprávnění `manage_options` pro celý web** — přejděte sem.
+
+### Opraveno
+
+- **Registrace typu obsahu rozbila `manage_options` na celém webu.** `register_post_type()` si každou hodnotu uvedenou u meta capabilit `edit_post`, `read_post` a `delete_post` zapíše jako meta capabilitu pro celý web:
+
+  ```php
+  $post_type_meta_caps[ $use ] = $store;
+  ```
+
+  Uvedením `manage_options` se tedy `manage_options` samo stalo meta capabilitou a `map_meta_cap()` každou kontrolu na něj přepisoval na `delete_post` bez ID příspěvku, což vrací `do_not_allow`. Dopad nebyl omezený na tento plugin — týkal se každé kontroly `manage_options` v administraci. Nastavení se uvádějí už jen primitivní capability, meta si z nich `map_meta_cap()` odvodí sám.
+
+### Přidáno
+
+- **Integrační sada proti skutečnému WordPressu.** `bin/wp-test-setup.sh` postaví jednorázový WordPress na SQLite v `.wp-test/`, `bin/wp-test.sh` proti němu pustí 58 kontrol: pořadí hooků, oprávnění, položky menu, načítání skriptů, vykreslení formuláře na veřejné stránce, skutečné odeslání přes `admin-ajax.php` až k payloadu pro RAYNET, a aktualizační transient. Odchozí HTTP zachytává testovací dvojník, takže běh nikdy nesáhne na RAYNET ani na GitHub.
+
+  Tahle vrstva chybí stubované sadě a jsou v ní přesně ty chyby, které prošly ve verzích 2.1.0, 2.2.1 a 2.2.2. Vrácení téhle konkrétní chyby shodí 12 kontrol.
+- Levnější pojistka i ve stubované sadě: kontroluje, že se meta capability v registraci typu obsahu neuvádějí.
+
 ## [2.2.2] — 2026-09-22
 
 ### Opraveno

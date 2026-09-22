@@ -389,7 +389,20 @@ Repozitář obsahuje testy, které plugin proženou bez instalace WordPressu —
 php tests/run.php
 ```
 
-Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky a stránku nastavení. Testy vyžadují PHP 8.0+; samotný plugin běží od PHP 7.4.
+Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky, stránku nastavení a aktualizace. Testy vyžadují PHP 8.0+; samotný plugin běží od PHP 7.4.
+
+### Integrační sada
+
+Stuby nesimulují jádro WordPressu, takže pořadí hooků, mapování oprávnění ani sestavení menu nepokryjí — a právě tam vznikly chyby ve verzích 2.1.0, 2.2.1 a 2.2.2. Na to je druhá sada, která běží proti skutečnému WordPressu na SQLite:
+
+```bash
+bin/wp-test-setup.sh   # jednou: stáhne WordPress, SQLite integraci a wp-cli do .wp-test/
+bin/wp-test.sh         # 58 kontrol
+```
+
+Ověřuje pořadí hooků, že `manage_options` zůstává funkční, položky menu, načtení skriptů builderu, vykreslení formuláře na veřejné stránce, skutečné odeslání přes `admin-ajax.php` až k payloadu pro RAYNET, a aktualizační transient. Odchozí HTTP zachytává testovací dvojník, takže běh nikdy nesáhne na RAYNET ani na GitHub.
+
+Adresář `.wp-test/` je mimo git a dá se kdykoliv zahodit; `bin/wp-test-setup.sh --fresh` ho postaví znovu.
 
 Historie změn je v [CHANGELOG.md](CHANGELOG.md).
 

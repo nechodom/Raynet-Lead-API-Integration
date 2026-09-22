@@ -61,16 +61,34 @@ class Raynet_Lead_Form_Post_Type {
 				'show_in_menu'    => 'raynet-lead-integration',
 				'supports'        => array( 'title' ),
 				'capability_type' => 'post',
+				/*
+				 * Only primitive capabilities may be listed here.
+				 *
+				 * register_post_type() treats every value given for the meta
+				 * capabilities edit_post, read_post and delete_post as a meta
+				 * capability for the whole site:
+				 *
+				 *     $post_type_meta_caps[ $use ] = $store;
+				 *
+				 * Naming manage_options there turned manage_options itself into
+				 * a meta capability, so map_meta_cap() rewrote every check of it
+				 * into delete_post without a post id and answered do_not_allow.
+				 * That took the plugin's own admin menu down with it.
+				 *
+				 * map_meta_cap() derives the meta capabilities from these.
+				 */
 				'capabilities'    => array(
-					'edit_post'          => 'manage_options',
-					'read_post'          => 'manage_options',
-					'delete_post'        => 'manage_options',
-					'edit_posts'         => 'manage_options',
-					'edit_others_posts'  => 'manage_options',
-					'publish_posts'      => 'manage_options',
-					'read_private_posts' => 'manage_options',
-					'delete_posts'       => 'manage_options',
-					'create_posts'       => 'manage_options',
+					'edit_posts'             => 'manage_options',
+					'edit_others_posts'      => 'manage_options',
+					'edit_private_posts'     => 'manage_options',
+					'edit_published_posts'   => 'manage_options',
+					'publish_posts'          => 'manage_options',
+					'read_private_posts'     => 'manage_options',
+					'delete_posts'           => 'manage_options',
+					'delete_others_posts'    => 'manage_options',
+					'delete_private_posts'   => 'manage_options',
+					'delete_published_posts' => 'manage_options',
+					'create_posts'           => 'manage_options',
 				),
 				'map_meta_cap'    => true,
 				'rewrite'         => false,

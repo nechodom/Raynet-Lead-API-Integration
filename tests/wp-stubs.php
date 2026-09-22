@@ -43,7 +43,7 @@ defined( 'OBJECT' ) || define( 'OBJECT', 'OBJECT' );
 $GLOBALS['wp_posts'] = array();
 $GLOBALS['wp_meta']  = array();
 
-function register_post_type( $type, $args = array() ) { $GLOBALS['wp_post_types'][] = $type; return true; }
+function register_post_type( $type, $args = array() ) { $GLOBALS['wp_post_types'][] = $type; $GLOBALS['wp_post_type_args'][ $type ] = $args; return true; }
 function get_post( $id ) { return isset( $GLOBALS['wp_posts'][ $id ] ) ? (object) $GLOBALS['wp_posts'][ $id ] : null; }
 function get_post_meta( $id, $key, $single = false ) {
 	$v = isset( $GLOBALS['wp_meta'][ $id ][ $key ] ) ? $GLOBALS['wp_meta'][ $id ][ $key ] : '';
@@ -118,7 +118,8 @@ function esc_attr_e( $text, $domain = null ) { echo htmlspecialchars( (string) $
 function _e( $text, $domain = null ) { echo $text; }
 
 $GLOBALS['wp_hooks']      = array();
-$GLOBALS['wp_post_types'] = array();
+$GLOBALS['wp_post_types']     = array();
+$GLOBALS['wp_post_type_args'] = array();
 
 function add_action( $hook, $cb = null, $prio = 10, $args = 1 ) {
 	$GLOBALS['wp_hooks'][] = array( 'hook' => $hook, 'cb' => $cb, 'prio' => $prio );

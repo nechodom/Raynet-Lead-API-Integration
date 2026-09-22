@@ -16,3 +16,6 @@ wp-content/
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+# Throwaway WordPress for the integration suite (bin/wp-test-setup.sh)
+.wp-test/

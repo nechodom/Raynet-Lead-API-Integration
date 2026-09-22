@@ -70,5 +70,22 @@ check( 'init registruje raynet_form', $GLOBALS['wp_post_types'], array( 'raynet_
 Raynet_Lead_Form_Post_Type::maybe_migrate();
 check( 'init založí výchozí formulář', Raynet_Lead_Form_Post_Type::default_id() > 0, true );
 
+// Capability mapping.
+//
+// Regression guard for 2.2.2: register_post_type() records whatever is given
+// for the meta capabilities edit_post, read_post and delete_post as a meta
+// capability for the whole site. Naming manage_options there made
+// map_meta_cap() rewrite every check of manage_options into delete_post
+// without a post id, which answers do_not_allow — the plugin's own admin menu
+// disappeared and its settings page returned 403.
+$caps = $GLOBALS['wp_post_type_args']['raynet_form']['capabilities'];
+
+foreach ( array( 'edit_post', 'read_post', 'delete_post' ) as $meta_cap ) {
+	check( 'meta capabilita ' . $meta_cap . ' se nepřepisuje', isset( $caps[ $meta_cap ] ), false );
+}
+
+check( 'primitivní capability zůstávají', $caps['edit_posts'], 'manage_options' );
+check( 'map_meta_cap zapnuté', $GLOBALS['wp_post_type_args']['raynet_form']['map_meta_cap'], true );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
