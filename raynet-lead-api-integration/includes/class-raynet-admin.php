@@ -48,6 +48,22 @@ class Raynet_Lead_Admin {
 			'dashicons-groups',
 			58
 		);
+
+		/*
+		 * add_menu_page() does not register a submenu for the page it creates.
+		 * Without one, the forms list is this menu's only child, and
+		 * wp-admin/includes/menu.php rewrites the parent's slug to that first
+		 * child: the settings page then disappears from the menu and answers
+		 * "Sorry, you are not allowed to access this page."
+		 */
+		add_submenu_page(
+			self::PAGE,
+			__( 'RAYNET Lead API', 'raynet-lead-api-integration' ),
+			__( 'Nastavení', 'raynet-lead-api-integration' ),
+			'manage_options',
+			self::PAGE,
+			array( $this, 'render_page' )
+		);
 	}
 
 	/**
@@ -91,7 +107,11 @@ class Raynet_Lead_Admin {
 	 * @return void
 	 */
 	public function enqueue_assets( $hook ) {
-		if ( 'toplevel_page_' . self::PAGE !== $hook ) {
+		// The hook suffix depends on whether the parent slug survived the rewrite
+		// described in add_menu(), so match on the page instead.
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only screen check.
+
+		if ( self::PAGE !== $page ) {
 			return;
 		}
 

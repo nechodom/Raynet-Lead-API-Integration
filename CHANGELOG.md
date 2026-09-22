@@ -2,6 +2,17 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.2.2] — 2026-09-22
+
+### Opraveno
+
+- **Stránka nastavení nebyla v menu a hlásila „Nemáte dostatečné oprávnění pro přístup na tuto stránku“.** `add_menu_page()` si sama nepřidá položku do podmenu. Jediným potomkem menu tak byly Formuláře a `wp-admin/includes/menu.php` přepsal slug nadřazené položky na ně — nastavení tím zmizelo z menu i z dosahu. Stránka se teď registruje i jako vlastní podmenu s popiskem „Nastavení“.
+- Načítání skriptů na stránce nastavení se řídilo příponou hooku `toplevel_page_…`, která se týmž přepisem měnila. Nově se pozná podle parametru `page`.
+
+### Přidáno
+
+- Testy zapojení menu, které tuhle chybu chytnou: ověřují, že stránka je zaregistrovaná i jako podmenu sebe sama a že přežije přepis nadřazené položky.
+
 ## [2.2.1] — 2026-09-22
 
 Opravná verze. **Verze 2.1.0 a 2.2.0 shodí web fatální chybou** a je potřeba z nich přejít sem.

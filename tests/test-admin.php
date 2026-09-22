@@ -14,7 +14,16 @@ function submit_button( $text = null ) { echo '<button type="submit">Uložit</bu
 function selected( $a, $b, $echo = true ) { $r = (string) $a === (string) $b ? " selected='selected'" : ''; if ( $echo ) { echo $r; } return $r; }
 function checked( $a, $b = true, $echo = true ) { $r = (string) $a === (string) $b ? " checked='checked'" : ''; if ( $echo ) { echo $r; } return $r; }
 function wp_date( $format, $ts = null ) { return date( $format, $ts ); }
-function add_menu_page( ...$a ) { return 'toplevel_page_raynet-lead-integration'; }
+$GLOBALS['wp_menu_pages']    = array();
+$GLOBALS['wp_submenu_pages'] = array();
+function add_menu_page( $page_title, $menu_title, $cap, $slug, $cb = '', $icon = '', $pos = null ) {
+	$GLOBALS['wp_menu_pages'][] = array( 'slug' => $slug, 'cap' => $cap, 'title' => $menu_title );
+	return 'toplevel_page_' . $slug;
+}
+function add_submenu_page( $parent, $page_title, $menu_title, $cap, $slug, $cb = '' ) {
+	$GLOBALS['wp_submenu_pages'][] = array( 'parent' => $parent, 'slug' => $slug, 'cap' => $cap, 'title' => $menu_title );
+	return $parent . '_page_' . $slug;
+}
 function register_setting( ...$a ) {}
 function wp_enqueue_script( ...$a ) {}
 function wp_enqueue_style( ...$a ) {}
@@ -84,6 +93,38 @@ $blank = ob_get_clean();
 check( 'warns when unconfigured', str_contains( $blank, 'Připojení zatím není kompletní' ), true );
 
 check( 'settings link added', (bool) preg_match( '/page=raynet-lead-integration/', $admin->add_settings_link( array() )[0] ), true );
+
+// ---------- Menu wiring ----------
+//
+// Regression guard for 2.2.1: add_menu_page() does not register a submenu for
+// its own page. With only the forms list under it, wp-admin/includes/menu.php
+// (lines 107-135 in WP 7.0) rewrites the parent menu's slug to that first
+// child, and the settings page both disappears from the menu and answers
+// "Sorry, you are not allowed to access this page."
+$GLOBALS['wp_menu_pages']    = array();
+$GLOBALS['wp_submenu_pages'] = array();
+$admin->add_menu();
+
+check( 'nadřazená položka vznikla', count( $GLOBALS['wp_menu_pages'] ), 1 );
+check( 'nadřazená má slug stránky', $GLOBALS['wp_menu_pages'][0]['slug'], Raynet_Lead_Admin::PAGE );
+
+$own = array_values( array_filter( $GLOBALS['wp_submenu_pages'], function ( $s ) {
+	return $s['parent'] === Raynet_Lead_Admin::PAGE && $s['slug'] === Raynet_Lead_Admin::PAGE;
+} ) );
+
+check( 'stránka je i vlastním podmenu', count( $own ), 1 );
+check( 'podmenu se jmenuje Nastavení', $own[0]['title'], 'Nastavení' );
+check( 'podmenu chce stejné oprávnění', $own[0]['cap'], 'manage_options' );
+
+// Replay the core rule: after the forms list is prepended by
+// _add_post_type_submenus(), some child must still carry the parent's slug,
+// otherwise the settings page is unreachable.
+$children = array_merge(
+	array( array( 'parent' => Raynet_Lead_Admin::PAGE, 'slug' => 'edit.php?post_type=raynet_form' ) ),
+	$GLOBALS['wp_submenu_pages']
+);
+$slugs = array_column( $children, 'slug' );
+check( 'stránka přežije přepis rodiče', in_array( Raynet_Lead_Admin::PAGE, $slugs, true ), true );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
