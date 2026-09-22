@@ -87,15 +87,35 @@
 	background: #fcebea;
 }
 
+.raynet-lead-form__help {
+	margin: 0.25rem 0 0;
+	font-size: 0.85em;
+	color: #595959;
+}
+
+.raynet-lead-form__checkbox {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	font-weight: 400;
+}
+
+/* Shown only to users who can edit the site, when the shortcode names no form. */
+.raynet-lead-form__admin-notice {
+	padding: 0.75rem 1rem;
+	border-left: 4px solid #b32d2e;
+	background: #fcebea;
+	color: #b32d2e;
+}
+
 @media (min-width: 40rem) {
-	.raynet-lead-form__row--firstName,
-	.raynet-lead-form__row--lastName {
+	.raynet-lead-form__row--half {
 		display: inline-block;
 		width: calc(50% - 0.5rem);
 		vertical-align: top;
 	}
 
-	.raynet-lead-form__row--firstName {
-		margin-right: 1rem;
+	.raynet-lead-form__row--half + .raynet-lead-form__row--half {
+		margin-left: 0.9rem;
 	}
 }

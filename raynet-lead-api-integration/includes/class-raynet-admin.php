@@ -378,12 +378,16 @@ class Raynet_Lead_Admin {
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Souhlas se zpracováním', 'raynet-lead-api-integration' ); ?></th>
 						<td>
-							<label>
-								<input type="checkbox" name="<?php echo esc_attr( $option ); ?>[consent_enabled]" value="1" <?php checked( $settings['consent_enabled'], 1 ); ?> />
-								<?php esc_html_e( 'Vyžadovat zaškrtnutí souhlasu (GDPR).', 'raynet-lead-api-integration' ); ?>
-							</label>
-							<p><textarea class="large-text" rows="2" name="<?php echo esc_attr( $option ); ?>[consent_label]" placeholder="<?php esc_attr_e( 'Souhlasím se zpracováním osobních údajů…', 'raynet-lead-api-integration' ); ?>"><?php echo esc_textarea( $settings['consent_label'] ); ?></textarea></p>
-							<p class="description"><?php esc_html_e( 'Text u zaškrtávátka. Odkazy jsou povolené. Datum souhlasu se zapíše do poznámky leadu.', 'raynet-lead-api-integration' ); ?></p>
+							<p class="description">
+								<?php
+								printf(
+									/* translators: %s: link to the forms list. */
+									esc_html__( 'Souhlas se od verze 2.1 nastavuje na každém formuláři zvlášť, jako pole. Najdete ho v %s.', 'raynet-lead-api-integration' ),
+									'<a href="' . esc_url( admin_url( 'edit.php?post_type=' . Raynet_Lead_Form_Post_Type::POST_TYPE ) ) . '">'
+										. esc_html__( 'Formulářích', 'raynet-lead-api-integration' ) . '</a>'
+								);
+								?>
+							</p>
 						</td>
 					</tr>
 					<tr>

@@ -33,7 +33,7 @@ function check( $label, $got, $want ) {
 
 update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array(
 	'region' => 'sk', 'username' => 'u@e.cz', 'api_key' => 'SUPERSECRETKEY',
-	'instance_name' => 'inst', 'priority' => 'CRITICAL', 'consent_enabled' => '1',
+	'instance_name' => 'inst', 'priority' => 'CRITICAL', 'honeypot_enabled' => '1',
 	'notice_prefix' => 'Z webu', 'category' => '5',
 ) ) );
 update_option( 'raynet_lead_last_error', array( 'message' => 'RAYNET API vrátilo chybu 401', 'time' => time() ) );
@@ -51,14 +51,21 @@ check( 'last error surfaced', str_contains( $html, 'chybu 401' ), true );
 check( 'shortcode documented', str_contains( $html, '[raynet_lead_form]' ), true );
 check( 'saved region preselected', (bool) preg_match( '/value="sk"[^>]*selected/', $html ), true );
 check( 'saved priority preselected', (bool) preg_match( '/value="CRITICAL"[^>]*selected/', $html ), true );
-check( 'checkbox state restored', (bool) preg_match( '/\[consent_enabled\][^>]*checked/', $html ), true );
+check( 'checkbox state restored', (bool) preg_match( '/\[honeypot_enabled\][^>]*checked/', $html ), true );
 
 // Every setting must have a matching input, or it silently resets to its default on save.
 preg_match_all( '/name="raynet_lead_settings\[([a-z_0-9]+)\]"/', $html, $m );
-$in_form  = array_unique( $m[1] );
-$expected = array_keys( Raynet_Lead_Settings::defaults() );
-check( 'every setting has a form field', array_values( array_diff( $expected, $in_form ) ), array() );
+$in_form = array_unique( $m[1] );
+
+// Consent moved onto the form in 2.1. Its keys stay in the option so the form
+// migration can still read them, but the settings page no longer edits them.
+$retired  = array( 'consent_enabled', 'consent_label' );
+$expected = array_values( array_diff( array_keys( Raynet_Lead_Settings::defaults() ), $retired ) );
+
+check( 'every live setting has a form field', array_values( array_diff( $expected, $in_form ) ), array() );
 check( 'no stray fields', array_values( array_diff( $in_form, $expected ) ), array() );
+check( 'retired settings are not editable', array_values( array_intersect( $retired, $in_form ) ), array() );
+check( 'settings page points at the forms', str_contains( $html, 'post_type=raynet_form' ), true );
 
 // A round trip through the form must not lose or alter anything.
 $before = Raynet_Lead_Settings::all();

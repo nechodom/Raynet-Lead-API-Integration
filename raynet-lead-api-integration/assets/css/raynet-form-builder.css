@@ -1,0 +1,256 @@
+/**
+ * The form builder screen, in the visual language of wp-admin.
+ */
+
+.raynet-builder {
+	display: flex;
+	gap: 24px;
+	align-items: flex-start;
+}
+
+.raynet-builder__main {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.raynet-builder__aside {
+	flex: 0 0 360px;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.raynet-builder__aside-title {
+	margin: 0;
+	padding: 12px 16px;
+	font-size: 14px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.raynet-builder__aside-note {
+	margin: 0;
+	padding: 8px 16px;
+	font-size: 12px;
+	color: #646970;
+	background: #f6f7f7;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.raynet-builder__preview {
+	padding: 16px;
+}
+
+.raynet-builder__hint {
+	margin: 0 0 10px;
+	font-size: 12px;
+	color: #646970;
+}
+
+.raynet-builder__list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.raynet-builder__empty {
+	margin: 0;
+	padding: 20px;
+	text-align: center;
+	color: #646970;
+	border: 1px dashed #c3c4c7;
+	border-radius: 4px;
+}
+
+.raynet-builder__row {
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.raynet-builder__row.is-open {
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.raynet-builder__row-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 12px;
+	cursor: grab;
+}
+
+.raynet-builder__row.is-open .raynet-builder__row-head {
+	border-bottom: 1px solid #dcdcde;
+}
+
+.raynet-builder__grip {
+	color: #8c8f94;
+	font-size: 15px;
+	line-height: 1;
+}
+
+.raynet-builder__row-toggle {
+	flex-grow: 1;
+	text-align: left;
+	background: none;
+	border: none;
+	padding: 0;
+	font-size: 14px;
+	font-weight: 600;
+	color: #1d2327;
+	cursor: pointer;
+}
+
+.raynet-builder__badges {
+	display: flex;
+	gap: 6px;
+	flex: 0 0 auto;
+}
+
+.raynet-builder__badge {
+	font-size: 11px;
+	color: #3c434a;
+	background: #f0f0f1;
+	border-radius: 10px;
+	padding: 2px 9px;
+	white-space: nowrap;
+}
+
+.raynet-builder__badge.is-custom {
+	background: #f0e7d8;
+}
+
+.raynet-builder__badge.is-consent {
+	background: #dff0e4;
+}
+
+.raynet-builder__badge.is-required {
+	background: #b32d2e;
+	color: #fff;
+}
+
+.raynet-builder__move {
+	text-decoration: none;
+	font-size: 15px;
+	line-height: 1;
+	padding: 2px 4px;
+	color: #2271b1;
+}
+
+.raynet-builder__editor {
+	padding: 16px;
+	background: #f6f7f7;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.raynet-builder__group label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.raynet-builder__note {
+	margin: 6px 0 0;
+	font-size: 12px;
+	color: #646970;
+}
+
+.raynet-builder__controls {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	flex-wrap: wrap;
+	border-top: 1px solid #dcdcde;
+	padding-top: 12px;
+}
+
+.raynet-builder__control {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.raynet-builder__control label {
+	font-weight: 600;
+}
+
+.raynet-builder__remove {
+	margin-left: auto;
+	color: #b32d2e;
+	text-decoration: underline;
+}
+
+.raynet-builder__add {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 14px;
+	padding-top: 14px;
+	border-top: 1px solid #dcdcde;
+	flex-wrap: wrap;
+}
+
+.raynet-builder__add label {
+	font-weight: 600;
+}
+
+.raynet-builder__shortcode {
+	display: block;
+	padding: 6px 8px;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	word-break: break-all;
+}
+
+/* The preview reuses the front end classes, scaled down to fit the panel. */
+.raynet-builder__preview .raynet-lead-form__row {
+	margin-bottom: 12px;
+}
+
+.raynet-builder__preview .raynet-lead-form__label {
+	display: block;
+	font-weight: 600;
+	font-size: 13px;
+	margin-bottom: 3px;
+}
+
+.raynet-builder__preview .raynet-lead-form__required {
+	color: #b32d2e;
+}
+
+.raynet-builder__preview .raynet-lead-form__help {
+	margin: 3px 0 0;
+	font-size: 12px;
+	color: #646970;
+}
+
+.raynet-builder__preview input[type="text"],
+.raynet-builder__preview input[type="email"],
+.raynet-builder__preview input[type="tel"],
+.raynet-builder__preview select,
+.raynet-builder__preview textarea {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.raynet-builder__preview .raynet-lead-form__consent {
+	display: flex;
+	gap: 8px;
+	align-items: flex-start;
+	font-size: 12px;
+}
+
+@media (max-width: 1200px) {
+	.raynet-builder {
+		flex-direction: column;
+	}
+
+	.raynet-builder__aside {
+		flex: 1 1 auto;
+		width: 100%;
+	}
+}
