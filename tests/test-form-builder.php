@@ -172,5 +172,27 @@ check( 'bez globálního souhlasu žádné pole souhlasu',
 	in_array( 'consent', array_column( Raynet_Lead_Form_Post_Type::get_fields( Raynet_Lead_Form_Post_Type::default_id() ), 'source' ), true ),
 	false );
 
+// A form left behind by the 2.1.0 fatal is finished, not duplicated.
+$GLOBALS['wp_options'] = array(); $GLOBALS['wp_posts'] = array(); $GLOBALS['wp_meta'] = array();
+update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array( 'region' => 'cz' ) ) );
+
+$orphan = wp_insert_post( array( 'post_title' => 'Kontaktní formulář', 'post_type' => 'raynet_form', 'post_status' => 'publish' ) );
+check( 'sirotek bez polí', count( Raynet_Lead_Form_Post_Type::get_fields( $orphan ) ), 0 );
+
+Raynet_Lead_Form_Post_Type::maybe_migrate();
+check( 'sirotek se nezduplikoval',   count( $GLOBALS['wp_posts'] ), 1 );
+check( 'sirotek se stal výchozím',   Raynet_Lead_Form_Post_Type::default_id(), $orphan );
+check( 'sirotek dostal pole',        count( Raynet_Lead_Form_Post_Type::get_fields( $orphan ) ) > 0, true );
+
+// A form that already has fields is adopted untouched.
+$GLOBALS['wp_options'] = array(); $GLOBALS['wp_posts'] = array(); $GLOBALS['wp_meta'] = array();
+update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array( 'region' => 'cz' ) ) );
+$kept = Raynet_Lead_Form_Post_Type::create( 'Ruční', Raynet_Lead_Form_Definition::sanitize_fields( array(
+	array( 'source' => 'email', 'label' => 'Jen e-mail', 'required' => true ),
+) ), array() );
+Raynet_Lead_Form_Post_Type::maybe_migrate();
+check( 'existující pole se nepřepíšou', count( Raynet_Lead_Form_Post_Type::get_fields( $kept ) ), 1 );
+check( 'existující formulář výchozím',  Raynet_Lead_Form_Post_Type::default_id(), $kept );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

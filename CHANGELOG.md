@@ -2,6 +2,21 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.2.1] — 2026-09-22
+
+Opravná verze. **Verze 2.1.0 a 2.2.0 shodí web fatální chybou** a je potřeba z nich přejít sem.
+
+### Opraveno
+
+- **Fatální chyba při každém načtení stránky.** Plugin registroval typ obsahu a spouštěl jednorázovou migraci formulářů na hooku `plugins_loaded`. WordPress ale `$wp_rewrite` sestavuje až po něm a `wp_insert_post()` si na něj sahá přes `get_permalink()`. Výsledkem bylo `Call to a member function get_extra_permastruct() on null` a nedostupný web včetně administrace. Obojí se přesunulo na `init` — registrace na prioritu 5, migrace na 20.
+- `register_post_type()` se volalo dřív než na `init`, což je proti dokumentaci a novější WordPress na to upozorňuje.
+- **Formulář, který po pádu zůstal rozepsaný, se dokončí.** Pád nastal až po vložení příspěvku, takže na webu mohl zůstat formulář bez polí. Migrace ho teď převezme a doplní mu pole, místo aby založila druhý.
+- Když se formulář nepodaří vytvořit, migrace si už nepoznačí, že proběhla, a zkusí to při dalším požadavku znovu.
+
+### Přidáno
+
+- Testy na pořadí hooků (`tests/test-bootstrap.php`), které tuhle chybu chytnou: ověřují, že bootstrap nesahá na typ obsahu ani do databáze, a že registrace předchází migraci.
+
 ## [2.2.0] — 2026-09-22
 
 ### Přidáno

@@ -257,17 +257,51 @@ class Raynet_Lead_Form_Post_Type {
 			$fields[] = $field;
 		}
 
-		$post_id = self::create(
-			__( 'Kontaktní formulář', 'raynet-lead-api-integration' ),
-			$fields,
-			array()
-		);
+		$post_id = self::adopt_orphan();
 
 		if ( $post_id ) {
-			self::set_default( $post_id );
+			// Version 2.1.0 could die between inserting the post and writing its
+			// meta. Finish that form rather than leaving a blank one behind and
+			// creating a second.
+			if ( ! self::get_fields( $post_id ) ) {
+				self::save_fields( $post_id, $fields );
+			}
+		} else {
+			$post_id = self::create(
+				__( 'Kontaktní formulář', 'raynet-lead-api-integration' ),
+				$fields,
+				array()
+			);
 		}
 
+		if ( ! $post_id ) {
+			// Leave the flag unset so the next request tries again.
+			return;
+		}
+
+		self::set_default( $post_id );
 		update_option( 'raynet_lead_migrated_forms', 1 );
+	}
+
+	/**
+	 * Finds a form left behind by an interrupted earlier migration.
+	 *
+	 * @return int Form id, or 0 when there is none.
+	 */
+	private static function adopt_orphan() {
+		$existing = get_posts(
+			array(
+				'post_type'        => self::POST_TYPE,
+				'post_status'      => array( 'publish', 'draft' ),
+				'numberposts'      => 1,
+				'orderby'          => 'ID',
+				'order'            => 'ASC',
+				'fields'           => 'ids',
+				'suppress_filters' => true,
+			)
+		);
+
+		return empty( $existing ) ? 0 : (int) $existing[0];
 	}
 
 	/**

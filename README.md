@@ -124,7 +124,9 @@ Nová verze se pak nabídne na stránce **Pluginy** jako u každého jiného plu
 - Když je GitHub nedostupný nebo vyčerpá limit dotazů, kontrola tiše selže a stránka Pluginy funguje dál.
 - Kontrolu vypnete zaškrtávátkem v nastavení.
 
-> Verze 2.1.0 a starší tohle neumí. Z nich je potřeba na 2.2.0 přejít ručně; od ní už to jde z administrace.
+> Verze 2.1.0 a starší tohle neumí. Z nich je potřeba přejít ručně; od 2.2.0 už to jde z administrace.
+>
+> **Verze 2.1.0 a 2.2.0 obsahují fatální chybu, která shodí web.** Pokud na některé z nich jste, nahrajte ručně 2.2.1.
 
 ---
 

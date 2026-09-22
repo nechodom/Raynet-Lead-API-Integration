@@ -5,8 +5,8 @@
 define( 'ABSPATH', __DIR__ );
 define( 'DAY_IN_SECONDS', 86400 );
 define( 'RAYNET_LEAD_VERSION', '2.0.0' );
-define( 'RAYNET_LEAD_FILE', __DIR__ . '/plugin.php' );
-define( 'RAYNET_LEAD_PATH', __DIR__ . '/' );
+define( 'RAYNET_LEAD_FILE', dirname( __DIR__ ) . '/raynet-lead-api-integration/raynet-lead-api-integration.php' );
+define( 'RAYNET_LEAD_PATH', dirname( __DIR__ ) . '/raynet-lead-api-integration/' );
 define( 'RAYNET_LEAD_URL', 'https://example.test/wp-content/plugins/raynet/' );
 
 $GLOBALS['wp_options']    = array();
@@ -43,7 +43,7 @@ defined( 'OBJECT' ) || define( 'OBJECT', 'OBJECT' );
 $GLOBALS['wp_posts'] = array();
 $GLOBALS['wp_meta']  = array();
 
-function register_post_type( ...$a ) {}
+function register_post_type( $type, $args = array() ) { $GLOBALS['wp_post_types'][] = $type; return true; }
 function get_post( $id ) { return isset( $GLOBALS['wp_posts'][ $id ] ) ? (object) $GLOBALS['wp_posts'][ $id ] : null; }
 function get_post_meta( $id, $key, $single = false ) {
 	$v = isset( $GLOBALS['wp_meta'][ $id ][ $key ] ) ? $GLOBALS['wp_meta'][ $id ][ $key ] : '';
@@ -56,6 +56,15 @@ function get_page_by_path( $slug, $output = OBJECT, $type = 'post' ) {
 	}
 	return null;
 }
+function get_posts( $args = array() ) {
+	$type = isset( $args['post_type'] ) ? $args['post_type'] : 'post';
+	$out  = array();
+	foreach ( $GLOBALS['wp_posts'] as $id => $p ) {
+		if ( $p['post_type'] === $type ) { $out[] = $id; }
+	}
+	return $out;
+}
+function wp_delete_post( $id, $force = false ) { unset( $GLOBALS['wp_posts'][ $id ] ); return true; }
 function wp_insert_post( $args ) {
 	$id = count( $GLOBALS['wp_posts'] ) + 1;
 	$GLOBALS['wp_posts'][ $id ] = array_merge(
@@ -108,7 +117,17 @@ function esc_html_e( $text, $domain = null ) { echo htmlspecialchars( (string) $
 function esc_attr_e( $text, $domain = null ) { echo htmlspecialchars( (string) $text, ENT_QUOTES ); }
 function _e( $text, $domain = null ) { echo $text; }
 
-function add_action( ...$a ) {}
+$GLOBALS['wp_hooks']      = array();
+$GLOBALS['wp_post_types'] = array();
+
+function add_action( $hook, $cb = null, $prio = 10, $args = 1 ) {
+	$GLOBALS['wp_hooks'][] = array( 'hook' => $hook, 'cb' => $cb, 'prio' => $prio );
+}
+function register_activation_hook( ...$a ) {}
+function load_plugin_textdomain( ...$a ) { return true; }
+function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
+function plugin_dir_url( $f ) { return 'https://example.test/wp-content/plugins/raynet-lead-api-integration/'; }
+function is_admin() { return false; }
 function add_filter( ...$a ) {}
 function add_shortcode( ...$a ) {}
 function apply_filters( $tag, $value, ...$rest ) { return $value; }
