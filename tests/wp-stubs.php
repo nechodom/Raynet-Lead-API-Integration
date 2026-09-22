@@ -129,5 +129,8 @@ function wp_remote_retrieve_body( $r ) { return is_array( $r ) ? $r['body'] : ''
 $raynet_includes = dirname( __DIR__ ) . '/raynet-lead-api-integration/includes/';
 
 require_once $raynet_includes . 'class-raynet-settings.php';
+require_once $raynet_includes . 'class-raynet-form-definition.php';
+require_once $raynet_includes . 'class-raynet-form-post-type.php';
+require_once $raynet_includes . 'class-raynet-form-renderer.php';
 require_once $raynet_includes . 'class-raynet-api-client.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';

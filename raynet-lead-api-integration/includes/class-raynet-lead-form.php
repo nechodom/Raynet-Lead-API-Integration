@@ -136,8 +136,9 @@ class Raynet_Lead_Form {
 	public function render_shortcode( $atts ) {
 		$atts = shortcode_atts(
 			array(
-				'fields'   => 'firstName,lastName,email,phone,topic,message',
-				'required' => 'email,message',
+				'id'       => '',
+				'fields'   => '',
+				'required' => '',
 				'topic'    => '',
 				'title'    => '',
 				'button'   => __( 'Odeslat', 'raynet-lead-api-integration' ),
@@ -148,31 +149,42 @@ class Raynet_Lead_Form {
 			'raynet_lead_form'
 		);
 
-		$fields   = $this->parse_field_list( $atts['fields'], array( 'email', 'message' ) );
-		$required = array_intersect( $this->parse_field_list( $atts['required'], array() ), $fields );
+		$form_post_id = Raynet_Lead_Form_Post_Type::resolve( $atts['id'] );
+
+		if ( ! $form_post_id ) {
+			return $this->missing_form_notice( $atts['id'] );
+		}
+
+		$fields = $this->apply_legacy_atts( Raynet_Lead_Form_Post_Type::get_fields( $form_post_id ), $atts );
 
 		$this->enqueue_assets();
 
-		$form_id  = wp_unique_id( 'raynet-lead-form-' );
+		$form_uid = wp_unique_id( 'raynet-lead-form-' );
 		$settings = Raynet_Lead_Settings::all();
+		$lead     = Raynet_Lead_Form_Post_Type::get_lead_settings( $form_post_id );
 		$stamp    = time();
 
-		$labels = $this->field_labels();
+		$redirect = $atts['redirect'];
+
+		if ( '' === $redirect ) {
+			$redirect = '' !== $lead['redirect_url'] ? $lead['redirect_url'] : $settings['redirect_url'];
+		}
 
 		ob_start();
 		?>
 		<form
-			id="<?php echo esc_attr( $form_id ); ?>"
+			id="<?php echo esc_attr( $form_uid ); ?>"
 			class="raynet-lead-form <?php echo esc_attr( $atts['class'] ); ?>"
 			method="post"
 			novalidate
-			data-redirect="<?php echo esc_url( '' !== $atts['redirect'] ? $atts['redirect'] : $settings['redirect_url'] ); ?>"
+			data-redirect="<?php echo esc_url( $redirect ); ?>"
 		>
 			<?php if ( '' !== $atts['title'] ) : ?>
 				<h3 class="raynet-lead-form__title"><?php echo esc_html( $atts['title'] ); ?></h3>
 			<?php endif; ?>
 
 			<?php wp_nonce_field( self::NONCE_ACTION, 'raynet_nonce', false ); ?>
+			<input type="hidden" name="raynet_form_id" value="<?php echo esc_attr( (string) $form_post_id ); ?>" />
 			<input type="hidden" name="raynet_ts" value="<?php echo esc_attr( (string) $stamp ); ?>" />
 			<input type="hidden" name="raynet_ts_hash" value="<?php echo esc_attr( $this->stamp_hash( $stamp ) ); ?>" />
 			<input type="hidden" name="raynet_fixed_topic" value="<?php echo esc_attr( $atts['topic'] ); ?>" />
@@ -180,56 +192,15 @@ class Raynet_Lead_Form {
 
 			<?php if ( ! empty( $settings['honeypot_enabled'] ) ) : ?>
 				<div class="raynet-lead-form__hp" aria-hidden="true">
-					<label for="<?php echo esc_attr( $form_id ); ?>-website"><?php esc_html_e( 'Nevyplňujte toto pole', 'raynet-lead-api-integration' ); ?></label>
-					<input type="text" id="<?php echo esc_attr( $form_id ); ?>-website" name="website" tabindex="-1" autocomplete="off" value="" />
+					<label for="<?php echo esc_attr( $form_uid ); ?>-website"><?php esc_html_e( 'Nevyplňujte toto pole', 'raynet-lead-api-integration' ); ?></label>
+					<input type="text" id="<?php echo esc_attr( $form_uid ); ?>-website" name="website" tabindex="-1" autocomplete="off" value="" />
 				</div>
 			<?php endif; ?>
 
-			<?php foreach ( $fields as $field ) : ?>
-				<?php
-				if ( 'topic' === $field && '' !== $atts['topic'] ) {
-					continue;
-				}
-
-				$field_id    = $form_id . '-' . $field;
-				$is_required = in_array( $field, $required, true );
-				$label       = isset( $labels[ $field ] ) ? $labels[ $field ] : $field;
-				?>
-				<div class="raynet-lead-form__row raynet-lead-form__row--<?php echo esc_attr( $field ); ?>">
-					<label class="raynet-lead-form__label" for="<?php echo esc_attr( $field_id ); ?>">
-						<?php echo esc_html( $label ); ?>
-						<?php if ( $is_required ) : ?>
-							<span class="raynet-lead-form__required" aria-hidden="true">*</span>
-						<?php endif; ?>
-					</label>
-
-					<?php if ( 'message' === $field ) : ?>
-						<textarea
-							id="<?php echo esc_attr( $field_id ); ?>"
-							name="<?php echo esc_attr( $field ); ?>"
-							rows="5"
-							<?php echo $is_required ? 'required' : ''; ?>
-						></textarea>
-					<?php else : ?>
-						<input
-							type="<?php echo esc_attr( $this->input_type( $field ) ); ?>"
-							id="<?php echo esc_attr( $field_id ); ?>"
-							name="<?php echo esc_attr( $field ); ?>"
-							autocomplete="<?php echo esc_attr( $this->autocomplete_for( $field ) ); ?>"
-							<?php echo $is_required ? 'required' : ''; ?>
-						/>
-					<?php endif; ?>
-				</div>
-			<?php endforeach; ?>
-
-			<?php if ( ! empty( $settings['consent_enabled'] ) ) : ?>
-				<div class="raynet-lead-form__row raynet-lead-form__row--consent">
-					<label class="raynet-lead-form__consent" for="<?php echo esc_attr( $form_id ); ?>-consent">
-						<input type="checkbox" id="<?php echo esc_attr( $form_id ); ?>-consent" name="consent" value="1" required />
-						<span><?php echo wp_kses_post( $this->consent_label( $settings ) ); ?></span>
-					</label>
-				</div>
-			<?php endif; ?>
+			<?php
+			// Every value is escaped inside the renderer.
+			echo Raynet_Lead_Form_Renderer::render_fields( $fields, $form_uid ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			?>
 
 			<div class="raynet-lead-form__row raynet-lead-form__row--submit">
 				<button type="submit" class="raynet-lead-form__submit"><?php echo esc_html( $atts['button'] ); ?></button>
@@ -240,6 +211,87 @@ class Raynet_Lead_Form {
 		<?php
 
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Applies the deprecated fields= and required= attributes to a form.
+	 *
+	 * Version 2.0 sites embedded the shortcode with these attributes. Treating
+	 * them as a filter over the resolved form keeps those pages rendering what
+	 * they rendered before, without creating a second source of truth for the
+	 * field list.
+	 *
+	 * @param array<int,array<string,mixed>> $fields Field definitions.
+	 * @param array<string,string>           $atts   Shortcode attributes.
+	 * @return array<int,array<string,mixed>> Possibly narrowed definitions.
+	 */
+	private function apply_legacy_atts( array $fields, array $atts ) {
+		if ( '' !== trim( (string) $atts['required'] ) ) {
+			$required = $this->parse_field_list( $atts['required'], array() );
+
+			foreach ( $fields as $index => $field ) {
+				if ( Raynet_Lead_Form_Definition::is_lead_source( $field['source'] ) ) {
+					$fields[ $index ]['required'] = in_array( $field['source'], $required, true );
+				}
+			}
+		}
+
+		if ( '' === trim( (string) $atts['fields'] ) ) {
+			return $fields;
+		}
+
+		$wanted = $this->parse_field_list( $atts['fields'], array() );
+
+		if ( empty( $wanted ) ) {
+			// Nothing recognizable was named, so the filter is not applied at all
+			// rather than emptying the form.
+			return $fields;
+		}
+
+		$narrowed = array();
+
+		foreach ( $wanted as $source ) {
+			foreach ( $fields as $field ) {
+				if ( $field['source'] === $source ) {
+					$narrowed[] = $field;
+				}
+			}
+		}
+
+		// Consent and custom fields cannot be named in the legacy list, so they
+		// survive the filter and keep their place at the end.
+		foreach ( $fields as $field ) {
+			if ( ! Raynet_Lead_Form_Definition::is_lead_source( $field['source'] ) ) {
+				$narrowed[] = $field;
+			}
+		}
+
+		return $narrowed;
+	}
+
+	/**
+	 * Output shown when the shortcode names no usable form.
+	 *
+	 * A visitor must never see a technical error, so this renders a message for
+	 * users who can act on it and nothing at all for everyone else.
+	 *
+	 * @param string $requested The id attribute that failed to resolve.
+	 * @return string Markup, or an empty string.
+	 */
+	private function missing_form_notice( $requested ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return '';
+		}
+
+		$message = '' !== trim( (string) $requested )
+			? sprintf(
+				/* translators: %s: the id given to the shortcode. */
+				__( 'RAYNET: formulář „%s“ neexistuje nebo je v koši.', 'raynet-lead-api-integration' ),
+				$requested
+			)
+			: __( 'RAYNET: není nastaven výchozí formulář. Založte ho v RAYNET CRM → Formuláře.', 'raynet-lead-api-integration' );
+
+		return '<p class="raynet-lead-form__admin-notice">' . esc_html( $message ) . '</p>';
 	}
 
 	/**
@@ -766,79 +818,6 @@ class Raynet_Lead_Form {
 		$fields = array_values( array_unique( $fields ) );
 
 		return empty( $fields ) ? $fallback : $fields;
-	}
-
-	/**
-	 * Human readable labels for the form fields.
-	 *
-	 * @return array<string,string> Field => label.
-	 */
-	private function field_labels() {
-		return array(
-			'firstName'   => __( 'Jméno', 'raynet-lead-api-integration' ),
-			'lastName'    => __( 'Příjmení', 'raynet-lead-api-integration' ),
-			'companyName' => __( 'Společnost', 'raynet-lead-api-integration' ),
-			'email'       => __( 'E-mail', 'raynet-lead-api-integration' ),
-			'phone'       => __( 'Telefon', 'raynet-lead-api-integration' ),
-			'topic'       => __( 'Předmět', 'raynet-lead-api-integration' ),
-			'message'     => __( 'Zpráva', 'raynet-lead-api-integration' ),
-			'street'      => __( 'Ulice', 'raynet-lead-api-integration' ),
-			'city'        => __( 'Město', 'raynet-lead-api-integration' ),
-			'zipCode'     => __( 'PSČ', 'raynet-lead-api-integration' ),
-		);
-	}
-
-	/**
-	 * Maps a field to an HTML input type.
-	 *
-	 * @param string $field Field name.
-	 * @return string Input type.
-	 */
-	private function input_type( $field ) {
-		if ( 'email' === $field ) {
-			return 'email';
-		}
-
-		if ( 'phone' === $field ) {
-			return 'tel';
-		}
-
-		return 'text';
-	}
-
-	/**
-	 * Maps a field to an autocomplete token.
-	 *
-	 * @param string $field Field name.
-	 * @return string Autocomplete token.
-	 */
-	private function autocomplete_for( $field ) {
-		$map = array(
-			'firstName'   => 'given-name',
-			'lastName'    => 'family-name',
-			'companyName' => 'organization',
-			'email'       => 'email',
-			'phone'       => 'tel',
-			'street'      => 'street-address',
-			'city'        => 'address-level2',
-			'zipCode'     => 'postal-code',
-		);
-
-		return isset( $map[ $field ] ) ? $map[ $field ] : 'off';
-	}
-
-	/**
-	 * Returns the consent label, falling back to a default wording.
-	 *
-	 * @param array<string,mixed> $settings Plugin settings.
-	 * @return string Label, may contain links.
-	 */
-	private function consent_label( array $settings ) {
-		if ( '' !== trim( (string) $settings['consent_label'] ) ) {
-			return (string) $settings['consent_label'];
-		}
-
-		return __( 'Souhlasím se zpracováním osobních údajů za účelem vyřízení mé poptávky.', 'raynet-lead-api-integration' );
 	}
 
 	/**
