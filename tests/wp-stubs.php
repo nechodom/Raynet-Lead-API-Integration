@@ -45,6 +45,8 @@ function sanitize_text_field( $str ) { return trim( preg_replace( '/[\r\n\t]+|<[
 function sanitize_textarea_field( $str ) { return trim( preg_replace( '/<[^>]*>/', '', (string) $str ) ); }
 function sanitize_email( $email ) { return trim( (string) $email ); }
 function sanitize_key( $key ) { return strtolower( preg_replace( '/[^a-z0-9_\-]/i', '', (string) $key ) ); }
+function sanitize_title( $t ) { return trim( strtolower( preg_replace( '/[^a-z0-9_-]+/i', '-', trim( (string) $t ) ) ), '-' ); }
+function absint( $v ) { return abs( (int) $v ); }
 function esc_url_raw( $url ) { return filter_var( (string) $url, FILTER_VALIDATE_URL ) ? (string) $url : ''; }
 function esc_attr( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
 function esc_html( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
