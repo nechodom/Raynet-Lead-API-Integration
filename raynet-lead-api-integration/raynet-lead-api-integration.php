@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
  * Update URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
  * Description:       Builder formulářů, který odesílá poptávky do RAYNET CRM jako Leady přes REST API v2. Přihlašovací údaje nikdy neopustí server.
- * Version:           2.3.0
+ * Version:           2.3.1
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Matěj Kevin Nechodom
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-defined( 'RAYNET_LEAD_VERSION' ) || define( 'RAYNET_LEAD_VERSION', '2.3.0' );
+defined( 'RAYNET_LEAD_VERSION' ) || define( 'RAYNET_LEAD_VERSION', '2.3.1' );
 defined( 'RAYNET_LEAD_FILE' ) || define( 'RAYNET_LEAD_FILE', __FILE__ );
 defined( 'RAYNET_LEAD_PATH' ) || define( 'RAYNET_LEAD_PATH', plugin_dir_path( __FILE__ ) );
 defined( 'RAYNET_LEAD_URL' ) || define( 'RAYNET_LEAD_URL', plugin_dir_url( __FILE__ ) );
@@ -72,7 +72,7 @@ add_action( 'init', array( 'Raynet_Lead_Form_Post_Type', 'maybe_migrate' ), 20 )
  * Registers the submit action for Elementor Pro Forms.
  *
  * The class file is required here and nowhere else, so on a site without
- * Elementor Pro it is never read and `extends Integration_Base` cannot fail.
+ * Elementor Pro it is never read and `extends Action_Base` cannot fail.
  * The hook firing at all is a better signal than a version constant: the
  * constant can be defined while the Forms module is not running.
  *
@@ -80,7 +80,7 @@ add_action( 'init', array( 'Raynet_Lead_Form_Post_Type', 'maybe_migrate' ), 20 )
  * @return void
  */
 function raynet_lead_register_elementor_action( $registrar ) {
-	if ( ! class_exists( '\\ElementorPro\\Modules\\Forms\\Classes\\Integration_Base' ) ) {
+	if ( ! class_exists( '\\ElementorPro\\Modules\\Forms\\Classes\\Action_Base' ) ) {
 		return;
 	}
 
@@ -103,7 +103,7 @@ function raynet_lead_elementor_notice() {
 		return;
 	}
 
-	if ( class_exists( '\\ElementorPro\\Modules\\Forms\\Classes\\Integration_Base' ) ) {
+	if ( class_exists( '\\ElementorPro\\Modules\\Forms\\Classes\\Action_Base' ) ) {
 		return;
 	}
 

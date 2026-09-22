@@ -192,6 +192,8 @@ Ve widgetu formuláře otevřete **Actions After Submit** a přidejte **RAYNET C
 
 **Mapování polí** — ke každému atributu RAYNETu vyberete pole formuláře. Nabídka ukazuje popisky polí, ne jejich ID. Nenamapované atributy se neodesílají.
 
+> Mapování se ukládá do dat formuláře. Přidá-li budoucí verze pluginu jedenáctý atribut, ve **stávajících** formulářích se neprojeví — Elementor uložené řádky nedoplňuje. U nově zapnuté akce se nabídne celý seznam.
+
 **Nastavení leadu** — předmět, priorita, typ leadu, předpona poznámky, číselníková ID, štítky a notifikační e-maily, zvlášť pro tenhle formulář. Prázdné pole znamená zdědit z nastavení pluginu, stejně jako u builderu.
 
 Dva přepínače navíc:

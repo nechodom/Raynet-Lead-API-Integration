@@ -330,7 +330,7 @@ if ( isset( $result->response[ $basename ] ) ) {
 
 echo "\n=== Elementor Pro Forms ===\n";
 
-if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorPro\\Modules\\Forms\\Classes\\Integration_Base' ) ) {
+if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorPro\\Modules\\Forms\\Classes\\Action_Base' ) ) {
 	echo "     přeskočeno, Elementor Pro není nainstalované\n";
 } else {
 	$forms  = \ElementorPro\Plugin::instance()->modules_manager->get_modules( 'forms' );
@@ -339,9 +339,42 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 	check( 'akce je zaregistrovaná', null !== $action && is_object( $action ), true );
 
 	if ( is_object( $action ) ) {
-		check( 'akce je Integration_Base', $action instanceof \ElementorPro\Modules\Forms\Classes\Integration_Base, true );
+		check( 'akce je Action_Base', $action instanceof \ElementorPro\Modules\Forms\Classes\Action_Base, true );
 		check( 'název akce', $action->get_name(), 'raynet_crm' );
 		check( 'popisek akce', $action->get_label(), 'RAYNET CRM' );
+
+		// The mapping control must declare remote_label and remote_type on its
+		// repeater. Elementor drops any key of a static default that has no
+		// matching control, and its editor view then reads remote_type as
+		// undefined and filters every form field out of the dropdown, leaving
+		// rows titled "Item #1" over an empty list.
+		$form_widget = \Elementor\Plugin::instance()->widgets_manager->get_widget_types( 'form' );
+		check( 'widget formuláře existuje', null !== $form_widget, true );
+
+		if ( $form_widget ) {
+			$map_control = $form_widget->get_controls( 'raynet_crm_fields_map' );
+
+			check( 'mapovací control zaregistrován', null !== $map_control, true );
+
+			if ( $map_control ) {
+				check( 'typ controlu', $map_control['type'], 'fields_map' );
+
+				$repeater_keys = isset( $map_control['fields'] ) ? array_keys( $map_control['fields'] ) : array();
+
+				foreach ( array( 'remote_id', 'remote_label', 'remote_type', 'local_id' ) as $needed ) {
+					check( 'repeater zná ' . $needed, in_array( $needed, $repeater_keys, true ), true );
+				}
+
+				check( 'nabízí deset atributů', count( $map_control['default'] ), 10 );
+				check( 'atributy nesou popisek', ! empty( $map_control['default'][0]['remote_label'] ), true );
+
+				// A row declaring anything but text would make Elementor's editor
+				// offer only fields of that exact type, so an address typed into a
+				// plain Text field would be unmappable.
+				$types = array_unique( array_column( $map_control['default'], 'remote_type' ) );
+				check( 'všechny řádky jsou text', $types, array( 'text' ) );
+			}
+		}
 
 		$settings_row['category'] = 1;
 		$settings_row['tags']     = 'globalni';

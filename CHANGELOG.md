@@ -2,6 +2,32 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.3.1] — 2026-09-22
+
+### Opraveno
+
+- **Mapování polí v Elementoru bylo nepoužitelné.** Řádky se jmenovaly „Item #1" místo atributů RAYNETu a rozbalovátko nabízelo jen „- None -", takže nešlo namapovat nic.
+
+  Příčinou je zděděné `Integration_Base::register_fields_map_control()`. Deklaruje na repeateru pouze `remote_id` a `local_id`, a Elementor zahodí každý klíč statického PHP defaultu, který nemá odpovídající control. Jeho editor pak čte `remote_type` jako `undefined` a filtr
+
+  ```js
+  if ( 'text' !== remoteType && remoteType !== model.get('field_type') ) { return; }
+  ```
+
+  přeskočí každé pole formuláře. Elementorovy vlastní integrace se tomu vyhnou tím, že řádky vkládají z JavaScriptu po dotazu na vzdálené API — což pro pevný seznam deseti atributů nedává smysl.
+
+  Control se nově registruje vlastní cestou, s repeaterem, který zná i `remote_label` a `remote_type`.
+
+### Změněno
+
+- Třída akce dědí z `Action_Base` místo `Integration_Base`. Jediné, co z `Integration_Base` používala, byla právě ta rozbitá metoda.
+
+### Poznámka
+
+Našlo se to až proklikáním živého editoru Elementoru. Integrační sada do té doby kontrolovala jen serverovou stranu — registraci akce a zpracování odeslání — a ta byla v pořádku po celou dobu. Rozbité bylo jen to, co uvidí editor.
+
+Sada teď ověřuje, že repeater zná všechny čtyři klíče, že se nabízí deset atributů s popisky a že žádný řádek nedeklaruje jiný `remote_type` než `text`.
+
 ## [2.3.0] — 2026-09-22
 
 ### Přidáno

@@ -11,12 +11,13 @@
 defined( 'ABSPATH' ) || exit;
 
 use Elementor\Controls_Manager;
-use ElementorPro\Modules\Forms\Classes\Integration_Base;
+use Elementor\Repeater;
+use ElementorPro\Modules\Forms\Classes\Action_Base;
 
 /**
  * Sends an Elementor form submission to RAYNET as a Lead.
  */
-class Raynet_Elementor_Form_Action extends Integration_Base {
+class Raynet_Elementor_Form_Action extends Action_Base {
 
 	/**
 	 * Key in the registry and value inside `submit_actions`.
@@ -70,20 +71,54 @@ class Raynet_Elementor_Form_Action extends Integration_Base {
 	}
 
 	/**
-	 * Arguments for the inherited field mapping control.
+	 * Registers the field mapping control.
 	 *
-	 * The RAYNET side of the mapping is a fixed list, so it is supplied here as
-	 * a static default; no request to the editor is needed.
+	 * Integration_Base::register_fields_map_control() cannot be used here. It
+	 * declares only `remote_id` and `local_id` on the repeater, and Elementor
+	 * drops any key of a static PHP default that has no matching control. The
+	 * editor view then reads `remote_type` as undefined and its filter
 	 *
-	 * @return array<string,mixed> Control arguments.
+	 *     if ( 'text' !== remoteType && remoteType !== model.get('field_type') )
+	 *
+	 * skips every field, leaving each row titled "Item #1" over an empty list.
+	 * Elementor's own integrations avoid this by pushing the rows in from
+	 * JavaScript, which we have no reason to do for a fixed list of ten.
+	 *
+	 * @param \ElementorPro\Modules\Forms\Widgets\Form $widget    Form widget.
+	 * @param array<string,string>                      $condition Section condition.
+	 * @return void
 	 */
-	protected function get_fields_map_control_options() {
-		return array(
-			'label'       => esc_html__( 'Mapování polí', 'raynet-lead-api-integration' ),
-			'default'     => $this->remote_fields(),
-			'description' => esc_html__( 'Přiřaďte pole formuláře k atributům leadu. Nenamapovaná pole se neodesílají.', 'raynet-lead-api-integration' ),
-			'condition'   => array( 'submit_actions' => $this->get_name() ),
+	private function register_mapping_control( $widget, array $condition ) {
+		$repeater = new Repeater();
+
+		$repeater->add_control( 'remote_id', array( 'type' => Controls_Manager::HIDDEN ) );
+		$repeater->add_control( 'remote_label', array( 'type' => Controls_Manager::HIDDEN ) );
+		$repeater->add_control( 'remote_type', array( 'type' => Controls_Manager::HIDDEN ) );
+		$repeater->add_control( 'local_id', array( 'type' => Controls_Manager::SELECT ) );
+
+		$widget->add_control(
+			$this->get_name() . '_fields_map',
+			array(
+				'label'       => esc_html__( 'Mapování polí', 'raynet-lead-api-integration' ),
+				'type'        => self::mapping_control_type(),
+				'separator'   => 'before',
+				'fields'      => $repeater->get_controls(),
+				'default'     => $this->remote_fields(),
+				'description' => esc_html__( 'Přiřaďte pole formuláře k atributům leadu. Nenamapovaná pole se neodesílají.', 'raynet-lead-api-integration' ),
+				'condition'   => $condition,
+			)
 		);
+	}
+
+	/**
+	 * Control type of Elementor's field mapping widget.
+	 *
+	 * @return string Control type.
+	 */
+	private static function mapping_control_type() {
+		return class_exists( '\\ElementorPro\\Modules\\Forms\\Controls\\Fields_Map' )
+			? \ElementorPro\Modules\Forms\Controls\Fields_Map::CONTROL_TYPE
+			: 'fields_map';
 	}
 
 	/**
@@ -104,7 +139,7 @@ class Raynet_Elementor_Form_Action extends Integration_Base {
 			)
 		);
 
-		$this->register_fields_map_control( $widget );
+		$this->register_mapping_control( $widget, $condition );
 
 		$widget->add_control(
 			'raynet_crm_heading_lead',
