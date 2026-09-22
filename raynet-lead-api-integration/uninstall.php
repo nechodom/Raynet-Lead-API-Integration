@@ -18,6 +18,8 @@ $raynet_options = array(
 	'raynet_lead_version',
 	'raynet_lead_last_error',
 	'raynet_lead_migrated_v2',
+	'raynet_lead_migrated_forms',
+	'raynet_lead_default_form',
 	// Legacy 1.x options.
 	'raynet_username',
 	'raynet_api_key',
@@ -28,6 +30,21 @@ $raynet_options = array(
 
 foreach ( $raynet_options as $raynet_option ) {
 	delete_option( $raynet_option );
+}
+
+// Forms are posts, so they take their meta with them.
+$raynet_forms = get_posts(
+	array(
+		'post_type'        => 'raynet_form',
+		'post_status'      => 'any',
+		'numberposts'      => -1,
+		'fields'           => 'ids',
+		'suppress_filters' => true,
+	)
+);
+
+foreach ( $raynet_forms as $raynet_form_id ) {
+	wp_delete_post( $raynet_form_id, true );
 }
 
 global $wpdb;

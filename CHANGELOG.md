@@ -2,6 +2,33 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.1.0] — 2026-09-22
+
+Formulář se skládá v administraci, ne ve zkratce.
+
+### Přidáno
+
+- **Builder formulářů** v RAYNET CRM → Formuláře. Pole se vybírají ze seznamu, řadí přetažením nebo šipkami a editují na místě: popisek, placeholder, nápověda, povinnost, šířka.
+- **Živý náhled**, který vykresluje server stejným kódem jako ostrý formulář, takže se s ním nemůže rozejít.
+- **Víc pojmenovaných formulářů.** Každý má vlastní pole i vlastní nastavení leadu — předmět, prioritu, typ leadu, číselníková ID, štítky, notifikační e-maily, hlášku po odeslání a přesměrování. Prázdná hodnota znamená zdědit z nastavení pluginu.
+- **Vlastní pole** bez protějšku v RAYNETu: jednořádkový text, víceřádkový text, výběr a zaškrtávátko. Hodnota se zapíše do poznámky leadu pod svým popiskem. U zaškrtávátka se zapisuje i odpověď „ne“.
+- Zkratka přijímá `id`: `[raynet_lead_form id="kontakt"]`, podle zkratky formuláře i podle číselného ID.
+- Jeden formulář lze označit jako **výchozí**; ten obslouží zkratku bez `id`.
+- Seznam formulářů ukazuje zkratku k vložení a počet polí.
+
+### Změněno
+
+- **Souhlas se zpracováním je pole formuláře**, ne globální přepínač. Ze stránky nastavení zmizel a odkazuje na Formuláře. Formulář bez pole souhlasu už do poznámky leadu nezapíše, že souhlas padl — dřív to při zapnutém globálním přepínači udělal i formulář, který se na nic neptal.
+- Odesílání se řídí definicí uloženou na serveru. Pole, které formulář nemá, se zahodí, i kdyby v požadavku přišlo.
+- Půlená šířka se řídí nastavením pole. CSS už nestaví vedle sebe jmenovitě Jméno a Příjmení.
+- Atributy `fields=` a `required=` jsou zastaralé. Fungují dál jako filtr nad formulářem, takže stránky z verze 2.0 vypadají stejně.
+
+### Migrace
+
+Při první aktivaci vznikne formulář „Kontaktní formulář“ se stejnými poli, jaká vydávala zkratka ve verzi 2.0, a označí se jako výchozí. Stránky se zkratkou `[raynet_lead_form]` tak vypadají dál stejně. Pole souhlasu se přidá jen tehdy, byl-li souhlas globálně zapnutý, i s jeho textem.
+
+Nastavení leadu se nekopíruje — formulář dědí z globálního nastavení, aby zůstalo na jednom místě.
+
 ## [2.0.0] — 2026-09-22
 
 Kompletní přepis. Verze 1.x posílala přihlašovací údaje do prohlížeče; tato verze je opravuje na serveru.

@@ -12,6 +12,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - [Požadavky](#požadavky)
 - [Instalace](#instalace)
 - [Nastavení](#nastavení)
+- [Builder formulářů](#builder-formulářů)
 - [Vložení formuláře](#vložení-formuláře)
 - [Atributy zkratky](#atributy-zkratky)
 - [Jak vypadá lead v RAYNETu](#jak-vypadá-lead-v-raynetu)
@@ -28,6 +29,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 
 ## Funkce
 
+- **Builder formulářů** — pole vyberete, přetažením seřadíte a přepíšete jim popisky, bez editoru kódu. Formulářů můžete mít víc, každý s vlastním nastavením leadu.
 - **Zkratka `[raynet_lead_form]`** — formulář vložíte do libovolné stránky, příspěvku nebo widgetu.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
 - **Podpora všech čtyř regionů RAYNETu** (`.cz`, `.sk`, `.com`, `eu.`) i vlastní adresy.
@@ -105,30 +107,82 @@ Hlášky po odeslání i při chybě, přesměrování po úspěchu, text a povi
 
 ---
 
+## Builder formulářů
+
+V administraci přibude **RAYNET CRM → Formuláře**. Každý formulář má vlastní pole i vlastní nastavení leadu, takže kontaktní stránka může zakládat leady pod jinou kategorií než poptávka ceníku.
+
+### Pole
+
+Vlevo je seznam polí, vpravo náhled, který vykresluje server stejným kódem jako ostrý formulář — co vidíte, to návštěvník dostane.
+
+Pořadí změníte přetažením, nebo šipkami, když nemáte myš. Kliknutím na pole ho rozbalíte a nastavíte:
+
+| Vlastnost | Platí pro |
+|---|---|
+| Popisek | všechna pole |
+| Placeholder | textová pole |
+| Nápověda pod polem | všechna kromě souhlasu |
+| Povinné | všechna kromě souhlasu, ten je povinný vždy |
+| Šířka (celá / poloviční) | jednořádková pole |
+| Typ a možnosti | jen vlastní pole |
+
+### Druhy polí
+
+**Pole RAYNETu** — deset atributů leadu: Jméno, Příjmení, Společnost, E-mail, Telefon, Předmět, Zpráva, Ulice, Město, PSČ. Každý smí být ve formuláři jen jednou a jeho typ se měnit nedá; přepnutí e-mailu na dlouhý text by rozbilo validaci i mapování.
+
+**Vlastní pole** — cokoliv, co v RAYNETu vlastní atribut nemá: „Odkud jste se o nás dozvěděli?", „Počet zaměstnanců", zaškrtávátko „Chci newsletter". Na výběr je jednořádkový text, víceřádkový text, výběr z možností a zaškrtávátko. **Hodnota se zapíše do poznámky leadu** pod popiskem, který jste poli dali:
+
+```
+Odkud jste se o nás dozvěděli?: Google
+Chci newsletter: ne
+```
+
+U zaškrtávátka se zapíše i odpověď „ne" — u dotazu na newsletter je to ta zajímavější.
+
+**Souhlas se zpracováním** — zaškrtávátko GDPR. Jeho text smí obsahovat odkaz na zásady. Formulář ho může mít nejvýš jeden a je vždy povinný; nepovinné zaškrtávátko souhlasu je horší než žádné. Do poznámky leadu se zapíše datum a čas udělení.
+
+> Souhlas se od verze 2.1 nastavuje na formuláři, ne v nastavení pluginu. Formulář bez pole souhlasu do CRM nenapíše, že souhlas padl.
+
+### Nastavení leadu
+
+V pravém sloupci nastavíte pro tenhle formulář předmět, prioritu, typ leadu, předponu poznámky, ID z číselníků RAYNETu, štítky, notifikační e-maily, hlášku po odeslání a přesměrování.
+
+**Prázdné pole znamená zdědit z nastavení pluginu.** U číselníkových ID znamená totéž nula. Globální hodnoty tak zůstávají na jednom místě a formulář z nich jen vybočuje tam, kde potřebuje.
+
+### Výchozí formulář
+
+Jeden formulář lze označit jako **výchozí**. Ten obslouží zkratku `[raynet_lead_form]` bez atributu `id`.
+
+---
+
 ## Vložení formuláře
+
+Výchozí formulář:
 
 ```
 [raynet_lead_form]
 ```
 
-Výchozí formulář obsahuje pole Jméno, Příjmení, E-mail, Telefon, Předmět a Zpráva; povinné jsou E-mail a Zpráva.
+Konkrétní formulář podle jeho zkratky, kterou najdete na jeho editační obrazovce:
+
+```
+[raynet_lead_form id="kontakt"]
+```
 
 Další příklady:
 
 ```
-[raynet_lead_form title="Napište nám" button="Odeslat poptávku"]
+[raynet_lead_form id="cenik" title="Napište nám" button="Odeslat poptávku"]
 
-[raynet_lead_form fields="firstName,lastName,email,phone,companyName,message" required="email,phone"]
+[raynet_lead_form id="kontakt" topic="Poptávka ze stránky Ceník"]
 
-[raynet_lead_form topic="Poptávka ze stránky Ceník" fields="email,message"]
-
-[raynet_lead_form fields="email,message" redirect="https://example.cz/dekujeme/"]
+[raynet_lead_form id="kontakt" redirect="https://example.cz/dekujeme/"]
 ```
 
 V PHP šabloně:
 
 ```php
-echo do_shortcode( '[raynet_lead_form topic="Kontakt z patičky" fields="email,message"]' );
+echo do_shortcode( '[raynet_lead_form id="paticka" topic="Kontakt z patičky"]' );
 ```
 
 ---
@@ -137,17 +191,28 @@ echo do_shortcode( '[raynet_lead_form topic="Kontakt z patičky" fields="email,m
 
 | Atribut | Výchozí | Popis |
 |---|---|---|
-| `fields` | `firstName,lastName,email,phone,topic,message` | Která pole vykreslit, v tomto pořadí. |
-| `required` | `email,message` | Která z vykreslených polí jsou povinná. |
-| `topic` | – | Pevný předmět leadu. Pole „Předmět“ se pak nevykreslí. |
+| `id` | výchozí formulář | Který formulář vykreslit. Přijímá zkratku (slug) i číselné ID. |
+| `topic` | – | Pevný předmět leadu. Má přednost před předmětem nastaveným na formuláři. |
 | `title` | – | Nadpis nad formulářem. |
 | `button` | `Odeslat` | Popisek odesílacího tlačítka. |
 | `class` | – | Další CSS třída formuláře. |
-| `redirect` | hodnota z nastavení | URL, kam přesměrovat po úspěšném odeslání. |
+| `redirect` | z formuláře, pak z nastavení | URL, kam přesměrovat po úspěšném odeslání. |
 
-**Dostupná pole:** `firstName`, `lastName`, `companyName`, `email`, `phone`, `topic`, `message`, `street`, `city`, `zipCode`.
+Pole se nastavují v builderu, ne ve zkratce.
 
-Server vždy vyžaduje **e-mail nebo telefon**, i kdyby v `required` nebyly — bez kontaktu je lead k ničemu.
+Server vždy vyžaduje **e-mail nebo telefon**, i kdyby je builder označil jako nepovinné — bez kontaktu je lead k ničemu.
+
+### Zastaralé atributy
+
+`fields` a `required` fungují dál, ale jen jako filtr nad formulářem: `fields=` vybere a seřadí podmnožinu jeho polí, `required=` přepíše povinnost. Zůstávají kvůli stránkám, které je nesou z verze 2.0.
+
+```
+[raynet_lead_form fields="email,message"]
+```
+
+Pro nový web je místo nich lepší založit druhý formulář — nastavení je pak na jednom místě.
+
+Souhlas a vlastní pole ve `fields=` pojmenovat nejde, a filtr je proto nikdy neodebere.
 
 ---
 
@@ -190,7 +255,8 @@ K tomu WordPress nonce. Pokud běží na webu plná cache stránek a nonce vypr�
 
 ## GDPR
 
-- Zaškrtávátko souhlasu je v základu zapnuté a povinné; jeho text si nastavíte včetně odkazů.
+- Souhlas je pole formuláře. Přidáte ho v builderu, jeho text smí obsahovat odkazy, a je vždy povinný.
+- Formulář bez pole souhlasu do poznámky leadu nic o souhlasu nezapíše.
 - Datum a čas souhlasu se zapíše do poznámky leadu.
 - Plugin **neukládá odeslaná data do databáze WordPressu**. Jdou rovnou do RAYNETu.
 - IP adresa se používá jen pro omezení frekvence, ukládá se jako hash v transientu a do CRM se neposílá.
