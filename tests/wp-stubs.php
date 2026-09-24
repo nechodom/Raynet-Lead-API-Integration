@@ -110,6 +110,8 @@ function esc_html( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
 function esc_textarea( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
 function wp_kses_post( $t ) { return (string) $t; }
 function is_email( $email ) { return (bool) filter_var( (string) $email, FILTER_VALIDATE_EMAIL ); }
+function wp_check_invalid_utf8( $s ) { return mb_check_encoding( (string) $s, 'UTF-8' ) ? (string) $s : ''; }
+function wp_strip_all_tags( $s ) { return trim( strip_tags( (string) $s ) ); }
 function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }
 function trailingslashit( $s ) { return rtrim( (string) $s, '/\\' ) . '/'; }
 function wp_specialchars_decode( $s, $q = null ) { return html_entity_decode( (string) $s ); }
@@ -175,4 +177,5 @@ require_once $raynet_includes . 'class-raynet-form-renderer.php';
 require_once $raynet_includes . 'class-raynet-updater.php';
 require_once $raynet_includes . 'elementor/class-raynet-elementor-forms.php';
 require_once $raynet_includes . 'class-raynet-api-client.php';
+require_once $raynet_includes . 'class-raynet-lead-fields.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';

@@ -2,6 +2,45 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.5.0] — 2026-09-24
+
+### Opraveno — šablona se nepropsala do všech formulářů
+
+Nezávislé vyšetřování (6 hypotéz, každý nález ověřený třemi oponenty proti zdrojákům WordPressu a Elementoru) našlo tyto příčiny:
+
+- **Přehled nevěděl o formulářích v šablonách.** Hledal přes `post_type => 'any'`, a WordPress do „any" nezahrnuje typy vyloučené z vyhledávání — mezi nimi knihovnu šablon Elementoru. Formuláře v **popupech, hlavičkách, patičkách, uložených sekcích a globálních widgetech** tak v tabulce vůbec nebyly. A právě odtud si je Elementor při odeslání čte. Přehled teď prochází všechny typy obsahu kromě revizí a sloupec *Umístění* říká, kde formulář je.
+- **Tichý strop 200 stránek.** Do limitu se počítala každá stránka kdy uložená v Elementoru, i bez formuláře, řazeno od nejnovější. Na větším webu tak z přehledu jako první vypadly nejstarší stránky — typicky hlavní kontaktní. Limit je pryč a dotaz rovnou vybírá jen stránky s formulářem.
+- **Nasazení v editoru nebylo vidět a dalším uložením zmizelo.** Elementor otevírá editor na automaticky uložené verzi — nepublikovaném konceptu — je-li novější než stránka. Plugin měnil jen stránku, takže editor ukázal koncept bez RAYNETu a tlačítko Aktualizovat nasazení přepsalo. Nasazení se teď zapíše i do takového konceptu: koncept zůstane, jak byl, a nese nové nastavení. Vrácení stránky se při čekajícím konceptu zastaví a vysvětlí proč.
+- **Nasazení vypínalo e-mailovou notifikaci formuláře.** Elementor výchozí akce po odeslání neukládá, a plugin chybějící seznam četl jako „žádné akce". Formulář s nedotčenými akcemi tak po nasazení posílal jen do RAYNETu. Výchozí akce teď zůstávají.
+- **Opakované nasazení přepsalo ruční mapování** a formulář bez rozpoznaných polí skončil „zapnutý" bez e-mailu i telefonu — tedy bez jediného leadu. Odhad teď jen doplňuje, co chybí, a tabulka i hlášení po nasazení označí formuláře, kterým e-mail i telefon chybí.
+- **Stránka přepnutá zpět do editoru WordPressu** se tvářila jako nastavitelná, ale Elementor ji už nevykresluje. Tabulka ji teď ukáže jako neaktivní a nasazení odmítne.
+- **Hlášení po nasazení počítalo vybrané formuláře, ne nastavené.** Formulář, který ze stránky mezitím zmizel, se započítal jako úspěch.
+- Přehled nevypisoval naplánované stránky.
+- U formuláře v popupu, hlavičce nebo patičce se do poznámky leadu psala adresa šablony místo stránky, na které se formulář zobrazil.
+
+### Přidáno — všechna pole RAYNETu, i vlastní
+
+- Mapování v Elementoru nabízí vedle základních atributů i **IČO, DIČ, datovou schránku, tituly, druhý e-mail a telefon, web, fax, jiný kontakt, kraj, zemi, souhlas s marketingem a sociální sítě**.
+- **Vlastní pole vaší instance RAYNETu** se načítají z `GET /customField/config/` a nabízejí se v mapování s příponou *(vlastní pole)*. Na obrazovce Elementor formuláře je panel **Pole z RAYNETu** s jejich seznamem, typem, kódem v API a tlačítkem pro nové načtení.
+- **Převod typů:** čísla v českém i anglickém zápisu, datum `1. 12. 2026`, čas, ano/ne, položky číselníku bez ohledu na diakritiku, země názvem i kódem. Hodnota, kterou převést nejde, skončí v poznámce leadu, místo aby RAYNET odmítl celý lead.
+- Mapování ve **stávajících** formulářích se doplní samo, jakmile v editoru otevřete sekci RAYNET CRM. Co už bylo namapované, zůstane.
+- Odhad mapování pozná IČO, DIČ, IČ DPH, web, kraj, zemi a titul, a vlastní pole podle shodného popisku. „IČO" už nepovažuje za název firmy a „Adresa webu" za ulici.
+
+### Před vydáním
+
+Nový kód prošel adversariálním review (5 oblastí, každý nález ověřený dvěma oponenty proti zdrojákům WordPressu a Elementoru). Potvrzených 9 nálezů je opravených a pokrytých testy; nic z toho se nedostalo do vydané verze. Nejzávažnější dva:
+
+- Kontext odeslání formuláře ze zkratky se skládal ze surového požadavku, takže návštěvník mohl do leadu dopsat atributy určené jen pro Elementor — vlastníka, poznámku i adresy pro notifikace RAYNETu. Kontext se teď skládá po klíčích a do payloadu smějí jen známé cesty.
+- První verze opravy editoru měnila datum stránky, aby starý koncept přestal být „novější". Tím by se ale nepublikovaný koncept schoval a další automatické uložení by ho přepsalo. Nahrazeno propsáním nastavení do konceptu.
+
+Dál: odpověď „Nesouhlasím" se četla jako souhlas s marketingem, prázdné pole typu Číslo šlo do RAYNETu jako 0, „50 tis." jako 50, položky číselníku se znakem `<` se nenašly, „ČR" a „SR" byly Kostarika a Surinam, čas 29:00 prošel, záložní e-mail neobsahoval nová pole a odpověď bez dat by smazala načtená vlastní pole.
+
+### Změněno
+
+- **Záloha pro vrácení** respektuje úpravy mezi nasazeními: upravíte-li stránku v Elementoru a pak nasadíte znovu, záloha se posune na upravenou podobu. Dřív vrácení vzalo zpět i týdny práce mezi prvním a posledním nasazením.
+- „Vrátit zpět" je teď **Vrátit stránku zpět** a vždy se zeptá, protože vrací celou stránku včetně ostatních formulářů na ní. Stránka s víc formuláři už nemá v HTML duplicitní formuláře pro vrácení.
+- **Atomový formulář Elementoru 4** se v přehledu ukáže s vysvětlením, že RAYNET v něm zatím zapnout nejde. Jeho seznam akcí je v Elementoru pevný.
+
 ## [2.4.0] — 2026-09-22
 
 ### Přidáno

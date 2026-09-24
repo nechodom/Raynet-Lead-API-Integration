@@ -51,6 +51,29 @@ $sent = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
 check( 'payload carries email', $sent['contactInfo']['email'], 'jan@example.cz' );
 check( 'success message returned', str_contains( $r['message'], 'úspěšně' ), true );
 
+// A visitor must not be able to write lead attributes that only trusted
+// callers set: the owner, the note, RAYNET's notification e-mails, custom fields.
+configure();
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":78}}' );
+$injected = process( $form, valid_input( array(
+	'raynet_attributes'    => array(
+		'owner'                      => '7',
+		'securityLevel'              => '3',
+		'notice'                     => 'přepsaná poznámka',
+		'notificationEmailAddresses' => array( 'obet@example.com' ),
+		'regNumber'                  => '12345678',
+	),
+	'raynet_custom_fields' => array( 'Sleva_x' => 90 ),
+) ) );
+check( 'injected submission still goes through', code( $injected ), 'OK' );
+$sent_injected = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'injected owner ignored', isset( $sent_injected['owner'] ), false );
+check( 'injected security level ignored', isset( $sent_injected['securityLevel'] ), false );
+check( 'injected notification ignored', isset( $sent_injected['notificationEmailAddresses'] ), false );
+check( 'injected note ignored', false !== strpos( (string) $sent_injected['notice'], 'přepsaná' ), false );
+check( 'injected attribute ignored', isset( $sent_injected['regNumber'] ), false );
+check( 'injected custom fields ignored', isset( $sent_injected['customFields'] ), false );
+
 // Nonce.
 configure();
 check( 'bad nonce rejected', code( process( $form, valid_input( array( 'raynet_nonce' => 'forged' ) ) ) ), 'raynet_nonce_expired' );

@@ -374,7 +374,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 				// The whole-name row has to be offered by hand as well as by the
 				// bulk screen, or a single name field cannot be split there.
 				check( 'nabízí i celé jméno', in_array( 'fullName', array_column( $map_control['default'], 'remote_id' ), true ), true );
-				check( 'nabízí jedenáct atributů', count( $map_control['default'] ), 11 );
+				check( 'nabízí všechny atributy', array_column( $map_control['default'], 'remote_id' ), array_column( Raynet_Lead_Fields::mapping_rows(), 'id' ) );
+				check( 'nabízí i rozšířené atributy', in_array( 'regNumber', array_column( $map_control['default'], 'remote_id' ), true ), true );
 				check( 'atributy nesou popisek', ! empty( $map_control['default'][0]['remote_label'] ), true );
 
 				// A row declaring anything but text would make Elementor's editor
@@ -556,6 +557,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		);
 
 		update_post_meta( $scan_page, '_elementor_data', wp_slash( wp_json_encode( $layout ) ) );
+		update_post_meta( $scan_page, '_elementor_edit_mode', 'builder' );
 
 		$found = Raynet_Elementor_Forms::forms_in_post( $scan_page );
 		check( 'sken najde formulář', count( $found ), 1 );
@@ -694,11 +696,11 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		preg_match( '/onclick="([^"]*raynet-force-' . $scan_page . '[^"]*)"/', $stale_screen['body'], $onclick );
 		$handler = isset( $onclick[1] ) ? html_entity_decode( $onclick[1], ENT_QUOTES, 'UTF-8' ) : '';
 		check( 'potvrzení je na tlačítku', false !== strpos( $handler, 'confirm(' ), true );
-		check( 'potvrzení zvedá force', (bool) preg_match( '/raynet-force-' . $scan_page . "'\\s*\\)\\.value = '1'/", $handler ), true );
+		check( 'potvrzení zvedá force', (bool) preg_match( '/raynet-force-' . $scan_page . "[\"']\\s*\\)\\.value = '1'/", $handler ), true );
 
 		$depth  = 0;
 		$broken = false;
-		foreach ( str_split( preg_replace( "/'[^']*'/", "''", $handler ) ) as $char ) {
+		foreach ( str_split( preg_replace( array( '/"(?:[^"\\\\]|\\\\.)*"/', "/'[^']*'/" ), array( '""', "''" ), $handler ) ) as $char ) {
 			if ( '(' === $char ) {
 				$depth++;
 			} elseif ( ')' === $char ) {
@@ -723,6 +725,355 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 
 		Raynet_Elementor_Forms::delete_template( $slug );
 		check( 'šablona smazána', count( Raynet_Elementor_Forms::templates() ), 0 );
+
+		// --- Where forms live ----------------------------------------------
+		// A form can sit in a popup, a header, a footer or a global widget: all
+		// of those are template-library posts, which "any" post type skips.
+		$form_layout = function ( $id, $name, array $settings = array() ) {
+			return array(
+				array(
+					'id'         => $id,
+					'elType'     => 'widget',
+					'widgetType' => 'form',
+					'settings'   => array_merge(
+						array(
+							'form_name'   => $name,
+							'form_fields' => array(
+								array( '_id' => $id . 'e', 'custom_id' => $id . 'e', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+								array( '_id' => $id . 'z', 'custom_id' => $id . 'z', 'field_type' => 'number', 'field_label' => 'Počet zaměstnanců' ),
+							),
+						),
+						$settings
+					),
+					'elements'   => array(),
+				),
+			);
+		};
+
+		$library_post = function ( $title, $type, array $data ) {
+			$id = (int) wp_insert_post( array( 'post_type' => 'elementor_library', 'post_title' => $title, 'post_status' => 'publish' ) );
+			update_post_meta( $id, '_elementor_template_type', $type );
+			update_post_meta( $id, '_elementor_edit_mode', 'builder' );
+			update_post_meta( $id, '_elementor_data', wp_slash( wp_json_encode( $data ) ) );
+
+			return $id;
+		};
+
+		$popup  = $library_post( 'Popup poptávka', 'popup', $form_layout( 'popform', 'Z popupu' ) );
+		$footer = $library_post( 'Patička webu', 'footer', $form_layout( 'footform', 'Z patičky' ) );
+		$global = $library_post( 'Globální poptávka', 'widget', $form_layout( 'globform', 'Globální' ) );
+
+		// The page only carries a reference; the form lives in the template.
+		$host = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Stránka s globálním widgetem', 'post_status' => 'publish' ) );
+		update_post_meta( $host, '_elementor_edit_mode', 'builder' );
+		update_post_meta(
+			$host,
+			'_elementor_data',
+			wp_slash( wp_json_encode( array( array( 'id' => 'glref', 'elType' => 'widget', 'widgetType' => 'global', 'templateID' => $global, 'settings' => array(), 'elements' => array() ) ) ) )
+		);
+
+		// An autosave carries a copy of the layout and must not list the form twice.
+		$autosave = (int) wp_insert_post(
+			array(
+				'post_type'   => 'revision',
+				'post_status' => 'inherit',
+				'post_parent' => $popup,
+				'post_name'   => $popup . '-autosave-v1',
+				'post_title'  => 'Popup poptávka',
+				'post_author' => get_current_user_id(),
+			)
+		);
+		// update_post_meta() would write to the parent; a revision needs update_metadata().
+		update_metadata( 'post', $autosave, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'popform', 'Rozpracovaný koncept' ) ) ) );
+
+		// A page switched back to the WordPress editor keeps its old layout.
+		$classic = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Stará stránka', 'post_status' => 'publish' ) );
+		update_post_meta( $classic, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'oldform', 'Starý' ) ) ) );
+
+		$by_widget = array();
+
+		foreach ( Raynet_Elementor_Forms::scan() as $row ) {
+			$by_widget[ $row['widget_id'] ][] = $row;
+		}
+
+		check( 'sken najde formulář v popupu', isset( $by_widget['popform'] ), true );
+		check( 'popup jen jednou, bez autosave', isset( $by_widget['popform'] ) ? count( $by_widget['popform'] ) : 0, 1 );
+		check( 'popup má umístění', isset( $by_widget['popform'] ) ? $by_widget['popform'][0]['location'] : '', 'Popup' );
+		check( 'sken najde formulář v patičce', isset( $by_widget['footform'] ) ? $by_widget['footform'][0]['location'] : '', 'Patička' );
+		check( 'sken najde globální widget', isset( $by_widget['globform'] ) ? $by_widget['globform'][0]['post_id'] : 0, $global );
+		check( 'globální widget má umístění', isset( $by_widget['globform'] ) ? $by_widget['globform'][0]['location'] : '', 'Globální widget' );
+		check( 'odkaz na stránku není formulář', count( Raynet_Elementor_Forms::forms_in_post( $host ) ), 0 );
+		check( 'stará stránka se ukáže', isset( $by_widget['oldform'] ), true );
+		check( 'stará stránka se nevykresluje', isset( $by_widget['oldform'] ) ? $by_widget['oldform'][0]['rendered'] : null, false );
+		check( 'stránka se ukáže pod názvem typu', isset( $by_widget[ $widget_id ] ) ? $by_widget[ $widget_id ][0]['location'] : '', get_post_type_object( 'page' )->labels->singular_name );
+
+		$refused = Raynet_Elementor_Forms::apply( $classic, 'oldform', array(), true );
+		check( 'nevykreslovanou stránku nenastaví', is_wp_error( $refused ) ? $refused->get_error_code() : '', 'raynet_not_rendered' );
+
+		// The template is what Elementor reads on submit, so that is where the
+		// setting has to land.
+		$popup_applied = Raynet_Elementor_Forms::apply( $popup, 'popform', array( 'priority' => 'CRITICAL' ), true );
+		check( 'popup nastaven', $popup_applied, array( 'popform' ) );
+		$popup_form = Raynet_Elementor_Forms::forms_in_post( $popup );
+		check( 'popup zapnutý', $popup_form[0]['enabled'], true );
+		check( 'popup má kontakt', $popup_form[0]['has_contact'], true );
+
+		$global_applied = Raynet_Elementor_Forms::apply( $global, 'globform', array(), true );
+		check( 'globální widget nastaven v šabloně', $global_applied, array( 'globform' ) );
+
+		$document = \Elementor\Plugin::instance()->documents->get( $global );
+		$elements = $document ? $document->get_elements_data() : array();
+		check( 'Elementor čte akci ze šablony', isset( $elements[0]['settings']['submit_actions'] ) && in_array( 'raynet_crm', $elements[0]['settings']['submit_actions'], true ), true );
+
+		// A form whose actions were never touched runs the default e-mail
+		// action; Elementor does not even store it. Turning RAYNET on must not
+		// turn that off.
+		$footer_applied = Raynet_Elementor_Forms::apply( $footer, 'footform', array(), true );
+		$footer_data    = json_decode( get_post_meta( $footer, '_elementor_data', true ), true );
+		// Elementor Pro adds its own defaults through this filter (Submissions
+		// puts "save-to-database" there), so the expectation comes from it too.
+		$default_actions = (array) apply_filters( 'elementor_pro/forms/default_submit_actions', array( 'email' ) );
+		check( 'výchozí e-mailová akce zůstala', $footer_data[0]['settings']['submit_actions'], array_merge( $default_actions, array( 'raynet_crm' ) ) );
+		check( 'mezi výchozími je e-mail', in_array( 'email', $footer_data[0]['settings']['submit_actions'], true ), true );
+
+		// Only the forms that were found count as configured.
+		$partial = Raynet_Elementor_Forms::apply( $footer, array( 'footform', 'duch' ), array(), true );
+		check( 'vrátí jen nalezené formuláře', $partial, array( 'footform' ) );
+
+		// Edits made after an apply become the new rollback point, so undoing a
+		// later apply does not also undo them.
+		$footer_now            = json_decode( get_post_meta( $footer, '_elementor_data', true ), true );
+		$footer_now[0]['settings']['form_name'] = 'Přejmenovaná v Elementoru';
+		update_post_meta( $footer, '_elementor_data', wp_slash( wp_json_encode( $footer_now ) ) );
+
+		Raynet_Elementor_Forms::apply( $footer, 'footform', array( 'priority' => 'CRITICAL' ), true );
+		check( 'po nasazení je stránka zase „naše“', Raynet_Elementor_Forms::edited_since( $footer ), false );
+		check( 'vrácení projde bez vynucení', is_wp_error( Raynet_Elementor_Forms::restore( $footer ) ), false );
+		$footer_back = Raynet_Elementor_Forms::forms_in_post( $footer );
+		check( 'vrácení nechá mezitímní úpravu', $footer_back[0]['form_name'], 'Přejmenovaná v Elementoru' );
+
+		// Elementor 4's atomic form is listed, but cannot be configured.
+		$atomic_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Atomová stránka', 'post_status' => 'publish' ) );
+		update_post_meta( $atomic_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta(
+			$atomic_page,
+			'_elementor_data',
+			wp_slash(
+				wp_json_encode(
+					array(
+						array(
+							'id'       => 'atomform',
+							'elType'   => 'e-form',
+							'settings' => array( 'form-name' => array( '$$type' => 'string', 'value' => 'Nový formulář' ) ),
+							'elements' => array(),
+						),
+					)
+				)
+			)
+		);
+
+		$atomic_rows = array_values( array_filter( Raynet_Elementor_Forms::scan(), function ( $row ) {
+			return 'atomform' === $row['widget_id'];
+		} ) );
+
+		check( 'atomový formulář se ukáže', count( $atomic_rows ), 1 );
+		check( 'atomový formulář je označený', isset( $atomic_rows[0] ) ? $atomic_rows[0]['atomic'] : null, true );
+		check( 'atomový formulář má název', isset( $atomic_rows[0] ) ? $atomic_rows[0]['form_name'] : '', 'Nový formulář' );
+		check( 'atomový formulář nejde nastavit', is_wp_error( Raynet_Elementor_Forms::apply( $atomic_page, 'atomform', array(), true ) ), true );
+
+		// An autosave older than the post is ignored by the editor. Writing meta
+		// alone would leave an earlier autosave "newer" for good.
+		global $wpdb;
+		$wpdb->update( $wpdb->posts, array( 'post_modified' => '2020-01-01 00:00:00', 'post_modified_gmt' => '2020-01-01 00:00:00' ), array( 'ID' => $popup ) );
+		$wpdb->update( $wpdb->posts, array( 'post_modified' => '2021-01-01 00:00:00', 'post_modified_gmt' => '2021-01-01 00:00:00' ), array( 'ID' => $autosave ) );
+		clean_post_cache( $popup );
+		clean_post_cache( $autosave );
+
+		check( 'autosave je před nasazením novější', false !== \Elementor\Utils::get_post_autosave( $popup ), true );
+		Raynet_Elementor_Forms::apply( $popup, 'popform', array( 'priority' => 'MINOR' ), true );
+
+		// The draft must survive — it is someone's unpublished work — and carry
+		// the change, so that its next Update does not drop it.
+		wp_cache_flush();
+		check( 'koncept zůstává novější', false !== \Elementor\Utils::get_post_autosave( $popup ), true );
+		$draft_data = json_decode( get_metadata( 'post', $autosave, '_elementor_data', true ), true );
+		check( 'koncept si nechal svou práci', isset( $draft_data[0]['settings']['form_name'] ) ? $draft_data[0]['settings']['form_name'] : '', 'Rozpracovaný koncept' );
+		check( 'koncept nese RAYNET', isset( $draft_data[0]['settings']['submit_actions'] ) && in_array( 'raynet_crm', $draft_data[0]['settings']['submit_actions'], true ), true );
+		check( 'koncept nese nastavení šablony', isset( $draft_data[0]['settings']['raynet_crm_priority'] ) ? $draft_data[0]['settings']['raynet_crm_priority'] : '', 'MINOR' );
+		check( 'stránka se nepřepsala konceptem', Raynet_Elementor_Forms::forms_in_post( $popup )[0]['form_name'], 'Z popupu' );
+
+		$draft_restore = Raynet_Elementor_Forms::restore( $popup, true );
+		check( 'vrácení s čekajícím konceptem odmítne', is_wp_error( $draft_restore ) ? $draft_restore->get_error_code() : '', 'raynet_pending_draft' );
+		check( 'koncept po odmítnutí nedotčen', json_decode( get_metadata( 'post', $autosave, '_elementor_data', true ), true )[0]['settings']['form_name'], 'Rozpracovaný koncept' );
+
+		// Once the draft is published (the page is newer again), nothing blocks it.
+		$wpdb->update( $wpdb->posts, array( 'post_modified' => '2022-01-01 00:00:00', 'post_modified_gmt' => '2022-01-01 00:00:00' ), array( 'ID' => $popup ) );
+		clean_post_cache( $popup );
+		check( 'po publikování konceptu už nic nečeká', Raynet_Elementor_Forms::pending_autosaves( $popup ), array() );
+
+		// --- Custom fields from RAYNET ---------------------------------------
+		delete_option( Raynet_Lead_Fields::OPTION );
+		$fetched = Raynet_Lead_Fields::refresh();
+		check( 'vlastní pole načtena', $fetched, 4 );
+		check( 'pole firem ne, soubor ne', array_keys( Raynet_Lead_Fields::custom() ), array( 'Pocet_zam_a1b2c', 'Velikost_d3e4f', 'Termin_g5h6', 'VIP_b91d1' ) );
+
+		$remote_ids = array_column( Raynet_Elementor_Form_Action::remote_fields(), 'remote_id' );
+		check( 'mapování v Elementoru nabízí vlastní pole', in_array( 'cf:Velikost_d3e4f', $remote_ids, true ), true );
+
+		// Bulk apply now picks the custom field by its label.
+		Raynet_Elementor_Forms::apply( $popup, 'popform', array(), true );
+		$popup_data = json_decode( get_post_meta( $popup, '_elementor_data', true ), true );
+		$popup_map  = array();
+
+		foreach ( $popup_data[0]['settings']['raynet_crm_fields_map'] as $row ) {
+			if ( '' !== $row['local_id'] ) {
+				$popup_map[ $row['remote_id'] ] = $row['local_id'];
+			}
+		}
+
+		check( 'odhad našel vlastní pole podle popisku', isset( $popup_map['cf:Pocet_zam_a1b2c'] ) ? $popup_map['cf:Pocet_zam_a1b2c'] : '', 'popformz' );
+
+		// A submission carries typed custom values; a value the field does not
+		// take goes to the note instead of costing the lead.
+		update_option( 'raynet_test_http_calls', array() );
+
+		$custom_settings = array(
+			'form_post_id'          => $popup,
+			'raynet_crm_source_url' => 'yes',
+			'raynet_crm_fields_map' => array(
+				array( 'remote_id' => 'email', 'local_id' => 'm' ),
+				array( 'remote_id' => 'regNumber', 'local_id' => 'ico' ),
+				array( 'remote_id' => 'taxNumber', 'local_id' => 'prazdne' ),
+				array( 'remote_id' => 'email2', 'local_id' => 'm2' ),
+				array( 'remote_id' => 'cf:Pocet_zam_a1b2c', 'local_id' => 'zam' ),
+				array( 'remote_id' => 'cf:Velikost_d3e4f', 'local_id' => 'vel' ),
+				array( 'remote_id' => 'cf:Termin_g5h6', 'local_id' => 'ter' ),
+				array( 'remote_id' => 'cf:VIP_b91d1', 'local_id' => 'vip' ),
+			),
+		);
+
+		$custom_record = new class( $custom_settings, array(
+			'm'   => array( 'value' => 'firma@example.cz' ),
+			// Number fields: Elementor intval()s the value; what was typed is in raw_value.
+			'ico'     => array( 'type' => 'number', 'value' => 2795281, 'raw_value' => '02795281' ),
+			'prazdne' => array( 'type' => 'number', 'value' => 0, 'raw_value' => '' ),
+			'm2'  => array( 'value' => 'fakturace@example.cz' ),
+			'zam' => array( 'type' => 'number', 'value' => 1250, 'raw_value' => '1 250' ),
+			'vel' => array( 'value' => 'Obrovská' ),
+			'ter' => array( 'value' => '1. 12. 2026' ),
+			'vip' => array( 'value' => 'on' ),
+		) ) {
+			private $fs;
+			private $f;
+			public function __construct( $fs, $f ) {
+				$this->fs = $fs;
+				$this->f  = $f;
+			}
+			public function get( $k ) {
+				return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+			}
+		};
+
+		// The popup posts itself as the form's post; the page it was shown on
+		// comes as queried_id, and that is the URL the note should carry.
+		$_POST['queried_id'] = (string) $host;
+
+		$custom_error   = '';
+		$custom_handler = new class {
+			public $data = array();
+			public function add_response_data( $k, $v ) {
+				$this->data[ $k ] = $v;
+			}
+		};
+
+		try {
+			$action->run( $custom_record, $custom_handler );
+		} catch ( \Exception $e ) {
+			$custom_error = $e->getMessage();
+		}
+
+		unset( $_POST['queried_id'] );
+		check( 'odeslání s vlastními poli projde', $custom_error, '' );
+
+		wp_cache_flush();
+		$custom_lead = null;
+
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/lead/' ) ) {
+				$custom_lead = json_decode( $call['body'], true );
+			}
+		}
+
+		check( 'lead odeslán', null !== $custom_lead, true );
+		check( 'vlastní pole s typy', isset( $custom_lead['customFields'] ) ? $custom_lead['customFields'] : null, array( 'Pocet_zam_a1b2c' => 1250, 'Termin_g5h6' => '2026-12-01', 'VIP_b91d1' => true ) );
+		check( 'IČO z číselného pole s úvodní nulou', isset( $custom_lead['regNumber'] ) ? $custom_lead['regNumber'] : '', '02795281' );
+		check( 'prázdné číselné pole se neposlalo jako 0', isset( $custom_lead['taxNumber'] ), false );
+		check( 'poznámka nese stránku, ne šablonu popupu', isset( $custom_lead['notice'] ) && false !== strpos( $custom_lead['notice'], get_permalink( $host ) ), true );
+		check( 'poznámka nenese adresu šablony', isset( $custom_lead['notice'] ) && false !== strpos( $custom_lead['notice'], 'elementor_library' ), false );
+		check( 'druhý e-mail v leadu', isset( $custom_lead['contactInfo']['email2'] ) ? $custom_lead['contactInfo']['email2'] : '', 'fakturace@example.cz' );
+		check( 'hodnota mimo číselník v poznámce', isset( $custom_lead['notice'] ) && false !== strpos( $custom_lead['notice'], 'Velikost zakázky: Obrovská' ), true );
+
+		// The editor script gets the same rows, custom fields included.
+		raynet_lead_elementor_editor_scripts();
+		$editor_data = wp_scripts()->get_data( 'raynet-elementor-editor', 'data' );
+		check( 'editor skript zařazen', wp_script_is( 'raynet-elementor-editor', 'enqueued' ), true );
+		check( 'editor dostane vlastní pole', false !== strpos( (string) $editor_data, 'cf:Velikost_d3e4f' ), true );
+
+		// A page with two forms gets one rollback form, not one per row.
+		$twin = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Dva formuláře', 'post_status' => 'publish' ) );
+		update_post_meta( $twin, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $twin, '_elementor_data', wp_slash( wp_json_encode( array_merge( $form_layout( 'twin1', 'První' ), $form_layout( 'twin2', 'Druhý' ) ) ) ) );
+		check( 'oba formuláře stránky nastaveny', Raynet_Elementor_Forms::apply( $twin, array( 'twin1', 'twin2' ), array(), true ), array( 'twin1', 'twin2' ) );
+
+		// The screen over HTTP: the new places and the fields panel.
+		$screen = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true );
+		check( 'obrazovka ukáže popup', false !== strpos( $screen['body'], 'Popup poptávka' ), true );
+		check( 'obrazovka ukáže globální widget', false !== strpos( $screen['body'], 'Globální widget' ), true );
+		check( 'obrazovka ukáže panel polí', false !== strpos( $screen['body'], 'Pole z RAYNETu' ), true );
+		check( 'obrazovka vypíše vlastní pole', false !== strpos( $screen['body'], 'Pocet_zam_a1b2c' ), true );
+		check( 'nevykreslovaná stránka nejde vybrat', (bool) preg_match( '/value="' . $classic . ':oldform"[^>]*disabled/', $screen['body'] ), true );
+		check( 'atomový formulář nejde vybrat', (bool) preg_match( '/value="' . $atomic_page . ':atomform"[^>]*disabled/', $screen['body'] ), true );
+		check( 'atomový formulář je vysvětlený', false !== strpos( $screen['body'], 'atomový formulář Elementoru 4' ), true );
+		check( 'stránka se dvěma formuláři má jediný formulář zálohy', substr_count( $screen['body'], 'id="raynet-restore-' . $twin . '"' ), 1 );
+		check( 'a obě tlačítka na něj míří', substr_count( $screen['body'], 'form="raynet-restore-' . $twin . '"' ), 2 );
+
+		preg_match( '/name="action" value="raynet_elm_refresh_fields".*?name="_wpnonce" value="([^"]+)"/s', $screen['body'], $refresh_nonce );
+		delete_option( Raynet_Lead_Fields::OPTION );
+		$refreshed = req(
+			'/wp-admin/admin-post.php',
+			array(
+				'action'   => 'raynet_elm_refresh_fields',
+				'_wpnonce' => isset( $refresh_nonce[1] ) ? $refresh_nonce[1] : '',
+			),
+			true
+		);
+		wp_cache_flush();
+		check( 'tlačítko načtení přesměruje', $refreshed['status'], 302 );
+		check( 'tlačítko pole znovu načte', count( Raynet_Lead_Fields::custom() ), 4 );
+
+		// --- A cap that dropped the oldest pages -------------------------------
+		// Two hundred newer posts saved with Elementor used to push an old
+		// contact page out of the list.
+		$old_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Kontakt z roku 2015', 'post_status' => 'publish', 'post_date' => '2015-01-01 10:00:00' ) );
+		update_post_meta( $old_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $old_page, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'oldcontact', 'Kontakt' ) ) ) );
+
+		$filler = array();
+
+		for ( $i = 0; $i < 205; $i++ ) {
+			$filler[] = $fid = (int) wp_insert_post( array( 'post_type' => 'post', 'post_title' => 'Výplň ' . $i, 'post_status' => 'publish' ) );
+			update_post_meta( $fid, '_elementor_data', '[]' );
+		}
+
+		check( 'stará kontaktní stránka nevypadne', in_array( 'oldcontact', array_column( Raynet_Elementor_Forms::scan(), 'widget_id' ), true ), true );
+
+		foreach ( $filler as $fid ) {
+			wp_delete_post( $fid, true );
+		}
+
+		foreach ( array( $popup, $footer, $global, $host, $classic, $old_page, $atomic_page, $twin, $scan_page ) as $cleanup ) {
+			wp_delete_post( $cleanup, true );
+		}
 
 		$exported = $action->on_export( array( 'settings' => array( 'raynet_crm_owner' => 7, 'jine' => 'zustane' ) ) );
 		check( 'on_export maže pod settings', isset( $exported['settings']['raynet_crm_owner'] ), false );

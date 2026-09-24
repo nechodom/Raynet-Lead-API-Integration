@@ -312,7 +312,9 @@ check( 'při konfliktu vyhraje půlka', isset( $guess4['fullName'] ), false );
 check( 'příjmení zůstává',            $guess4['lastName'], 'y' );
 
 $all = Raynet_Elementor_Forms::auto_map( array() );
-check( 'vždy 11 řádků',       count( $all ), 11 );
+check( 'řádek za každý atribut', count( $all ), count( Raynet_Lead_Fields::mapping_rows() ) );
+check( 'základních 11 napřed',   array_slice( array_column( $all, 'remote_id' ), 0, 11 ), array( 'fullName', 'firstName', 'lastName', 'companyName', 'email', 'phone', 'topic', 'message', 'street', 'city', 'zipCode' ) );
+check( 'rozšířené atributy v mapě', in_array( 'regNumber', array_column( $all, 'remote_id' ), true ), true );
 check( 'souhlas není v mapě', in_array( 'consent', array_column( $all, 'remote_id' ), true ), false );
 check( 'řádky nesou popisek', ! empty( $all[0]['remote_label'] ), true );
 check( 'řádky nesou typ',     $all[0]['remote_type'], 'text' );

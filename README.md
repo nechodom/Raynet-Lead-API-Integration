@@ -34,7 +34,8 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - **Builder formulářů** — pole vyberete, přetažením seřadíte a přepíšete jim popisky, bez editoru kódu. Formulářů můžete mít víc, každý s vlastním nastavením leadu.
 - **Zkratka `[raynet_lead_form]`** — formulář vložíte do libovolné stránky, příspěvku nebo widgetu.
 - **Elementor Pro Forms** — leady umí zakládat i formuláře postavené v Elementoru, přes akci po odeslání.
-- **Hromadné nasazení** — plugin najde všechny formuláře Elementoru na webu a nastaví je podle šablony, včetně odhadu mapování polí.
+- **Hromadné nasazení** — plugin najde všechny formuláře Elementoru na webu, i ty v popupech, hlavičkách, patičkách a globálních widgetech, a nastaví je podle šablony, včetně odhadu mapování polí.
+- **Všechna pole leadu, i vlastní** — v Elementoru namapujete kromě jména a kontaktu i IČO, DIČ, druhý e-mail, sociální sítě a vlastní pole, která si vaše instance RAYNETu definuje. Plugin je načte přímo z RAYNETu.
 - **Jedno pole pro celé jméno** — „Jan Novák" se do RAYNETu rozdělí na jméno a příjmení.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
 - **Podpora všech čtyř regionů RAYNETu** (`.cz`, `.sk`, `.com`, `eu.`) i vlastní adresy.
@@ -194,7 +195,7 @@ Ve widgetu formuláře otevřete **Actions After Submit** a přidejte **RAYNET C
 
 **Mapování polí** — ke každému atributu RAYNETu vyberete pole formuláře. Nabídka ukazuje popisky polí, ne jejich ID. Nenamapované atributy se neodesílají.
 
-> Mapování se ukládá do dat formuláře. Přidá-li budoucí verze pluginu jedenáctý atribut, ve **stávajících** formulářích se neprojeví — Elementor uložené řádky nedoplňuje. U nově zapnuté akce se nabídne celý seznam.
+Seznam atributů se doplňuje sám: když přibude vlastní pole v RAYNETu nebo nový atribut v pluginu, objeví se v mapování i u formuláře nastaveného dřív, jakmile sekci RAYNET CRM otevřete. Co už bylo namapované, zůstane.
 
 **Nastavení leadu** — předmět, priorita, typ leadu, předpona poznámky, číselníková ID, štítky a notifikační e-maily, zvlášť pro tenhle formulář. Prázdné pole znamená zdědit z nastavení pluginu, stejně jako u builderu.
 
@@ -232,21 +233,73 @@ add_filter( 'raynet_lead_split_name', function ( $parts, $full ) {
 }, 10, 2 );
 ```
 
+### Všechna pole RAYNETu, včetně vlastních
+
+Mapování nabízí tři skupiny atributů:
+
+1. **Základní** — jméno, příjmení, celé jméno, společnost, e-mail, telefon, předmět, zpráva, ulice, město, PSČ.
+2. **Další standardní** — titul před a za jménem, IČO, DIČ, datová schránka, druhý e-mail a telefon, web, fax, jiný kontakt, kraj, země, souhlas s marketingovými sděleními a sociální sítě.
+3. **Vlastní pole** vaší instance — v mapování je poznáte podle přípony *(vlastní pole)*.
+
+Vlastní pole plugin načítá z RAYNETu (`GET /customField/config/`). Stav najdete v **RAYNET CRM → Elementor formuláře → Pole z RAYNETu**: seznam polí s typem a kódem v API, čas posledního načtení a tlačítko **Načíst pole z RAYNETu znovu**. Samo se načítání obnovuje jednou za 12 hodin při návštěvě té obrazovky. Po chybě to zkouší až za hodinu, protože RAYNET po 20 neúspěšných přihlášeních blokuje IP adresu.
+
+Nenabízejí se pole jen pro čtení a pole typu soubor. Nahraný soubor je cesta na tomto serveru, ne něco, co by RAYNET uložil.
+
+**Převod hodnot.** Formulář posílá text, RAYNET chce u vlastních polí správný typ. Plugin hodnotu převede:
+
+| Typ pole v RAYNETu | Co formulář může poslat | Co dostane RAYNET |
+|---|---|---|
+| číslo, částka, procenta | `1 234,50` · `1,234.50` · `1 499,- Kč` · `15 %` | `1234.5` · `1499` · `15` |
+| datum | `2026-12-01` · `1. 12. 2026` · `01/12/2026` | `2026-12-01` |
+| datum a čas | `1. 12. 2026 9:30` · `2026-12-01T09:30` | `2026-12-01 09:30` |
+| čas | `9:30` · `9.30` | `09:30` |
+| ano/ne | `ano`, `souhlasím`, `chci`, zaškrtnuté pole · `ne`, `nesouhlasím`, `nechci`, `no` | `true` · `false` |
+| výběr z číselníku | položka číselníku, velikost písmen a diakritika nevadí | položka přesně tak, jak ji zná RAYNET |
+| text, dlouhý text, odkaz | cokoliv | text |
+
+Co převést nejde — nečitelné datum, položka, která v číselníku není, odpověď ano/ne, ze které nejde poznat ani jedno, pole, které mezitím v RAYNETu smazali — se **nezahodí a neshodí lead**. Zapíše se do poznámky leadu pod popiskem pole a lead se založí bez něj.
+
+Plugin radši odmítne, než aby hádal. Číslo se slovy („50 tis.", „od 10 do 20") nebo s jediným oddělovačem a přesně třemi číslicemi za ním („25.000" je česky dvacet pět tisíc, anglicky dvacet pět) skončí v poznámce, ne jako věrohodně vypadající špatné číslo v CRM.
+
+Pole typu **Číslo** v Elementoru bere plugin tak, jak ho návštěvník napsal. Elementor sám z něj dělá celé číslo, takže by z nevyplněného pole byla nula a z IČO „02795281" číslo 2795281.
+
+Prázdná hodnota se neposílá vůbec. RAYNET by prázdnou hodnotou pole vymazal.
+
+Dvě standardní pole se chovají zvlášť:
+
+- **Země** — RAYNET bere jen dvoupísmenný kód ISO (`CZ`). Plugin pozná platné kódy, zkratky ČR, SR a UK i běžné názvy: Česko, Česká republika, Slovensko, Polsko, Německo, Rakousko, Maďarsko, Velká Británie, USA.
+- **Souhlas s marketingovými sděleními** — RAYNET ukládá opak, „neposílat marketingová sdělení". Souhlas platí jen jako jasné ano: zaškrtnuté zaškrtávátko, nebo odpověď typu „Ano" či „Souhlasím". Nezaškrtnuté pole, „Nesouhlasím" i odpověď, ze které nejde nic poznat, znamenají *neposílat*; nejasnou odpověď plugin navíc zapíše do poznámky.
+
+Vyplněné IČO, stejně jako název společnosti, přepne lead na firmu.
+
+Když RAYNET lead nepřijme, **záložní e-mail** obsahuje všechno namapované — i rozšířené atributy, vlastní pole a hodnoty určené do poznámky, ne jen jméno a kontakt.
+
+U formuláře v popupu, hlavičce nebo patičce zapíše **Uvést URL stránky** adresu stránky, na které se formulář zobrazil, ne adresu šablony.
+
 ### Hromadné nasazení na víc formulářů
 
-V **RAYNET CRM → Elementor formuláře** plugin vypíše každý formulář Elementoru na webu: na které stránce je, jak se jmenuje, jaká má pole a jestli u něj RAYNET běží.
+V **RAYNET CRM → Elementor formuláře** plugin vypíše každý formulář Elementoru na webu: kde je, jak se jmenuje, jaká má pole a jestli u něj RAYNET běží.
+
+Hledá ve všech typech obsahu a v knihovně šablon Elementoru. Najde tedy i formulář v **popupu**, **hlavičce**, **patičce**, **uložené sekci** nebo **globálním widgetu**; sloupec *Umístění* říká, o co jde. Formulář vložený do šablony se nastavuje v té šabloně, protože odtud si ho Elementor při odeslání čte — nasazení se tak projeví všude, kde se šablona zobrazuje.
+
+Dva druhy formulářů tabulka ukáže, ale nastavit nedovolí:
+
+- **Stránka přepnutá zpět do editoru WordPressu.** Elementor ji už nevykresluje, starý formulář na webu není.
+- **Atomový formulář Elementoru 4.** Je to jiný prvek než widget Formulář, s pevným seznamem akcí (e-mail, sběr odeslání, webhook), do kterého se RAYNET zatím zapojit nedá. Pro leady použijte widget **Formulář**.
 
 **Šablona** nese nastavení leadu — předmět, prioritu, typ leadu, předponu poznámky, číselníková ID, štítky a notifikační e-maily. Šablon můžete mít víc, třeba zvlášť pro poptávky a zvlášť pro kontaktní formuláře.
 
-Vyberete formuláře, zvolíte šablonu a nasadíte. U každého se zapne akce RAYNET CRM, vyplní se nastavení ze šablony a pole se namapují odhadem.
+Vyberete formuláře, zvolíte šablonu a nasadíte. U každého se zapne akce RAYNET CRM a vyplní se nastavení ze šablony. Akce, které formulář měl — třeba e-mailová notifikace — zůstanou.
 
-**Odhad mapování** se řídí nejdřív typem pole — pole typu E-mail je e-mail, ať se jmenuje jakkoliv — a pak popiskem. Pozná i „PSČ" nebo „Jméno a příjmení", diakritika nevadí. Jedno pole nikdy neobsadí dva atributy.
+**Odhad mapování** doplní jen to, co formulář namapované nemá. Co jste namapovali ručně, zůstane i při opakovaném nasazení. Odhad se řídí nejdřív popiskem a pak typem pole. Pozná „PSČ", „Jméno a příjmení", „IČO" i „IČ DPH", diakritika nevadí. Vlastní pole přiřadí, když se popisek pole formuláře shoduje s jeho názvem v RAYNETu. Jedno pole nikdy neobsadí dva atributy.
 
-Odhad není věštec. Po nasazení se vyplatí formulář otevřít v Elementoru a mapování zkontrolovat.
+Odhad není věštec. Po nasazení se vyplatí formulář otevřít v Elementoru a mapování zkontrolovat. Formulář, u kterého chybí namapovaný e-mail i telefon, tabulka označí: RAYNET by z něj žádný lead nepřijal.
 
-> **Nasazení zapisuje do vašich stránek.** Předchozí podoba se uloží a v tabulce přibude **Vrátit zpět**.
+> **Nasazení zapisuje do vašich stránek.** Předchozí podoba se uloží a v tabulce přibude **Vrátit stránku zpět**. Vrací celou stránku, tedy i ostatní formuláře na ní.
 >
-> Záloha je jedna na stránku a vzniká při prvním nasazení; další nasazení ji nepřepíší, takže se vždy vracíte k původní podobě. Když stránku mezitím upravíte v Elementoru, plugin to pozná a vrácení odmítne — pokračovat jde jen po potvrzení, protože by o ty úpravy připravilo.
+> Záloha je jedna na stránku. Několik nasazení po sobě ji nepřepíše, takže se vracíte k podobě před prvním z nich. Upravíte-li ale stránku mezi nasazeními v Elementoru, další nasazení uloží jako zálohu už upravenou podobu — vrácení tak vaši práci nesmaže. Když stránku upravíte po posledním nasazení, plugin to pozná a vrácení odmítne; pokračovat jde jen po potvrzení.
+>
+> **Neuložený koncept.** Má-li stránka v Elementoru rozpracovaný, nepublikovaný koncept, nasazení se zapíše do stránky i do konceptu. Koncept tak zůstane, jak byl, a po publikování nastavení RAYNETu neztratí. Vrácení stránky zpět se při čekajícím konceptu zastaví a řekne proč: koncept nejdřív publikujte nebo zahoďte.
 
 ### Co obstarává Elementor a co plugin
 
@@ -439,6 +492,10 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **Formulář se nevykreslí** | Zkratka musí být v obsahu stránky, ne v úryvku. V blokovém editoru použijte blok *Zkratka*. |
 | **Tlačítko nereaguje** | Chyba v konzoli prohlížeče. Nejčastěji jiný plugin rozbil načítání skriptů. |
 | **Test spojení hlásí chybu, ale údaje jsou správné** | Nastavení nejdřív **uložte**, teprve pak testujte. |
+| **Formulář Elementoru v přehledu chybí** | Od verze 2.5.0 přehled prohledává i popupy, hlavičky, patičky a globální widgety. Chybí-li formulář dál, jde o jiný prvek než widget Formulář Elementor Pro. |
+| **Po nasazení šablony akce v editoru Elementoru chybí** | Verze do 2.4.0 nechávaly vyhrát starší automaticky uloženou verzi stránky. Aktualizujte a šablonu nasaďte znovu. |
+| **V mapování chybí vlastní pole z RAYNETu** | **Elementor formuláře → Pole z RAYNETu → Načíst pole z RAYNETu znovu**. Pole jen pro čtení a pole typu soubor se nenabízejí. |
+| **Hodnota vlastního pole je v poznámce leadu, ne v poli** | Nešla převést na typ pole — třeba datum v nečitelném tvaru nebo položka mimo číselník. Viz [převod hodnot](#všechna-pole-raynetu-včetně-vlastních). |
 
 Chyby API se zapisují do PHP logu s prefixem `[Raynet Lead API Integration]`. Poslední chyba se navíc zobrazuje nahoře na stránce nastavení. Pro zapnutí logu WordPressu:
 

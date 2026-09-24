@@ -126,3 +126,29 @@
 .raynet-elm__stale {
 	color: #8a6116;
 }
+
+.raynet-elm__warn {
+	color: #8a6116;
+}
+
+.raynet-elm__inactive td {
+	color: #8c8f94;
+}
+
+/* The RAYNET fields panel above the templates and forms. */
+.raynet-elm__fields {
+	margin-top: 16px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 10px 16px;
+}
+
+.raynet-elm__fields summary {
+	cursor: pointer;
+}
+
+.raynet-elm__custom {
+	max-width: 900px;
+	margin-top: 8px;
+}

@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
  * Update URI:        https://github.com/nechodom/Raynet-Lead-API-Integration
  * Description:       Builder formulářů, který odesílá poptávky do RAYNET CRM jako Leady přes REST API v2. Přihlašovací údaje nikdy neopustí server.
- * Version:           2.4.0
+ * Version:           2.5.0
  * Requires at least: 5.6
  * Requires PHP:      7.4
  * Author:            Matěj Kevin Nechodom
@@ -19,7 +19,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-defined( 'RAYNET_LEAD_VERSION' ) || define( 'RAYNET_LEAD_VERSION', '2.4.0' );
+defined( 'RAYNET_LEAD_VERSION' ) || define( 'RAYNET_LEAD_VERSION', '2.5.0' );
 defined( 'RAYNET_LEAD_FILE' ) || define( 'RAYNET_LEAD_FILE', __FILE__ );
 defined( 'RAYNET_LEAD_PATH' ) || define( 'RAYNET_LEAD_PATH', plugin_dir_path( __FILE__ ) );
 defined( 'RAYNET_LEAD_URL' ) || define( 'RAYNET_LEAD_URL', plugin_dir_url( __FILE__ ) );
@@ -29,6 +29,7 @@ require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-definition.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-post-type.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-renderer.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-api-client.php';
+require_once RAYNET_LEAD_PATH . 'includes/class-raynet-lead-fields.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-lead-form.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-builder-admin.php';
@@ -92,6 +93,32 @@ function raynet_lead_register_elementor_action( $registrar ) {
 	$registrar->register( new Raynet_Elementor_Form_Action() );
 }
 add_action( 'elementor_pro/forms/actions/register', 'raynet_lead_register_elementor_action' );
+
+/**
+ * Loads the script that keeps the mapping rows current in the Elementor editor.
+ *
+ * @return void
+ */
+function raynet_lead_elementor_editor_scripts() {
+	if ( ! class_exists( 'Raynet_Elementor_Form_Action' ) ) {
+		return;
+	}
+
+	wp_enqueue_script(
+		'raynet-elementor-editor',
+		RAYNET_LEAD_URL . 'assets/js/raynet-elementor-editor.js',
+		array( 'jquery' ),
+		RAYNET_LEAD_VERSION,
+		true
+	);
+
+	wp_localize_script(
+		'raynet-elementor-editor',
+		'raynetElementorEditor',
+		array( 'rows' => Raynet_Elementor_Form_Action::remote_fields() )
+	);
+}
+add_action( 'elementor/editor/after_enqueue_scripts', 'raynet_lead_elementor_editor_scripts' );
 
 /**
  * Warns when Elementor Pro is present but no longer offers the expected API.

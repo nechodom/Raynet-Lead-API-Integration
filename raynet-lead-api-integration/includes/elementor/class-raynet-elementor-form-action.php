@@ -48,6 +48,10 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 	/**
 	 * RAYNET attributes offered in the field mapping.
 	 *
+	 * The basic attributes, the rest of RAYNET's standard lead attributes and
+	 * the instance's own custom fields, in that order — the same list the
+	 * bulk-apply screen maps against.
+	 *
 	 * Every row is `remote_type` text on purpose. Elementor's editor filters the
 	 * local dropdown by type, so declaring `email` would offer only Elementor
 	 * Email fields and leave the dropdown mysteriously empty on a form that uses
@@ -56,19 +60,13 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 	 *
 	 * @return array<int,array<string,string>> Rows for the Fields_Map control.
 	 */
-	private function remote_fields() {
+	public static function remote_fields() {
 		$rows = array();
 
-		// Walk the catalogue rather than SOURCES, so the derived whole-name row
-		// is offered here exactly as the bulk-apply screen offers it.
-		foreach ( Raynet_Lead_Form_Definition::catalogue() as $source => $meta ) {
-			if ( 'consent' === $source ) {
-				continue;
-			}
-
+		foreach ( Raynet_Lead_Fields::mapping_rows() as $row ) {
 			$rows[] = array(
-				'remote_id'    => $source,
-				'remote_label' => $meta['label'],
+				'remote_id'    => $row['id'],
+				'remote_label' => $row['label'],
 				'remote_type'  => 'text',
 			);
 		}
@@ -109,7 +107,7 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 				'type'        => self::mapping_control_type(),
 				'separator'   => 'before',
 				'fields'      => $repeater->get_controls(),
-				'default'     => $this->remote_fields(),
+				'default'     => self::remote_fields(),
 				'description' => esc_html__( 'Přiřaďte pole formuláře k atributům leadu. Nenamapovaná pole se neodesílají.', 'raynet-lead-api-integration' ),
 				'condition'   => $condition,
 			)
@@ -307,10 +305,10 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 	public function run( $record, $ajax_handler ) {
 		try {
 			$form_settings = (array) $record->get( 'form_settings' );
-			$input         = $this->mapped_values( $record, $form_settings );
+			$mapped        = $this->mapped_values( $record, $form_settings );
 
 			$form   = new Raynet_Lead_Form();
-			$values = $form->collect_values( $input );
+			$values = $form->collect_values( $mapped['basic'] );
 
 			// RAYNET's own rule, which Elementor knows nothing about.
 			if ( '' === $values['email'] && '' === $values['phone'] ) {
@@ -330,9 +328,12 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 				$values,
 				$settings,
 				array(
-					'raynet_fixed_topic'  => isset( $form_settings['raynet_crm_topic'] ) ? $form_settings['raynet_crm_topic'] : '',
-					'raynet_source_url'   => $this->source_url( $form_settings ),
-					'raynet_has_consent'  => 'yes' === $this->setting( $form_settings, 'raynet_crm_consent_note' ),
+					'raynet_fixed_topic'   => isset( $form_settings['raynet_crm_topic'] ) ? $form_settings['raynet_crm_topic'] : '',
+					'raynet_source_url'    => $this->source_url( $form_settings ),
+					'raynet_has_consent'   => 'yes' === $this->setting( $form_settings, 'raynet_crm_consent_note' ),
+					'raynet_attributes'    => $mapped['attributes'],
+					'raynet_custom_fields' => $mapped['custom'],
+					'raynet_extras'        => $mapped['extras'],
 				)
 			);
 
@@ -360,42 +361,92 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 	}
 
 	/**
-	 * Reads the submitted fields and keys them by RAYNET attribute.
+	 * Reads the submitted fields and sorts them by where they go in RAYNET.
+	 *
+	 * Basic attributes go through the same collection as the shortcode form.
+	 * Extended and custom attributes are cleaned here, against their type; a
+	 * value that does not fit — a date nobody can read, an option the
+	 * enumeration does not have — lands in the lead note instead of making
+	 * RAYNET refuse the whole lead.
 	 *
 	 * @param \ElementorPro\Modules\Forms\Classes\Form_Record $record        Submission.
 	 * @param array<string,mixed>                            $form_settings Form settings.
-	 * @return array<string,string> Values keyed by RAYNET attribute.
+	 * @return array{basic:array<string,string>,attributes:array<string,mixed>,custom:array<string,mixed>,extras:array<string,string>} Values.
 	 */
 	private function mapped_values( $record, array $form_settings ) {
 		$fields = array();
+		$types  = array();
 
 		foreach ( (array) $record->get( 'fields' ) as $id => $field ) {
+			$type = isset( $field['type'] ) ? (string) $field['type'] : '';
+
 			// `value` is the sanitized string. `raw_value` holds server paths for
-			// upload fields, which must never reach the CRM.
-			$fields[ $id ] = isset( $field['value'] ) ? $field['value'] : '';
+			// upload fields, which must never reach the CRM. A Number field is the
+			// exception the other way: Elementor runs its value through intval(),
+			// so an empty box arrives as 0, "02795281" as 2795281 and 1499.90 as
+			// 1499. What the visitor typed is in `raw_value`.
+			if ( 'number' === $type && isset( $field['raw_value'] ) && is_scalar( $field['raw_value'] ) ) {
+				$fields[ $id ] = sanitize_text_field( (string) $field['raw_value'] );
+			} else {
+				$fields[ $id ] = isset( $field['value'] ) ? $field['value'] : '';
+			}
+
+			$types[ $id ] = $type;
 		}
 
-		$map   = isset( $form_settings[ self::ACTION_NAME . '_fields_map' ] )
+		$map    = isset( $form_settings[ self::ACTION_NAME . '_fields_map' ] )
 			? (array) $form_settings[ self::ACTION_NAME . '_fields_map' ]
 			: array();
-		$input = array();
+		$result = array(
+			'basic'      => array(),
+			'attributes' => array(),
+			'custom'     => array(),
+			'extras'     => array(),
+		);
+
+		$extended = Raynet_Lead_Fields::extended();
 
 		foreach ( $map as $row ) {
 			$remote = isset( $row['remote_id'] ) ? (string) $row['remote_id'] : '';
 			$local  = isset( $row['local_id'] ) ? (string) $row['local_id'] : '';
 
-			if ( '' === $remote || '' === $local || ! isset( $fields[ $local ] ) ) {
+			if ( '' === $remote || '' === $local || ! array_key_exists( $local, $fields ) ) {
 				continue;
 			}
 
-			if ( ! Raynet_Lead_Form_Definition::is_lead_source( $remote ) ) {
+			if ( Raynet_Lead_Form_Definition::is_lead_source( $remote ) ) {
+				$result['basic'][ $remote ] = $fields[ $local ];
 				continue;
 			}
 
-			$input[ $remote ] = $fields[ $local ];
+			if ( ! Raynet_Lead_Fields::is_extended( $remote ) && ! Raynet_Lead_Fields::is_custom_id( $remote ) ) {
+				continue;
+			}
+
+			$clean = Raynet_Lead_Fields::coerce( $remote, $fields[ $local ], isset( $types[ $local ] ) ? $types[ $local ] : '' );
+
+			if ( 'invalid' === $clean['status'] ) {
+				$result['extras'][ $clean['label'] ] = mb_substr( sanitize_textarea_field( $clean['raw'] ), 0, 1000 );
+				continue;
+			}
+
+			if ( 'ok' !== $clean['status'] ) {
+				continue;
+			}
+
+			// Sent, but the answer itself was unclear: a person should see it.
+			if ( ! empty( $clean['note'] ) && '' !== $clean['raw'] ) {
+				$result['extras'][ $clean['label'] ] = mb_substr( sanitize_textarea_field( $clean['raw'] ), 0, 1000 );
+			}
+
+			if ( Raynet_Lead_Fields::is_extended( $remote ) ) {
+				$result['attributes'][ $extended[ $remote ]['path'] ] = $clean['value'];
+			} else {
+				$result['custom'][ Raynet_Lead_Fields::custom_name( $remote ) ] = $clean['value'];
+			}
 		}
 
-		return $input;
+		return $result;
 	}
 
 	/**
@@ -449,10 +500,25 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 			return '';
 		}
 
-		$post_id = isset( $form_settings['form_post_id'] ) ? absint( $form_settings['form_post_id'] ) : 0;
-		$url     = $post_id ? get_permalink( $post_id ) : '';
+		// A form in a popup, header, footer or global widget reports the
+		// template as its post; the page it was shown on travels as queried_id.
+		// Only an existing, public, published post is taken from it, so the
+		// value can name a page but not make one up.
+		$queried = isset( $_POST['queried_id'] ) ? absint( wp_unslash( $_POST['queried_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Elementor has validated the submission.
 
-		return $url ? $url : (string) wp_get_referer();
+		foreach ( array( $queried, isset( $form_settings['form_post_id'] ) ? absint( $form_settings['form_post_id'] ) : 0 ) as $post_id ) {
+			if ( ! $post_id || 'publish' !== get_post_status( $post_id ) || Raynet_Elementor_Forms::LIBRARY_TYPE === get_post_type( $post_id ) || ! is_post_type_viewable( get_post_type( $post_id ) ) ) {
+				continue;
+			}
+
+			$url = get_permalink( $post_id );
+
+			if ( $url ) {
+				return $url;
+			}
+		}
+
+		return (string) wp_get_referer();
 	}
 
 	/**

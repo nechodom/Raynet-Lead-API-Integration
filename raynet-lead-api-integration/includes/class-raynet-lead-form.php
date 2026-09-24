@@ -403,9 +403,19 @@ class Raynet_Lead_Form {
 			);
 		}
 
-		$values                      = $this->collect_values( $input, $fields );
-		$input['raynet_extras']      = $this->collect_custom( $input, $fields );
-		$input['raynet_has_consent'] = $has_consent;
+		$values = $this->collect_values( $input, $fields );
+
+		// The context is built key by key rather than handed the request. The
+		// payload builder also reads keys that only trusted callers set — the
+		// Elementor action's cleaned attributes and custom fields — and a
+		// visitor posting those would write straight into the lead: its owner,
+		// its note, or RAYNET's notification e-mails.
+		$context = array(
+			'raynet_fixed_topic' => isset( $input['raynet_fixed_topic'] ) ? $input['raynet_fixed_topic'] : '',
+			'raynet_source_url'  => isset( $input['raynet_source_url'] ) ? $input['raynet_source_url'] : '',
+			'raynet_extras'      => $this->collect_custom( $input, $fields ),
+			'raynet_has_consent' => $has_consent,
+		);
 
 		if ( '' === $values['email'] && '' === $values['phone'] ) {
 			return new WP_Error(
@@ -421,7 +431,7 @@ class Raynet_Lead_Form {
 			);
 		}
 
-		return $this->submit_lead( $values, $settings, $input );
+		return $this->submit_lead( $values, $settings, $context );
 	}
 
 	/**
@@ -441,7 +451,7 @@ class Raynet_Lead_Form {
 	public function submit_lead( array $values, array $settings, array $context = array() ) {
 		if ( ! Raynet_Lead_Settings::is_configured() ) {
 			$this->log_error( 'Plugin is not configured; lead was not sent.' );
-			$this->send_fallback_email( $values, __( 'Plugin není nastaven.', 'raynet-lead-api-integration' ) );
+			$this->send_fallback_email( $values, __( 'Plugin není nastaven.', 'raynet-lead-api-integration' ), $context );
 
 			return new WP_Error(
 				'raynet_not_configured',
@@ -468,7 +478,7 @@ class Raynet_Lead_Form {
 		if ( is_wp_error( $response ) ) {
 			$this->log_error( $response->get_error_message() );
 			$this->remember_last_error( $response->get_error_message() );
-			$this->send_fallback_email( $values, $response->get_error_message() );
+			$this->send_fallback_email( $values, $response->get_error_message(), $context );
 
 			/**
 			 * Fires when RAYNET refused or could not receive the lead.
@@ -797,6 +807,23 @@ class Raynet_Lead_Form {
 			$payload['leadPerson'] = false;
 		}
 
+		// Attributes beyond the basic ones arrive already cleaned, keyed by where
+		// they belong in the payload: "regNumber", "contactInfo.email2", ...
+		if ( isset( $input['raynet_attributes'] ) && is_array( $input['raynet_attributes'] ) ) {
+			foreach ( $input['raynet_attributes'] as $path => $value ) {
+				$this->set_path( $payload, (string) $path, $value );
+			}
+		}
+
+		if ( ! empty( $input['raynet_custom_fields'] ) && is_array( $input['raynet_custom_fields'] ) ) {
+			$payload['customFields'] = $input['raynet_custom_fields'];
+		}
+
+		// A company registration number means a company, as a company name does.
+		if ( ! empty( $payload['regNumber'] ) ) {
+			$payload['leadPerson'] = false;
+		}
+
 		foreach ( array(
 			'category'       => 'category',
 			'lead_phase'     => 'leadPhase',
@@ -825,6 +852,42 @@ class Raynet_Lead_Form {
 		}
 
 		return array_filter( $payload, array( $this, 'is_not_empty' ) );
+	}
+
+	/**
+	 * Writes a value into the payload at a dotted path.
+	 *
+	 * Only the paths of the extended attributes are accepted, so a path cannot
+	 * plant a key anywhere else — the owner, the note, the notification
+	 * addresses. Empty values are skipped: sending one would clear whatever
+	 * RAYNET holds.
+	 *
+	 * @param array<string,mixed> $payload Payload, by reference.
+	 * @param string              $path    "attribute" or "object.attribute".
+	 * @param mixed               $value   Clean value.
+	 * @return void
+	 */
+	private function set_path( array &$payload, $path, $value ) {
+		if ( ! $this->is_not_empty( $value ) || ! in_array( $path, array_column( Raynet_Lead_Fields::extended(), 'path' ), true ) ) {
+			return;
+		}
+
+		$parts = explode( '.', $path );
+
+		if ( 1 === count( $parts ) && preg_match( '/^[A-Za-z0-9]+$/', $parts[0] ) ) {
+			$payload[ $parts[0] ] = $value;
+			return;
+		}
+
+		if ( 2 !== count( $parts ) || ! in_array( $parts[0], array( 'contactInfo', 'address', 'socialNetworkContact' ), true ) || ! preg_match( '/^[A-Za-z0-9]+$/', $parts[1] ) ) {
+			return;
+		}
+
+		if ( ! isset( $payload[ $parts[0] ] ) || ! is_array( $payload[ $parts[0] ] ) ) {
+			$payload[ $parts[0] ] = array();
+		}
+
+		$payload[ $parts[0] ][ $parts[1] ] = $value;
 	}
 
 	/**
@@ -885,7 +948,7 @@ class Raynet_Lead_Form {
 	 * @param string               $reason Failure reason.
 	 * @return void
 	 */
-	private function send_fallback_email( array $values, $reason ) {
+	private function send_fallback_email( array $values, $reason, array $context = array() ) {
 		$to = (string) Raynet_Lead_Settings::get( 'fallback_email' );
 
 		if ( '' === $to || ! is_email( $to ) ) {
@@ -905,6 +968,43 @@ class Raynet_Lead_Form {
 		foreach ( $values as $key => $value ) {
 			if ( '' !== $value ) {
 				$lines[] = $key . ': ' . $value;
+			}
+		}
+
+		// The e-mail exists so a lead RAYNET refused is not lost; everything
+		// that would have gone into it belongs here, not just the basics.
+		$paths  = array_column( Raynet_Lead_Fields::extended(), 'label', 'path' );
+		$custom = Raynet_Lead_Fields::custom();
+		$more   = array();
+
+		$kinds = array_column( Raynet_Lead_Fields::extended(), 'kind', 'path' );
+
+		foreach ( isset( $context['raynet_attributes'] ) && is_array( $context['raynet_attributes'] ) ? $context['raynet_attributes'] : array() as $path => $value ) {
+			// The consent travels as its opposite, "do not send marketing".
+			if ( isset( $kinds[ $path ] ) && 'optin' === $kinds[ $path ] && is_bool( $value ) ) {
+				$value = ! $value;
+			}
+
+			$more[ isset( $paths[ $path ] ) ? $paths[ $path ] : $path ] = $value;
+		}
+
+		foreach ( isset( $context['raynet_custom_fields'] ) && is_array( $context['raynet_custom_fields'] ) ? $context['raynet_custom_fields'] : array() as $name => $value ) {
+			$more[ isset( $custom[ $name ] ) ? $custom[ $name ]['label'] : $name ] = $value;
+		}
+
+		foreach ( isset( $context['raynet_extras'] ) && is_array( $context['raynet_extras'] ) ? $context['raynet_extras'] : array() as $label => $value ) {
+			$more[ $label ] = $value;
+		}
+
+		if ( ! empty( $more ) ) {
+			$lines[] = '';
+
+			foreach ( $more as $label => $value ) {
+				if ( is_bool( $value ) ) {
+					$value = $value ? __( 'ano', 'raynet-lead-api-integration' ) : __( 'ne', 'raynet-lead-api-integration' );
+				}
+
+				$lines[] = $label . ': ' . $value;
 			}
 		}
 

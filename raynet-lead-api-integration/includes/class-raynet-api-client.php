@@ -111,6 +111,34 @@ class Raynet_Lead_Api_Client {
 	}
 
 	/**
+	 * Fetches the configuration of custom fields for every entity.
+	 *
+	 * RAYNET has no filter on this endpoint; it answers with one list per entity
+	 * under `data`, keyed Company, Person, Lead and so on.
+	 *
+	 * @return array<string,mixed>|WP_Error The `data` object, or an error.
+	 */
+	public function get_custom_field_config() {
+		$response = $this->request( 'GET', 'customField/config/' );
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		// A 200 without `data` is a proxy, a maintenance page or a wrong URL,
+		// not an instance without custom fields. Taking it for the latter would
+		// wipe the stored configuration and report success.
+		if ( ! isset( $response['data'] ) || ! is_array( $response['data'] ) ) {
+			return new WP_Error(
+				'raynet_bad_response',
+				__( 'RAYNET vrátil neočekávanou odpověď bez dat. Zkontrolujte adresu API.', 'raynet-lead-api-integration' )
+			);
+		}
+
+		return $response['data'];
+	}
+
+	/**
 	 * Fetches a code list (číselník) and reduces it to id => label pairs.
 	 *
 	 * @param string $endpoint Endpoint path, e.g. "leadCategory/".

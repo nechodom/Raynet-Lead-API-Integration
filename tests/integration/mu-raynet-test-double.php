@@ -26,6 +26,32 @@ add_filter(
 		);
 		update_option( 'raynet_test_http_calls', $calls, false );
 
+		// The custom field configuration of an imaginary instance, one field of
+		// each kind a form can fill.
+		if ( false !== strpos( $url, 'raynet' ) && false !== strpos( $url, 'customField/config' ) ) {
+			return array(
+				'headers'  => array(),
+				'body'     => wp_json_encode(
+					array(
+						'success' => true,
+						'data'    => array(
+							'Company' => array( array( 'name' => 'Jen_firmy_z1', 'label' => 'Jen u firem', 'dataType' => 'STRING' ) ),
+							'Lead'    => array(
+								array( 'name' => 'Pocet_zam_a1b2c', 'label' => 'Počet zaměstnanců', 'dataType' => 'BIG_DECIMAL', 'groupName' => 'Firma' ),
+								array( 'name' => 'Velikost_d3e4f', 'label' => 'Velikost zakázky', 'dataType' => 'ENUMERATION', 'enumeration' => array( 'Malá', 'Velká' ) ),
+								array( 'name' => 'Termin_g5h6', 'label' => 'Termín realizace', 'dataType' => 'DATE' ),
+								array( 'name' => 'VIP_b91d1', 'label' => 'VIP', 'dataType' => 'BOOLEAN' ),
+								array( 'name' => 'Priloha_l0', 'label' => 'Příloha', 'dataType' => 'FILE' ),
+							),
+						),
+					)
+				),
+				'response' => array( 'code' => 200, 'message' => 'OK' ),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		}
+
 		if ( false !== strpos( $url, 'raynet' ) ) {
 			return array(
 				'headers'  => array(),
