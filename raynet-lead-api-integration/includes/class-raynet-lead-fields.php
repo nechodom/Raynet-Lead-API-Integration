@@ -78,6 +78,7 @@ class Raynet_Lead_Fields {
 			'www'              => array( 'label' => __( 'Web', 'raynet-lead-api-integration' ), 'path' => 'contactInfo.www', 'kind' => 'text' ),
 			'fax'              => array( 'label' => __( 'Fax', 'raynet-lead-api-integration' ), 'path' => 'contactInfo.fax', 'kind' => 'text' ),
 			'otherContact'     => array( 'label' => __( 'Jiný kontakt', 'raynet-lead-api-integration' ), 'path' => 'contactInfo.otherContact', 'kind' => 'text' ),
+			'gdprConsent'      => array( 'label' => __( 'Souhlas se zpracováním údajů (GDPR)', 'raynet-lead-api-integration' ), 'path' => '', 'kind' => 'consent' ),
 			'marketingConsent' => array( 'label' => __( 'Souhlas s marketingovými sděleními', 'raynet-lead-api-integration' ), 'path' => 'contactInfo.doNotSendMM', 'kind' => 'optin' ),
 			'province'         => array( 'label' => __( 'Kraj', 'raynet-lead-api-integration' ), 'path' => 'address.province', 'kind' => 'text' ),
 			'country'          => array( 'label' => __( 'Země', 'raynet-lead-api-integration' ), 'path' => 'address.country', 'kind' => 'country' ),
@@ -333,6 +334,16 @@ class Raynet_Lead_Fields {
 
 			if ( 'optin' === $meta['kind'] ) {
 				return self::optin( $meta['label'], $raw, $field_type );
+			}
+
+			if ( 'consent' === $meta['kind'] ) {
+				// Given only by a clear yes; anything unclear is not consent, and
+				// goes to the note so a person can see what was answered.
+				$yes            = self::answer( $raw, $field_type );
+				$result         = self::result( true === $yes, $meta['label'], $raw );
+				$result['note'] = null === $yes;
+
+				return $result;
 			}
 
 			return self::result( self::coerce_extended( $meta['kind'], $raw ), $meta['label'], $raw );

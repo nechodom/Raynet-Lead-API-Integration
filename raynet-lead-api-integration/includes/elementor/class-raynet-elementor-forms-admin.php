@@ -883,6 +883,22 @@ class Raynet_Elementor_Forms_Admin {
 									<?php if ( $is_guess ) : ?>
 										<span class="raynet-elm__proposal"><?php esc_html_e( 'návrh', 'raynet-lead-api-integration' ); ?></span>
 									<?php endif; ?>
+									<?php
+									$looks_like = 'acceptance' === $field['type'] && '-' === $selected
+										? Raynet_Elementor_Forms::consent_target( trim( $field['label'] . ' ' . $field['text'] ) )
+										: '';
+									?>
+									<?php if ( '' !== $looks_like ) : ?>
+										<br /><span class="raynet-elm__warn">
+											<?php
+											printf(
+												/* translators: %s: RAYNET attribute. */
+												esc_html__( 'Vypadá to na souhlas — zvolte „%s“, aby se zapsal do RAYNETu.', 'raynet-lead-api-integration' ),
+												esc_html( html_entity_decode( Raynet_Elementor_Forms::target_label( $looks_like ), ENT_QUOTES, 'UTF-8' ) )
+											);
+											?>
+										</span>
+									<?php endif; ?>
 									<?php if ( ! empty( $extras[ (string) $field['id'] ] ) ) : ?>
 										<br /><span class="description">
 											<?php

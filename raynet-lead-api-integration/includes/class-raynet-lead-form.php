@@ -387,11 +387,13 @@ class Raynet_Lead_Form {
 			);
 		}
 
-		$has_consent = false;
+		$has_consent  = false;
+		$consent_text = '';
 
 		foreach ( $fields as $field ) {
 			if ( 'consent' === $field['source'] ) {
-				$has_consent = true;
+				$has_consent  = true;
+				$consent_text = isset( $field['label'] ) ? wp_strip_all_tags( (string) $field['label'] ) : '';
 				break;
 			}
 		}
@@ -414,7 +416,10 @@ class Raynet_Lead_Form {
 			'raynet_fixed_topic' => isset( $input['raynet_fixed_topic'] ) ? $input['raynet_fixed_topic'] : '',
 			'raynet_source_url'  => isset( $input['raynet_source_url'] ) ? $input['raynet_source_url'] : '',
 			'raynet_extras'      => $this->collect_custom( $input, $fields ),
-			'raynet_has_consent' => $has_consent,
+			'raynet_has_consent'    => $has_consent,
+			'raynet_consent_text'   => $consent_text,
+			// The builder's consent box is required and was checked above.
+			'raynet_consent_record' => $has_consent,
 		);
 
 		if ( '' === $values['email'] && '' === $values['phone'] ) {
@@ -499,6 +504,10 @@ class Raynet_Lead_Form {
 		}
 
 		$lead_id = isset( $response['data']['id'] ) ? (int) $response['data']['id'] : 0;
+
+		if ( $lead_id > 0 && ! empty( $context['raynet_has_consent'] ) && ! empty( $context['raynet_consent_record'] ) ) {
+			$this->record_consent( $client, $lead_id, $settings );
+		}
 
 		/**
 		 * Fires after a lead has been created in RAYNET.
@@ -784,7 +793,8 @@ class Raynet_Lead_Form {
 				$settings,
 				$source_url,
 				isset( $input['raynet_extras'] ) && is_array( $input['raynet_extras'] ) ? $input['raynet_extras'] : array(),
-				! empty( $input['raynet_has_consent'] )
+				! empty( $input['raynet_has_consent'] ),
+				isset( $input['raynet_consent_text'] ) ? sanitize_text_field( (string) $input['raynet_consent_text'] ) : ''
 			),
 			'contactInfo' => array_filter(
 				array(
@@ -855,6 +865,85 @@ class Raynet_Lead_Form {
 	}
 
 	/**
+	 * Records the visitor's consent as a GDPR legal title on the new lead.
+	 *
+	 * Only when a legal title template is configured. The lead already exists,
+	 * so a failure here does not turn the submission into an error: it is
+	 * logged and shown on the settings page, and the note still says the
+	 * consent was given.
+	 *
+	 * @param Raynet_Lead_Api_Client $client   Client.
+	 * @param int                    $lead_id  New lead id.
+	 * @param array<string,mixed>    $settings Plugin settings.
+	 * @return void
+	 */
+	private function record_consent( $client, $lead_id, array $settings ) {
+		$template = isset( $settings['gdpr_template'] ) ? (int) $settings['gdpr_template'] : 0;
+
+		if ( $template <= 0 ) {
+			return;
+		}
+
+		$record = array(
+			'gdprTemplate' => $template,
+			'lead'         => (int) $lead_id,
+			'validFrom'    => current_time( 'Y-m-d' ),
+		);
+
+		$agreement = isset( $settings['gdpr_form_agreement'] ) ? (int) $settings['gdpr_form_agreement'] : 0;
+		$months    = isset( $settings['gdpr_valid_months'] ) ? (int) $settings['gdpr_valid_months'] : 0;
+
+		if ( $agreement > 0 ) {
+			$record['gdprFormAgreement'] = $agreement;
+		}
+
+		if ( $months > 0 ) {
+			$record['validTill'] = self::add_months( $record['validFrom'], $months );
+		}
+
+		/**
+		 * Filters the GDPR legal title recorded for a consenting visitor.
+		 *
+		 * @param array<string,mixed> $record  Request body for PUT /gdpr/.
+		 * @param int                 $lead_id New lead id.
+		 */
+		$record = apply_filters( 'raynet_lead_gdpr_record', $record, $lead_id );
+
+		$result = $client->create_gdpr( $record );
+
+		if ( is_wp_error( $result ) ) {
+			$message = sprintf(
+				/* translators: 1: lead id, 2: error message. */
+				__( 'Lead %1$d byl založen, ale GDPR souhlas se k němu nepodařilo zapsat: %2$s', 'raynet-lead-api-integration' ),
+				(int) $lead_id,
+				$result->get_error_message()
+			);
+
+			$this->log_error( $message );
+			$this->remember_last_error( $message );
+		}
+	}
+
+	/**
+	 * Adds whole months to a date, keeping to the last day of a short month.
+	 *
+	 * strtotime( '+1 month' ) on 31 January lands on 3 March; a consent given
+	 * on the last day of a month is valid until the last day of the target
+	 * month, not a few days beyond it.
+	 *
+	 * @param string $date   Date as Y-m-d.
+	 * @param int    $months Months to add.
+	 * @return string Date as Y-m-d.
+	 */
+	public static function add_months( $date, $months ) {
+		$from   = new DateTimeImmutable( $date, new DateTimeZone( 'UTC' ) );
+		$target = $from->modify( 'first day of +' . (int) $months . ' months' );
+		$day    = min( (int) $from->format( 'j' ), (int) $target->format( 't' ) );
+
+		return $target->setDate( (int) $target->format( 'Y' ), (int) $target->format( 'n' ), $day )->format( 'Y-m-d' );
+	}
+
+	/**
 	 * Writes a value into the payload at a dotted path.
 	 *
 	 * Only the paths of the extended attributes are accepted, so a path cannot
@@ -900,7 +989,7 @@ class Raynet_Lead_Form {
 	 * @param bool                 $has_consent Whether the form carried a consent box.
 	 * @return string Note text.
 	 */
-	private function build_notice( array $values, array $settings, $source_url, array $extras = array(), $has_consent = false ) {
+	private function build_notice( array $values, array $settings, $source_url, array $extras = array(), $has_consent = false, $consent_text = '' ) {
 		$parts = array();
 
 		if ( '' !== trim( (string) $settings['notice_prefix'] ) ) {
@@ -931,11 +1020,18 @@ class Raynet_Lead_Form {
 
 		// Only a form that actually showed a consent box may claim one was given.
 		if ( $has_consent ) {
-			$parts[] = sprintf(
+			$line = sprintf(
 				/* translators: %s: date and time of the consent. */
 				__( 'Souhlas se zpracováním údajů udělen: %s', 'raynet-lead-api-integration' ),
 				current_time( 'Y-m-d H:i' )
 			);
+
+			// The wording the visitor ticked is what the consent covers.
+			if ( '' !== trim( (string) $consent_text ) ) {
+				$line .= ' — „' . trim( (string) $consent_text ) . '“';
+			}
+
+			$parts[] = $line;
 		}
 
 		return mb_substr( implode( "\n\n", $parts ), 0, 10000 );

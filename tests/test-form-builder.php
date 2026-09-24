@@ -343,7 +343,8 @@ $r3 = mapped_to( Raynet_Elementor_Forms::auto_map( array(
 	array( 'id' => 'tel',  'type' => 'tel',        'label' => 'Telefon' ),
 ) ) );
 check( 'souhlas neukradne e-mail', $r3['email'], 'mail' );
-check( 'souhlas se nemapuje',      in_array( 'ok', $r3, true ), false );
+check( 'souhlas není e-mail',      array_search( 'ok', $r3, true ) !== 'email', true );
+check( 'souhlas s novinkami je marketing', isset( $r3['marketingConsent'] ) ? $r3['marketingConsent'] : '', 'ok' );
 
 // "Vaše jméno" + "Vaše příjmení" musí dát obě půlky, ne celé jméno.
 $r4 = mapped_to( Raynet_Elementor_Forms::auto_map( array(

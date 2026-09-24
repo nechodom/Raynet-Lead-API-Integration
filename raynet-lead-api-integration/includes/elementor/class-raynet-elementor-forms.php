@@ -147,6 +147,36 @@ class Raynet_Elementor_Forms {
 	}
 
 	/**
+	 * Which consent a checkbox's label asks for.
+	 *
+	 * @param string $label Field label.
+	 * @return string "gdprConsent", "marketingConsent" or an empty string.
+	 */
+	public static function consent_target( $label ) {
+		$words = self::words( $label );
+
+		// A box that refuses ("Nepřeji si zasílat obchodní sdělení", "Nesouhlasím…")
+		// or only acknowledges ("Beru na vědomí zásady…", "Seznámil jsem se…")
+		// must never be read as consent: ticking it would record the opposite
+		// of what the visitor said. Such a box is left for a person to place.
+		if ( preg_match( '/(^| )(ne(souhlas|chci|prej|mam|zasil|posil|odebir|potrebuj|zajem)\w*|odmitam|nezasilejte|odhlasit|odhlaseni|dont|do not|opt out|unsubscribe|beru na vedomi|seznamil\w*|seznamen\w*|precetl\w*)( |$)/', $words ) ) {
+			return '';
+		}
+
+		// Marketing first: "Souhlasím se zasíláním obchodních sdělení" is about
+		// marketing even though it also says "souhlasím".
+		if ( preg_match( '/(^| )(newsletter\w*|novink\w*|marketing\w*|obchodni\w* sdeleni\w*|akce a slevy)( |$)/', $words ) ) {
+			return 'marketingConsent';
+		}
+
+		if ( preg_match( '/(^| )(gdpr|osobni\w* udaj\w*|zpracovani\w*|ochran\w* (osobnich )?udaj\w*|privacy|personal data)( |$)/', $words ) ) {
+			return 'gdprConsent';
+		}
+
+		return '';
+	}
+
+	/**
 	 * Field types that settle an attribute on their own.
 	 *
 	 * @return array<string,string> Elementor field type => source.
@@ -381,6 +411,9 @@ class Raynet_Elementor_Forms {
 				'id'    => (string) $field['custom_id'],
 				'type'  => isset( $field['field_type'] ) ? (string) $field['field_type'] : 'text',
 				'label' => isset( $field['field_label'] ) ? (string) $field['field_label'] : '',
+				// What a visitor reads next to a checkbox, which a short label
+				// such as "gdpr" does not say.
+				'text'  => isset( $field['acceptance_text'] ) ? trim( wp_strip_all_tags( (string) $field['acceptance_text'] ) ) : '',
 			);
 		}
 
@@ -509,6 +542,20 @@ class Raynet_Elementor_Forms {
 		if ( isset( $matched['fullName'] ) && ( isset( $matched['firstName'] ) || isset( $matched['lastName'] ) ) ) {
 			$excluded[] = 'fullName';
 			$matched    = self::match_fields( $usable, $excluded );
+		}
+
+		// Checkboxes are left out of the label guess — "Chci novinky e-mailem"
+		// is not an e-mail — but a consent box is recognised for what it is.
+		foreach ( $fields as $field ) {
+			if ( 'acceptance' !== $field['type'] || in_array( $field['id'], $keep, true ) || in_array( $field['id'], $matched, true ) ) {
+				continue;
+			}
+
+			$consent = self::consent_target( trim( $field['label'] . ' ' . ( isset( $field['text'] ) ? $field['text'] : '' ) ) );
+
+			if ( '' !== $consent && ! isset( $matched[ $consent ] ) && ! isset( $keep[ $consent ] ) && ! in_array( $consent, $excluded, true ) ) {
+				$matched[ $consent ] = $field['id'];
+			}
 		}
 
 		$matched = array_merge( $matched, $keep );
@@ -913,8 +960,12 @@ class Raynet_Elementor_Forms {
 		foreach ( $undecided as $field ) {
 			if ( isset( $guess[ $field['id'] ] ) ) {
 				$proposed[ $field['id'] ] = $guess[ $field['id'] ];
+			} elseif ( 'acceptance' === $field['type'] ) {
+				// A consent box nobody could place is left out rather than noted:
+				// in the note it would only say "on".
+				$proposed[ $field['id'] ] = '-';
 			} else {
-				$proposed[ $field['id'] ] = 'acceptance' === $field['type'] ? '-' : self::TARGET_NOTICE;
+				$proposed[ $field['id'] ] = self::TARGET_NOTICE;
 			}
 		}
 

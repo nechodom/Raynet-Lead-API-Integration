@@ -2,6 +2,30 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.7.0] — 2026-09-24
+
+### Přidáno
+
+- **Souhlas ze zaškrtávátka se zapíše do RAYNETu.** V mapování přibyl cíl **Souhlas se zpracováním údajů (GDPR)**. Zaškrtávátko na něj namapované dá souhlas, jen když je zaškrtnuté; do poznámky leadu se zapíše datum, čas a znění zaškrtávátka.
+- **GDPR záznam v RAYNETu.** V nastavení pluginu je nová sekce *GDPR souhlas v RAYNETu*: se zvolenou šablonou právního titulu plugin k novému leadu založí právní titul přes `PUT /gdpr/`, volitelně s formou souhlasu a platností v měsících. Test spojení vypíše ID šablon i forem souhlasu. Když RAYNET záznam odmítne, lead zůstane a chyba se ukáže správci.
+- Odhad pozná zaškrtávátko se souhlasem podle popisku („gdpr", „zpracování osobních údajů") a navrhne ho jako souhlas se zpracováním; „newsletter" nebo „obchodní sdělení" jako souhlas s marketingem. Hromadné nasazení je rovnou namapuje.
+- Filtr `raynet_lead_gdpr_record` pro úpravu GDPR záznamu před odesláním.
+
+### Změněno
+
+- Namapované pole souhlasu má přednost před přepínačem *Zapsat udělení souhlasu*: nezaškrtnuté pole souhlas neudělí, ani když je přepínač zapnutý.
+- Přepínač *Zapsat udělení souhlasu* bez namapovaného pole zapíše souhlas jen tehdy, když je zaškrtávátko typu Souhlas ve formuláři zaškrtnuté, a jen do poznámky; formální GDPR záznam vzniká výhradně z namapovaného, zaškrtnutého pole.
+- Znění souhlasu v poznámce je text, který návštěvník u zaškrtávátka viděl, ne interní popisek pole.
+- Obrazovka mapování upozorní u zaškrtávátka uloženého jako „Neodesílat", které vypadá jako souhlas.
+
+### Opraveno
+
+- Test spojení vkládal názvy číselníků z RAYNETu do stránky bez escapování.
+
+### Před vydáním
+
+Adversariální review potvrdilo 5 nálezů, všechny jsou opravené a pokryté testy. Nejvážnější: odhad nepoznal zápor a zaškrtávátko „Nepřeji si zasílat obchodní sdělení" by namapoval jako souhlas s marketingem — kdo by ho zaškrtl, vedl by se jako souhlasící. Odmítnutí a „Beru na vědomí…" teď odhad jako souhlas nikdy nenavrhne. Dál: znění souhlasu z interního popisku, formální GDPR záznam ze samotného přepínače bez zaškrtnutí, přetečení data platnosti přes konec měsíce.
+
 ## [2.6.0] — 2026-09-24
 
 ### Přidáno

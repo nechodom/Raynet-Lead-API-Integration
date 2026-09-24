@@ -12,17 +12,24 @@
 	 * @param {Object} lists Label => { id: name } map.
 	 * @return {string} HTML.
 	 */
+	// Names come from the RAYNET instance; nothing from there is markup.
+	function escapeHtml( value ) {
+		return String( value ).replace( /[&<>"']/g, function ( c ) {
+			return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ c ];
+		} );
+	}
+
 	function renderLists( lists ) {
 		var html = '';
 
 		Object.keys( lists || {} ).forEach( function ( label ) {
 			var rows = lists[ label ];
 			var items = Object.keys( rows ).map( function ( id ) {
-				return '<li><code>' + id + '</code> — ' + rows[ id ] + '</li>';
+				return '<li><code>' + escapeHtml( id ) + '</code> — ' + escapeHtml( rows[ id ] ) + '</li>';
 			} );
 
 			if ( items.length ) {
-				html += '<p><strong>' + label + '</strong></p><ul class="raynet-code-list">' + items.join( '' ) + '</ul>';
+				html += '<p><strong>' + escapeHtml( label ) + '</strong></p><ul class="raynet-code-list">' + items.join( '' ) + '</ul>';
 			}
 		} );
 
@@ -60,7 +67,7 @@
 				.then( function ( payload ) {
 					if ( payload && payload.success ) {
 						output.className = 'raynet-test-result is-success';
-						output.innerHTML = '<p>' + payload.data.message + '</p>' + renderLists( payload.data.codeLists );
+						output.innerHTML = '<p>' + escapeHtml( payload.data.message ) + '</p>' + renderLists( payload.data.codeLists );
 						return;
 					}
 

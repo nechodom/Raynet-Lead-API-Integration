@@ -598,5 +598,89 @@ $numeric = Raynet_Elementor_Forms::configure( array( 'form_fields' => array(
 check( 'číselné ID jde do poznámky', $numeric['raynet_crm_notice_fields'], array( '2' ) );
 check( 'číselné ID se namapuje', Raynet_Elementor_Forms::current_map( $numeric )['email'], '1' );
 
+// ---------- GDPR consent from a ticked box ----------
+check( 'gdpr je souhlas se zpracováním', Raynet_Elementor_Forms::consent_target( 'gdpr' ), 'gdprConsent' );
+check( 'zpracování osobních údajů je souhlas', Raynet_Elementor_Forms::consent_target( 'Souhlasím se zpracováním osobních údajů' ), 'gdprConsent' );
+check( 'obchodní sdělení je marketing', Raynet_Elementor_Forms::consent_target( 'Souhlasím se zasíláním obchodních sdělení' ), 'marketingConsent' );
+check( 'obchodní podmínky nejsou souhlas s údaji', Raynet_Elementor_Forms::consent_target( 'Souhlasím s obchodními podmínkami' ), '' );
+
+// Refusals and acknowledgements are never read as consent.
+foreach ( array(
+	'Nepřeji si zasílat obchodní sdělení',
+	'Nechci dostávat newsletter',
+	'Nesouhlasím se zpracováním osobních údajů',
+	'Odmítám zpracování osobních údajů',
+	'Beru na vědomí zásady ochrany osobních údajů',
+	'Seznámil jsem se se zpracováním osobních údajů',
+	'Do not send me marketing',
+) as $refusal ) {
+	check( 'není souhlas: ' . $refusal, Raynet_Elementor_Forms::consent_target( $refusal ), '' );
+}
+check( 'newsletter není zápor', Raynet_Elementor_Forms::consent_target( 'Newsletter' ), 'marketingConsent' );
+
+// The checkbox text decides when the label is just a name.
+$text_form = array( 'form_fields' => array(
+	array( 'custom_id' => 'e', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+	array( 'custom_id' => 'box', 'field_type' => 'acceptance', 'field_label' => '', 'acceptance_text' => 'Souhlasím se <a href="/gdpr">zpracováním osobních údajů</a>' ),
+) );
+check( 'souhlas podle textu zaškrtávátka', Raynet_Elementor_Forms::suggest_targets( $text_form )['box'], 'gdprConsent' );
+$optout_form = array( 'form_fields' => array(
+	array( 'custom_id' => 'no', 'field_type' => 'acceptance', 'field_label' => 'Novinky', 'acceptance_text' => 'Nepřeji si zasílat novinky' ),
+) );
+check( 'odmítnutí v textu se nenamapuje', Raynet_Elementor_Forms::suggest_targets( $optout_form )['no'], '-' );
+
+$gdpr_form = array( 'form_fields' => array(
+	array( 'custom_id' => 'email', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+	array( 'custom_id' => 'gdpr', 'field_type' => 'acceptance', 'field_label' => 'gdpr' ),
+) );
+check( 'zaškrtávátko gdpr se navrhne jako souhlas', Raynet_Elementor_Forms::suggest_targets( $gdpr_form )['gdpr'], 'gdprConsent' );
+check( 'hromadné nasazení ho namapuje taky', Raynet_Elementor_Forms::current_map( Raynet_Elementor_Forms::configure( $gdpr_form, array(), true, true ) )['gdprConsent'], 'gdpr' );
+check( 'nabízí se v mapování', in_array( 'gdprConsent', array_column( Raynet_Lead_Fields::mapping_rows(), 'id' ), true ), true );
+
+$ticked = Raynet_Lead_Fields::coerce( 'gdprConsent', 'on', 'acceptance' );
+check( 'zaškrtnuto = souhlas', $ticked['value'], true );
+check( 'nezaškrtnuto = bez souhlasu', Raynet_Lead_Fields::coerce( 'gdprConsent', '', 'acceptance' )['value'], false );
+check( 'nesouhlasím = bez souhlasu', Raynet_Lead_Fields::coerce( 'gdprConsent', 'Nesouhlasím', 'radio' )['value'], false );
+$unclear = Raynet_Lead_Fields::coerce( 'gdprConsent', 'Možná', 'radio' );
+check( 'nejasné = bez souhlasu a do poznámky', array( $unclear['value'], $unclear['note'] ), array( false, true ) );
+
+// The GDPR legal title follows the lead, only with a template configured.
+function consent_run( array $overrides, array $context ) {
+	update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array_merge( array(
+		'region' => 'cz', 'username' => 'u@e.cz', 'api_key' => 'K', 'instance_name' => 'inst',
+	), $overrides ) ) );
+	$GLOBALS['wp_requests']      = array();
+	$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":555}}' );
+	$form = new Raynet_Lead_Form();
+	$form->submit_lead( $form->collect_values( array( 'email' => 'a@example.cz' ) ), Raynet_Lead_Settings::all(), $context );
+	return $GLOBALS['wp_requests'];
+}
+
+$with_template = consent_run(
+	array( 'gdpr_template' => '7', 'gdpr_form_agreement' => '3', 'gdpr_valid_months' => '24' ),
+	array( 'raynet_has_consent' => true, 'raynet_consent_record' => true, 'raynet_consent_text' => 'Souhlasím se zpracováním osobních údajů' )
+);
+check( 'po leadu se zapíše GDPR záznam', count( $with_template ), 2 );
+check( 'GDPR záznam jde na /gdpr/', isset( $with_template[1] ) ? substr( $with_template[1]['url'], -6 ) : '', '/gdpr/' );
+check( 'GDPR záznam metodou PUT', isset( $with_template[1] ) ? $with_template[1]['args']['method'] : '', 'PUT' );
+$gdpr_body = isset( $with_template[1] ) ? json_decode( $with_template[1]['args']['body'], true ) : array();
+check( 'záznam patří k novému leadu', isset( $gdpr_body['lead'] ) ? $gdpr_body['lead'] : 0, 555 );
+check( 'záznam má šablonu', isset( $gdpr_body['gdprTemplate'] ) ? $gdpr_body['gdprTemplate'] : 0, 7 );
+check( 'záznam má formu souhlasu', isset( $gdpr_body['gdprFormAgreement'] ) ? $gdpr_body['gdprFormAgreement'] : 0, 3 );
+check( 'platnost od dneška', isset( $gdpr_body['validFrom'] ) ? $gdpr_body['validFrom'] : '', date( 'Y-m-d' ) );
+check( 'platnost do za 24 měsíců', isset( $gdpr_body['validTill'] ) ? $gdpr_body['validTill'] : '', Raynet_Lead_Form::add_months( date( 'Y-m-d' ), 24 ) );
+check( 'měsíc bez přetečení: 31. 1. + 1', Raynet_Lead_Form::add_months( '2026-01-31', 1 ), '2026-02-28' );
+check( 'měsíc bez přetečení: přestupný rok', Raynet_Lead_Form::add_months( '2024-02-29', 12 ), '2025-02-28' );
+check( 'měsíc bez přetečení: 31. 8. + 6', Raynet_Lead_Form::add_months( '2026-08-31', 6 ), '2027-02-28' );
+check( 'běžné datum', Raynet_Lead_Form::add_months( '2026-03-15', 24 ), '2028-03-15' );
+$lead_body = json_decode( $with_template[0]['args']['body'], true );
+check( 'poznámka nese souhlas i jeho znění', false !== strpos( $lead_body['notice'], 'Souhlas se zpracováním údajů udělen' ) && false !== strpos( $lead_body['notice'], 'Souhlasím se zpracováním osobních údajů' ), true );
+
+check( 'bez souhlasu žádný GDPR záznam', count( consent_run( array( 'gdpr_template' => '7' ), array( 'raynet_has_consent' => false, 'raynet_consent_record' => true ) ) ), 1 );
+check( 'bez šablony jen poznámka', count( consent_run( array( 'gdpr_template' => '0' ), array( 'raynet_has_consent' => true, 'raynet_consent_record' => true ) ) ), 1 );
+check( 'souhlas bez důkazu jen do poznámky', count( consent_run( array( 'gdpr_template' => '7' ), array( 'raynet_has_consent' => true ) ) ), 1 );
+$no_months = consent_run( array( 'gdpr_template' => '7' ), array( 'raynet_has_consent' => true, 'raynet_consent_record' => true ) );
+check( 'bez platnosti se konec neposílá', isset( json_decode( $no_months[1]['args']['body'], true )['validTill'] ), false );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

@@ -78,6 +78,11 @@ class Raynet_Lead_Settings {
 			'tags'              => '',
 			'notify_emails'     => '',
 
+			// GDPR legal title recorded on the lead when a visitor consents.
+			'gdpr_template'       => 0,
+			'gdpr_form_agreement' => 0,
+			'gdpr_valid_months'   => 0,
+
 			// Form behaviour.
 			'success_message'   => '',
 			'error_message'     => '',
@@ -203,9 +208,11 @@ class Raynet_Lead_Settings {
 		$clean['default_topic']  = isset( $input['default_topic'] ) ? sanitize_text_field( (string) $input['default_topic'] ) : '';
 		$clean['notice_prefix']  = isset( $input['notice_prefix'] ) ? sanitize_textarea_field( (string) $input['notice_prefix'] ) : '';
 
-		foreach ( array( 'category', 'lead_phase', 'contact_source', 'owner', 'security_level' ) as $numeric ) {
+		foreach ( array( 'category', 'lead_phase', 'contact_source', 'owner', 'security_level', 'gdpr_template', 'gdpr_form_agreement' ) as $numeric ) {
 			$clean[ $numeric ] = isset( $input[ $numeric ] ) ? max( 0, (int) $input[ $numeric ] ) : 0;
 		}
+
+		$clean['gdpr_valid_months'] = isset( $input['gdpr_valid_months'] ) ? max( 0, min( 1200, (int) $input['gdpr_valid_months'] ) ) : 0;
 
 		$clean['tags'] = isset( $input['tags'] ) ? sanitize_text_field( (string) $input['tags'] ) : '';
 

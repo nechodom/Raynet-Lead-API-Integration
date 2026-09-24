@@ -111,6 +111,17 @@ class Raynet_Lead_Api_Client {
 	}
 
 	/**
+	 * Records a GDPR legal title, such as a consent, on a lead.
+	 *
+	 * @param array<string,mixed> $record Body: gdprTemplate, lead, validFrom and
+	 *                                    optionally validTill, gdprFormAgreement.
+	 * @return array<string,mixed>|WP_Error Decoded response, or an error.
+	 */
+	public function create_gdpr( array $record ) {
+		return $this->request( 'PUT', 'gdpr/', $record );
+	}
+
+	/**
 	 * Fetches the configuration of custom fields for every entity.
 	 *
 	 * RAYNET has no filter on this endpoint; it answers with one list per entity

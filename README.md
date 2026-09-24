@@ -202,7 +202,7 @@ Seznam atributů se doplňuje sám: když přibude vlastní pole v RAYNETu nebo 
 
 Dva přepínače navíc:
 
-- **Zapsat udělení souhlasu** — zapněte jen tehdy, když formulář obsahuje pole se souhlasem. Do poznámky leadu se pak zapíše datum a čas. Vypnuté je záměrně: formulář, který se na souhlas neptá, nesmí do CRM napsat, že padl.
+- **Zapsat udělení souhlasu** — zapněte jen tehdy, když formulář obsahuje povinné pole se souhlasem. Do poznámky leadu se pak zapíše datum a čas. Vypnuté je záměrně: formulář, který se na souhlas neptá, nesmí do CRM napsat, že padl. Má-li formulář zaškrtávátko typu Souhlas, musí být zaškrtnuté, jinak se souhlas nezapíše. Přepínač zapisuje jen do poznámky; formální GDPR záznam v RAYNETu vzniká jen z namapovaného pole. Přesnější je proto namapovat samotné zaškrtávátko na **Souhlas se zpracováním údajů (GDPR)** — viz [GDPR](#gdpr); pak rozhoduje jeho zaškrtnutí a přepínač se nepoužije.
 - **Uvést URL stránky** — připíše do poznámky adresu stránky, ze které poptávka přišla.
 
 ### Jedno pole pro celé jméno
@@ -285,7 +285,7 @@ V **RAYNET CRM → Elementor formuláře** má každý formulář odkaz **Namapo
 - **Zapsat do poznámky leadu** — pro pole, které v RAYNETu protějšek nemá; hodnota se připíše do poznámky pod popiskem pole, třeba `Preferovaná barva: Modrá`,
 - **Neodesílat** — pole se do RAYNETu nedostane vůbec.
 
-Pole, o kterých ještě nikdo nerozhodl, obrazovka předvyplní **návrhem** a zvýrazní ho: podle popisku a typu odhadne atribut, a co odhadnout nejde, navrhne do poznámky. Zaškrtávátko se souhlasem navrhne vynechat, souhlas zapisuje zvlášť přepínač *Zapsat udělení souhlasu*. Návrh se uloží až tlačítkem **Uložit mapování**.
+Pole, o kterých ještě nikdo nerozhodl, obrazovka předvyplní **návrhem** a zvýrazní ho: podle popisku a typu odhadne atribut, a co odhadnout nejde, navrhne do poznámky. Zaškrtávátko se souhlasem pozná podle popisku a textu, který návštěvník vidí vedle něj: „gdpr", „zpracování osobních údajů" a podobné navrhne jako **Souhlas se zpracováním údajů (GDPR)**, „newsletter" nebo „obchodní sdělení" jako **Souhlas s marketingovými sděleními**. Zaškrtávátko, které souhlas **odmítá** („Nepřeji si zasílat obchodní sdělení", „Nesouhlasím…") nebo jen potvrzuje seznámení („Beru na vědomí…"), jako souhlas nikdy nenavrhne — zaškrtnutí by zapsalo opak toho, co návštěvník řekl. Takové a jiné nerozpoznané navrhne vynechat. U zaškrtávátka, které je uložené jako „Neodesílat", ale vypadá jako souhlas (typicky z verze 2.6.0), obrazovka upozorní, ať ho přepnete. Návrh se uloží až tlačítkem **Uložit mapování**.
 
 Přehled formulářů u zapnutého formuláře ukáže, kolik polí je **bez určení** — třeba když do formuláře v Elementoru přibude nové pole — a odkazem vede rovnou na mapování.
 
@@ -446,9 +446,11 @@ K tomu WordPress nonce. Pokud běží na webu plná cache stránek a nonce vypr�
 
 ## GDPR
 
-- Souhlas je pole formuláře. Přidáte ho v builderu, jeho text smí obsahovat odkazy, a je vždy povinný.
-- Formulář bez pole souhlasu do poznámky leadu nic o souhlasu nezapíše.
-- Datum a čas souhlasu se zapíše do poznámky leadu.
+- Souhlas je pole formuláře. V builderu ho přidáte jako pole Souhlas, jeho text smí obsahovat odkazy, a je vždy povinný. V Elementoru namapujete zaškrtávátko na **Souhlas se zpracováním údajů (GDPR)**.
+- Souhlas platí jen tehdy, když je pole **zaškrtnuté**. Formulář bez pole souhlasu nebo s nezaškrtnutým polem do RAYNETu o souhlasu nic nezapíše.
+- Udělený souhlas se zapíše do poznámky leadu s datem, časem a zněním — textem, který návštěvník u zaškrtávátka viděl, ne interním popiskem pole. Třeba: `Souhlas se zpracováním údajů udělen: 2026-09-24 15:30 — „Souhlasím se zpracováním osobních údajů"`.
+- **GDPR záznam v RAYNETu.** Vyberete-li v **Nastavení → GDPR souhlas v RAYNETu** šablonu právního titulu, plugin k novému leadu založí i právní titul (`PUT /gdpr/`) — v RAYNETu ho uvidíte v GDPR záložce leadu. Volitelně s formou souhlasu (třeba „elektronicky") a platností v měsících od data odeslání (31. 1. + 1 měsíc = 28. 2.). ID šablon a forem vypíše tlačítko **Otestovat spojení**. Záznam vzniká jen z doloženého souhlasu: ze zaškrtnutého pole Souhlas v builderu nebo ze zaškrtnutého pole namapovaného na Souhlas se zpracováním údajů v Elementoru.
+- Kdyby RAYNET GDPR záznam odmítl, lead už existuje a odeslání se nezruší. Chyba se zapíše do logu a ukáže nahoře na stránce nastavení; souhlas zůstane zaznamenaný v poznámce.
 - Plugin **neukládá odeslaná data do databáze WordPressu**. Jdou rovnou do RAYNETu.
 - IP adresa se používá jen pro omezení frekvence, ukládá se jako hash v transientu a do CRM se neposílá.
 - Do poznámky leadu jde URL stránky, ze které poptávka přišla.
@@ -488,6 +490,17 @@ add_action( 'raynet_lead_created', function ( $lead_id, $payload ) {
 ```php
 add_action( 'raynet_lead_failed', function ( WP_Error $error, $payload ) {
 	// Vlastní notifikace, zápis do fronty k opakování apod.
+}, 10, 2 );
+```
+
+### `raynet_lead_gdpr_record` (filtr)
+
+Upraví GDPR záznam (právní titul) před odesláním do RAYNETu, třeba jinou šablonu pro určitý formulář.
+
+```php
+add_filter( 'raynet_lead_gdpr_record', function ( array $record, $lead_id ) {
+	$record['validTill'] = gmdate( 'Y-m-d', strtotime( '+3 years' ) );
+	return $record;
 }, 10, 2 );
 ```
 

@@ -176,6 +176,8 @@ class Raynet_Lead_Admin {
 			'leadCategory/'  => __( 'Kategorie leadu (category)', 'raynet-lead-api-integration' ),
 			'leadPhase/'     => __( 'Stav leadu (leadPhase)', 'raynet-lead-api-integration' ),
 			'contactSource/' => __( 'Zdroj kontaktu (contactSource)', 'raynet-lead-api-integration' ),
+			'gdprTemplate/'      => __( 'Šablona právního titulu GDPR (gdprTemplate)', 'raynet-lead-api-integration' ),
+			'gdprFormAgreement/' => __( 'Forma udělení souhlasu (gdprFormAgreement)', 'raynet-lead-api-integration' ),
 		) as $endpoint => $label ) {
 			$rows = $client->get_code_list( $endpoint );
 
@@ -386,6 +388,30 @@ class Raynet_Lead_Admin {
 							<p class="description"><?php esc_html_e( 'E-maily oddělené čárkou. RAYNET jim pošle upozornění na nový lead.', 'raynet-lead-api-integration' ); ?></p>
 						</td>
 					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'GDPR souhlas v RAYNETu', 'raynet-lead-api-integration' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Souhlas se zapíše, když ho návštěvník opravdu zaškrtne: v builderu jako pole Souhlas, v Elementoru jako zaškrtávátko namapované na „Souhlas se zpracováním údajů (GDPR)“ (Elementor formuláře → Namapovat pole). Do poznámky leadu jde vždy s datem, časem a zněním. Vyberete-li šablonu právního titulu, založí se k leadu navíc GDPR záznam přímo v RAYNETu. ID šablon a forem souhlasu vypíše tlačítko Otestovat spojení.', 'raynet-lead-api-integration' ); ?>
+				</p>
+				<table class="form-table" role="presentation">
+					<?php
+					$gdpr_fields = array(
+						'gdpr_template'       => array( __( 'Šablona právního titulu (ID)', 'raynet-lead-api-integration' ), __( 'Šablona z RAYNETu, obvykle typu Souhlas. 0 = GDPR záznam nezakládat, jen poznámka.', 'raynet-lead-api-integration' ) ),
+						'gdpr_form_agreement' => array( __( 'Forma udělení souhlasu (ID)', 'raynet-lead-api-integration' ), __( 'Třeba „elektronicky“. Jen pro šablony typu Souhlas. 0 = neuvádět.', 'raynet-lead-api-integration' ) ),
+						'gdpr_valid_months'   => array( __( 'Platnost souhlasu (měsíce)', 'raynet-lead-api-integration' ), __( 'Od data odeslání. 0 = datum konce neposílat a nechat na RAYNETu.', 'raynet-lead-api-integration' ) ),
+					);
+
+					foreach ( $gdpr_fields as $key => $meta ) :
+						?>
+						<tr>
+							<th scope="row"><label for="raynet-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $meta[0] ); ?></label></th>
+							<td>
+								<input type="number" min="0" id="raynet-<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( $option ); ?>[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( (string) $settings[ $key ] ); ?>" />
+								<p class="description"><?php echo esc_html( $meta[1] ); ?></p>
+							</td>
+						</tr>
+					<?php endforeach; ?>
 				</table>
 
 				<h2><?php esc_html_e( 'Chování formuláře', 'raynet-lead-api-integration' ); ?></h2>

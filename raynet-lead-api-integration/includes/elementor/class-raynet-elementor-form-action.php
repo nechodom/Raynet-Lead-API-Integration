@@ -235,7 +235,7 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 				'label'        => esc_html__( 'Zapsat udělení souhlasu', 'raynet-lead-api-integration' ),
 				'type'         => Controls_Manager::SWITCHER,
 				'default'      => '',
-				'description'  => esc_html__( 'Zapněte jen tehdy, když formulář obsahuje pole se souhlasem. Do poznámky leadu se pak zapíše datum a čas.', 'raynet-lead-api-integration' ),
+				'description'  => esc_html__( 'Zapněte jen tehdy, když formulář obsahuje povinné pole se souhlasem. Do poznámky leadu se zapíše datum a čas, a je-li v nastavení pluginu šablona právního titulu, vznikne i GDPR záznam. Namapujete-li pole souhlasu na „Souhlas se zpracováním údajů (GDPR)“, řídí se souhlas jeho zaškrtnutím a tento přepínač se nepoužije.', 'raynet-lead-api-integration' ),
 				'render_type'  => 'none',
 				'condition'    => $condition,
 			)
@@ -348,7 +348,13 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 				array(
 					'raynet_fixed_topic'   => isset( $form_settings['raynet_crm_topic'] ) ? $form_settings['raynet_crm_topic'] : '',
 					'raynet_source_url'    => $this->source_url( $form_settings ),
-					'raynet_has_consent'   => 'yes' === $this->setting( $form_settings, 'raynet_crm_consent_note' ),
+					// A mapped consent field decides by being ticked or not; without
+					// one, the older per-form switch still does.
+					'raynet_has_consent'    => null !== $mapped['consent'] ? $mapped['consent'] : $this->switch_consent( $record, $form_settings ),
+					'raynet_consent_text'   => $mapped['consent_text'],
+					// A formal GDPR record needs proof: a mapped box that was ticked.
+					// The switch only ever claims consent in the note.
+					'raynet_consent_record' => true === $mapped['consent'],
 					'raynet_attributes'    => $mapped['attributes'],
 					'raynet_custom_fields' => $mapped['custom'],
 					'raynet_extras'        => $mapped['extras'],
@@ -421,11 +427,30 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 			? (array) $form_settings[ self::ACTION_NAME . '_fields_map' ]
 			: array();
 		$result = array(
-			'basic'      => array(),
-			'attributes' => array(),
-			'custom'     => array(),
-			'extras'     => array(),
+			'basic'        => array(),
+			'attributes'   => array(),
+			'custom'       => array(),
+			'extras'       => array(),
+			'consent'      => null,
+			'consent_text' => '',
 		);
+		$titles = array();
+
+		foreach ( (array) $record->get( 'fields' ) as $id => $field ) {
+			$titles[ $id ] = isset( $field['title'] ) ? sanitize_text_field( (string) $field['title'] ) : '';
+		}
+
+		// The wording a visitor agrees to is the checkbox's text, not its
+		// label, which is often a short internal name such as "gdpr".
+		foreach ( (array) ( isset( $form_settings['form_fields'] ) ? $form_settings['form_fields'] : array() ) as $definition ) {
+			if ( is_array( $definition ) && ! empty( $definition['custom_id'] ) && ! empty( $definition['acceptance_text'] ) ) {
+				$text = trim( sanitize_text_field( wp_strip_all_tags( (string) $definition['acceptance_text'] ) ) );
+
+				if ( '' !== $text ) {
+					$titles[ (string) $definition['custom_id'] ] = $text;
+				}
+			}
+		}
 
 		$extended = Raynet_Lead_Fields::extended();
 
@@ -447,6 +472,19 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 			}
 
 			$clean = Raynet_Lead_Fields::coerce( $remote, $fields[ $local ], isset( $types[ $local ] ) ? $types[ $local ] : '' );
+
+			// Consent is not a lead attribute: it decides whether the note and a
+			// GDPR record say that consent was given.
+			if ( 'gdprConsent' === $remote ) {
+				$result['consent']      = true === $clean['value'];
+				$result['consent_text'] = isset( $titles[ $local ] ) ? $titles[ $local ] : '';
+
+				if ( ! empty( $clean['note'] ) && '' !== $clean['raw'] ) {
+					$result['extras'][ $clean['label'] ] = mb_substr( sanitize_textarea_field( $clean['raw'] ), 0, 1000 );
+				}
+
+				continue;
+			}
 
 			if ( 'invalid' === $clean['status'] ) {
 				$result['extras'][ $clean['label'] ] = mb_substr( sanitize_textarea_field( $clean['raw'] ), 0, 1000 );
@@ -521,6 +559,38 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 		}
 
 		return $lines;
+	}
+
+	/**
+	 * Consent claimed by the older per-form switch.
+	 *
+	 * The switch says "this form has a consent box". If the submission does
+	 * carry a checkbox of Elementor's acceptance type, at least one of them
+	 * must be ticked for the claim to hold.
+	 *
+	 * @param \ElementorPro\Modules\Forms\Classes\Form_Record $record        Submission.
+	 * @param array<string,mixed>                            $form_settings Form settings.
+	 * @return bool True when consent may be claimed.
+	 */
+	private function switch_consent( $record, array $form_settings ) {
+		if ( 'yes' !== $this->setting( $form_settings, 'raynet_crm_consent_note' ) ) {
+			return false;
+		}
+
+		$boxes  = 0;
+		$ticked = 0;
+
+		foreach ( (array) $record->get( 'fields' ) as $field ) {
+			if ( isset( $field['type'] ) && 'acceptance' === $field['type'] ) {
+				$boxes++;
+
+				if ( isset( $field['value'] ) && '' !== trim( (string) $field['value'] ) ) {
+					$ticked++;
+				}
+			}
+		}
+
+		return 0 === $boxes || $ticked > 0;
 	}
 
 	/**

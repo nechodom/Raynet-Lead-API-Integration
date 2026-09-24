@@ -1072,6 +1072,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 									array( '_id' => 'mb', 'custom_id' => 'mb', 'field_type' => 'text', 'field_label' => 'Barva auta' ),
 									array( '_id' => 'mn', 'custom_id' => 'mn', 'field_type' => 'number', 'field_label' => 'Počet zaměstnanců' ),
 									array( '_id' => 'mg', 'custom_id' => 'mg', 'field_type' => 'acceptance', 'field_label' => 'Souhlasím' ),
+									array( '_id' => 'mc', 'custom_id' => 'mc', 'field_type' => 'acceptance', 'field_label' => 'gdpr' ),
 								),
 							),
 							'elements'   => array(),
@@ -1092,11 +1093,12 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'návrhy jsou označené', substr_count( $map_view['body'], 'raynet-elm__proposed' ) >= 1, true );
 		check( 'pole bez protějšku navrženo do poznámky', (bool) preg_match( '/name="target\[mb\]".*?value="__notice"\s+selected/s', $map_view['body'] ), true );
 		check( 'celé jméno navrženo podle popisku', (bool) preg_match( '/name="target\[mj\]".*?value="fullName"\s+selected/s', $map_view['body'] ), true );
+		check( 'zaškrtávátko gdpr navrženo jako souhlas', (bool) preg_match( '/name="target\[mc\]".*?value="gdprConsent"\s+selected/s', $map_view['body'] ), true );
 
 		$scan_before = array_values( array_filter( Raynet_Elementor_Forms::scan(), function ( $row ) {
 			return 'mapform' === $row['widget_id'];
 		} ) );
-		check( 'přehled hlásí pole bez určení', $scan_before[0]['undecided'], 5 );
+		check( 'přehled hlásí pole bez určení', $scan_before[0]['undecided'], 6 );
 
 		preg_match( '/name="action" value="raynet_elm_save_mapping".*?name="_wpnonce" value="([^"]+)"/s', $map_view['body'], $map_nonce );
 		$map_nonce = isset( $map_nonce[1] ) ? $map_nonce[1] : '';
@@ -1126,7 +1128,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 				'action'   => 'raynet_elm_save_mapping',
 				'_wpnonce' => $map_nonce,
 				'form'     => $map_key,
-				'target'   => array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '__notice', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-' ),
+				'target'   => array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '__notice', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-', 'mc' => 'gdprConsent' ),
 				'enable'   => '1',
 			),
 			true
@@ -1137,7 +1139,9 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$map_settings = Raynet_Elementor_Forms::form_settings( $map_page, 'mapform' );
 		check( 'akce zapnutá', in_array( 'raynet_crm', Raynet_Elementor_Forms::submit_actions( $map_settings ), true ), true );
 		check( 'výchozí akce zachované', in_array( 'email', Raynet_Elementor_Forms::submit_actions( $map_settings ), true ), true );
-		check( 'mapování uložené', Raynet_Elementor_Forms::current_map( $map_settings ), array( 'fullName' => 'mj', 'email' => 'me', 'cf:Pocet_zam_a1b2c' => 'mn' ) );
+		$saved_map = Raynet_Elementor_Forms::current_map( $map_settings );
+		ksort( $saved_map );
+		check( 'mapování uložené', $saved_map, array( 'cf:Pocet_zam_a1b2c' => 'mn', 'email' => 'me', 'fullName' => 'mj', 'gdprConsent' => 'mc' ) );
 		check( 'poznámka uložená', $map_settings['raynet_crm_notice_fields'], array( 'mb' ) );
 		check( 'souhlas vynechaný', $map_settings['raynet_crm_ignored_fields'], array( 'mg' ) );
 		check( 'záloha vznikla', Raynet_Elementor_Forms::has_backup( $map_page ), true );
@@ -1180,7 +1184,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 				'action'   => 'raynet_elm_save_mapping',
 				'_wpnonce' => $map_nonce,
 				'form'     => $map_key,
-				'target'   => array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '-', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-' ),
+				'target'   => array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '-', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-', 'mc' => 'gdprConsent' ),
 			),
 			true
 		);
@@ -1195,7 +1199,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		wp_delete_post( $map_draft, true );
 
 		// Back to the note for the submission test below.
-		Raynet_Elementor_Forms::save_targets( $map_page, 'mapform', array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '__notice', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-' ), false );
+		Raynet_Elementor_Forms::save_targets( $map_page, 'mapform', array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '__notice', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-', 'mc' => 'gdprConsent' ), false );
 		$map_settings = Raynet_Elementor_Forms::form_settings( $map_page, 'mapform' );
 
 		// A submission writes the noted field under its label.
@@ -1261,6 +1265,166 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'hromadné nasazení nezmění rozhodnuté', array( $after_bulk['mb'], $after_bulk['mg'], $after_bulk['mj'] ), array( '__notice', '-', 'fullName' ) );
 
 		wp_delete_post( $map_page, true );
+
+		// --- GDPR consent from a ticked box -----------------------------------
+		$gdpr_before = get_option( Raynet_Lead_Settings::OPTION );
+		update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array_merge( (array) $gdpr_before, array( 'gdpr_template' => '5', 'gdpr_form_agreement' => '2' ) ) ) );
+
+		$gdpr_settings = array(
+			'form_post_id'          => $page_id,
+			'raynet_crm_fields_map' => array(
+				array( 'remote_id' => 'email', 'local_id' => 'e' ),
+				array( 'remote_id' => 'gdprConsent', 'local_id' => 'gdpr' ),
+			),
+		);
+		$gdpr_record = function ( $ticked ) use ( $gdpr_settings ) {
+			return new class( $gdpr_settings, array(
+				'e'    => array( 'type' => 'email', 'title' => 'E-mail', 'value' => 'souhlas@example.cz' ),
+				'gdpr' => array( 'type' => 'acceptance', 'title' => 'Souhlasím se zpracováním osobních údajů', 'value' => $ticked ? 'on' : '' ),
+			) ) {
+				private $fs;
+				private $f;
+				public function __construct( $fs, $f ) {
+					$this->fs = $fs;
+					$this->f  = $f;
+				}
+				public function get( $k ) {
+					return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+				}
+			};
+		};
+		$gdpr_calls = function () {
+			wp_cache_flush();
+			$out = array( 'lead' => null, 'gdpr' => null );
+			foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+				if ( false !== strpos( $call['url'], '/lead/' ) ) {
+					$out['lead'] = json_decode( $call['body'], true );
+				} elseif ( false !== strpos( $call['url'], '/gdpr/' ) ) {
+					$out['gdpr'] = json_decode( $call['body'], true );
+				}
+			}
+			return $out;
+		};
+
+		update_option( 'raynet_test_http_calls', array() );
+		$action->run( $gdpr_record( true ), $custom_handler );
+		$ticked_calls = $gdpr_calls();
+		check( 'zaškrtnutý souhlas: lead', null !== $ticked_calls['lead'], true );
+		check( 'zaškrtnutý souhlas: poznámka s datem a zněním', isset( $ticked_calls['lead']['notice'] ) && false !== strpos( $ticked_calls['lead']['notice'], 'Souhlas se zpracováním údajů udělen' ) && false !== strpos( $ticked_calls['lead']['notice'], 'Souhlasím se zpracováním osobních údajů' ), true );
+		check( 'zaškrtnutý souhlas: GDPR záznam', null !== $ticked_calls['gdpr'], true );
+		check( 'GDPR záznam u nového leadu', isset( $ticked_calls['gdpr']['lead'] ) ? $ticked_calls['gdpr']['lead'] : 0, 4242 );
+		check( 'GDPR záznam se šablonou z nastavení', isset( $ticked_calls['gdpr']['gdprTemplate'] ) ? $ticked_calls['gdpr']['gdprTemplate'] : 0, 5 );
+		check( 'GDPR záznam s formou souhlasu', isset( $ticked_calls['gdpr']['gdprFormAgreement'] ) ? $ticked_calls['gdpr']['gdprFormAgreement'] : 0, 2 );
+		check( 'souhlas neodešel jako atribut leadu', isset( $ticked_calls['lead']['gdprConsent'] ), false );
+
+		update_option( 'raynet_test_http_calls', array() );
+		$action->run( $gdpr_record( false ), $custom_handler );
+		$unticked_calls = $gdpr_calls();
+		check( 'nezaškrtnuto: lead vznikne', null !== $unticked_calls['lead'], true );
+		check( 'nezaškrtnuto: žádný GDPR záznam', $unticked_calls['gdpr'], null );
+		check( 'nezaškrtnuto: poznámka souhlas netvrdí', isset( $unticked_calls['lead']['notice'] ) && false !== strpos( $unticked_calls['lead']['notice'], 'Souhlas se zpracováním' ), false );
+
+		// A mapped consent field decides even when the old switch is on.
+		$gdpr_switch = $gdpr_settings;
+		$gdpr_switch['raynet_crm_consent_note'] = 'yes';
+		update_option( 'raynet_test_http_calls', array() );
+		$switch_record = new class( $gdpr_switch, array(
+			'e'    => array( 'type' => 'email', 'title' => 'E-mail', 'value' => 'souhlas@example.cz' ),
+			'gdpr' => array( 'type' => 'acceptance', 'title' => 'Souhlasím', 'value' => '' ),
+		) ) {
+			private $fs;
+			private $f;
+			public function __construct( $fs, $f ) {
+				$this->fs = $fs;
+				$this->f  = $f;
+			}
+			public function get( $k ) {
+				return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+			}
+		};
+		$action->run( $switch_record, $custom_handler );
+		check( 'namapované pole přebije přepínač', $gdpr_calls()['gdpr'], null );
+
+		// The older switch alone: consent only if the box was ticked, and only
+		// in the note — a formal GDPR record needs a mapped, ticked box.
+		$switch_only = array(
+			'form_post_id'            => $page_id,
+			'raynet_crm_consent_note' => 'yes',
+			'raynet_crm_fields_map'   => array( array( 'remote_id' => 'email', 'local_id' => 'e' ) ),
+		);
+		foreach ( array( 'on' => true, '' => false ) as $box => $given ) {
+			update_option( 'raynet_test_http_calls', array() );
+			$action->run( new class( $switch_only, array(
+				'e' => array( 'type' => 'email', 'title' => 'E-mail', 'value' => 'prepinac@example.cz' ),
+				'g' => array( 'type' => 'acceptance', 'title' => 'Souhlas', 'value' => $box ),
+			) ) {
+				private $fs;
+				private $f;
+				public function __construct( $fs, $f ) {
+					$this->fs = $fs;
+					$this->f  = $f;
+				}
+				public function get( $k ) {
+					return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+				}
+			}, $custom_handler );
+			$switch_calls = $gdpr_calls();
+			check( 'přepínač, pole ' . ( $given ? 'zaškrtnuté' : 'nezaškrtnuté' ) . ': souhlas v poznámce', isset( $switch_calls['lead']['notice'] ) && false !== strpos( $switch_calls['lead']['notice'], 'Souhlas se zpracováním údajů udělen' ), $given );
+			check( 'přepínač, pole ' . ( $given ? 'zaškrtnuté' : 'nezaškrtnuté' ) . ': žádný GDPR záznam', $switch_calls['gdpr'], null );
+		}
+
+		// The wording in the note is what the visitor read, not the label.
+		$worded = $gdpr_settings;
+		$worded['form_fields'] = array(
+			array( 'custom_id' => 'gdpr', 'field_type' => 'acceptance', 'field_label' => 'gdpr', 'acceptance_text' => 'Souhlasím se <a href="/osobni-udaje">zpracováním osobních údajů</a> pro vyřízení poptávky' ),
+		);
+		update_option( 'raynet_test_http_calls', array() );
+		$action->run( new class( $worded, array(
+			'e'    => array( 'type' => 'email', 'title' => 'E-mail', 'value' => 'zneni@example.cz' ),
+			'gdpr' => array( 'type' => 'acceptance', 'title' => 'gdpr', 'value' => 'on' ),
+		) ) {
+			private $fs;
+			private $f;
+			public function __construct( $fs, $f ) {
+				$this->fs = $fs;
+				$this->f  = $f;
+			}
+			public function get( $k ) {
+				return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+			}
+		}, $custom_handler );
+		$worded_calls = $gdpr_calls();
+		check( 'znění souhlasu z textu zaškrtávátka', isset( $worded_calls['lead']['notice'] ) && false !== strpos( $worded_calls['lead']['notice'], 'Souhlasím se zpracováním osobních údajů pro vyřízení poptávky' ), true );
+		check( 'znění bez HTML', isset( $worded_calls['lead']['notice'] ) && false !== strpos( $worded_calls['lead']['notice'], '<a' ), false );
+
+		// The lead exists before the consent is recorded; a refused GDPR record
+		// must not turn the visitor's submission into an error.
+		$refuse_gdpr = function ( $preempt, $args, $url ) {
+			if ( false !== strpos( $url, '/gdpr/' ) ) {
+				return array( 'headers' => array(), 'cookies' => array(), 'filename' => null, 'body' => wp_json_encode( array( 'message' => 'Neplatná šablona' ) ), 'response' => array( 'code' => 400, 'message' => 'Bad Request' ) );
+			}
+			return $preempt;
+		};
+		add_filter( 'pre_http_request', $refuse_gdpr, 5, 3 );
+		delete_option( 'raynet_lead_last_error' );
+		$gdpr_error = '';
+		try {
+			$action->run( $gdpr_record( true ), $custom_handler );
+		} catch ( \Exception $e ) {
+			$gdpr_error = $e->getMessage();
+		}
+		remove_filter( 'pre_http_request', $refuse_gdpr, 5 );
+		check( 'odmítnutý GDPR záznam neshodí odeslání', $gdpr_error, '' );
+		wp_cache_flush();
+		$last_error = get_option( 'raynet_lead_last_error', array() );
+		check( 'a chyba se zapamatuje pro správce', is_array( $last_error ) && false !== strpos( (string) $last_error['message'], 'GDPR' ), true );
+
+		update_option( Raynet_Lead_Settings::OPTION, $gdpr_before );
+
+		// The settings page offers the choice.
+		$settings_view = req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
+		check( 'nastavení má sekci GDPR', false !== strpos( $settings_view['body'], 'GDPR souhlas v RAYNETu' ), true );
+		check( 'nastavení má šablonu právního titulu', false !== strpos( $settings_view['body'], '[gdpr_template]' ), true );
 
 		// --- A cap that dropped the oldest pages -------------------------------
 		// Two hundred newer posts saved with Elementor used to push an old
