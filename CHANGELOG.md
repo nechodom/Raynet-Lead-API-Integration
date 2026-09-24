@@ -2,6 +2,25 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.6.0] — 2026-09-24
+
+### Přidáno
+
+- **Mapování po polích formuláře.** V přehledu Elementor formulářů má každý formulář odkaz **Namapovat pole**. Obrazovka vypíše pole, která formulář opravdu má, a u každého nabídne atribut RAYNETu (základní, další, vlastní), **zápis do poznámky leadu**, nebo vynechání. Nerozhodnutá pole předvyplní zvýrazněným návrhem; co v RAYNETu protějšek nemá, navrhne do poznámky.
+- **Pole do poznámky.** Hodnota vybraného pole se zapíše do poznámky leadu pod popiskem pole. Jde to i v editoru Elementoru: sekce RAYNET CRM má výběr *Zapsat do poznámky* s poli formuláře.
+- Přehled u zapnutého formuláře ukáže **počet polí bez určení** a kolik jich jde do poznámky.
+- Hromadné nasazení má volbu **Pole bez protějšku v RAYNETu zapsat do poznámky** (zapnutá), aby se nic z vyplněného neztratilo.
+
+### Změněno
+
+- Nasazení šablony i uložení mapování teď zapisují jedním společným kanálem: záloha, kontrola, že Elementor stránku vykresluje, a propsání do neuloženého konceptu platí pro obojí.
+- Pole typu **heslo** se do RAYNETu nepošle nikdy — nenabízí se k mapování ani do poznámky a přeskočí se, i kdyby ho někdo namapoval v editoru.
+- Hromadné nasazení respektuje rozhodnutí z obrazovky mapování: pole v poznámce nebo vynechané znovu nenamapuje. Zaškrtávátko souhlasu při zápisu zbytku do poznámky rovnou vynechá.
+
+### Před vydáním
+
+Adversariální review (4 oblasti, každý nález ověřený dvěma oponenty) potvrdilo 15 nálezů se 6 příčinami; všechny jsou opravené a pokryté testy. Hlavní: první verze ukládala mapování absolutně — z toho, co obrazovka odeslala, přestavěla celou mapu, takže smazala mapování, které obrazovka neukazuje (pole plnící dva atributy, nahraný soubor), a v neuloženém konceptu i mapování polí, která měl jen koncept. Uložení je teď relativní a mění jen pole, u kterých se výběr změnil. Dál: návrh do poznámky u pole typu heslo, číselná ID polí posouvala výběry po odmítnutém uložení, zaškrtávátko „nechat zapnuté" po odškrtnutí nic nevypnulo, neznámý cíl se tiše zahodil a pole namapované i určené do poznámky se v poznámce opakovalo.
+
 ## [2.5.0] — 2026-09-24
 
 ### Opraveno — šablona se nepropsala do všech formulářů

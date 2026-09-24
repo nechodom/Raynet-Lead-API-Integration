@@ -34,6 +34,7 @@ class Raynet_Elementor_Forms_Admin {
 		add_action( 'admin_post_raynet_elm_apply', array( $this, 'handle_apply' ) );
 		add_action( 'admin_post_raynet_elm_restore', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_raynet_elm_refresh_fields', array( $this, 'handle_refresh_fields' ) );
+		add_action( 'admin_post_raynet_elm_save_mapping', array( $this, 'handle_save_mapping' ) );
 	}
 
 	/**
@@ -68,6 +69,11 @@ class Raynet_Elementor_Forms_Admin {
 
 		// Before the scan, so a first visit already offers the custom fields.
 		Raynet_Lead_Fields::maybe_refresh();
+
+		if ( isset( $_GET['mapovat'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only selection.
+			$this->render_mapping( sanitize_text_field( wp_unslash( $_GET['mapovat'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only selection.
+			return;
+		}
 
 		$forms     = Raynet_Elementor_Forms::scan();
 		$templates = Raynet_Elementor_Forms::templates();
@@ -197,14 +203,41 @@ class Raynet_Elementor_Forms_Admin {
 														);
 														?>
 													</span>
+													<?php if ( $form['noted'] > 0 ) : ?>
+														<br /><span class="raynet-elm__off">
+															<?php
+															printf(
+																/* translators: %d: number of form fields. */
+																esc_html__( 'do poznámky: %d', 'raynet-lead-api-integration' ),
+																(int) $form['noted']
+															);
+															?>
+														</span>
+													<?php endif; ?>
 													<?php if ( ! $form['has_contact'] ) : ?>
 														<br /><span class="raynet-elm__warn">&#9888; <?php esc_html_e( 'chybí e-mail i telefon — RAYNET lead nepřijme', 'raynet-lead-api-integration' ); ?></span>
+													<?php endif; ?>
+													<?php if ( $form['undecided'] > 0 ) : ?>
+														<br /><a class="raynet-elm__warn" href="<?php echo esc_url( $this->mapping_url( $form ) ); ?>">
+															&#9888;
+															<?php
+															printf(
+																/* translators: %d: number of form fields. */
+																esc_html__( 'polí bez určení: %d — namapovat', 'raynet-lead-api-integration' ),
+																(int) $form['undecided']
+															);
+															?>
+														</a>
 													<?php endif; ?>
 												<?php else : ?>
 													<span class="raynet-elm__off"><?php esc_html_e( 'vypnuto', 'raynet-lead-api-integration' ); ?></span>
 												<?php endif; ?>
 											</td>
 											<td>
+												<?php if ( $form['rendered'] && ! $form['atomic'] && '' !== $form['widget_id'] ) : ?>
+													<a href="<?php echo esc_url( $this->mapping_url( $form ) ); ?>"><strong><?php esc_html_e( 'Namapovat pole', 'raynet-lead-api-integration' ); ?></strong></a>
+													&nbsp;|&nbsp;
+												<?php endif; ?>
 												<a href="<?php echo esc_url( $form['edit_url'] ); ?>"><?php esc_html_e( 'Otevřít v Elementoru', 'raynet-lead-api-integration' ); ?></a>
 												<?php if ( Raynet_Elementor_Forms::has_backup( $form['post_id'] ) ) : ?>
 													&nbsp;|&nbsp;
@@ -253,6 +286,11 @@ class Raynet_Elementor_Forms_Admin {
 								<label>
 									<input type="checkbox" name="automap" value="1" checked />
 									<?php esc_html_e( 'Doplnit mapování odhadem', 'raynet-lead-api-integration' ); ?>
+								</label>
+
+								<label>
+									<input type="checkbox" name="notice_rest" value="1" checked />
+									<?php esc_html_e( 'Pole bez protějšku v RAYNETu zapsat do poznámky', 'raynet-lead-api-integration' ); ?>
 								</label>
 
 								<button type="submit" class="button button-primary" <?php disabled( empty( $templates ) ); ?>>
@@ -493,7 +531,19 @@ class Raynet_Elementor_Forms_Admin {
 			'draft'       => __( 'Stránka má v Elementoru neuložený koncept, proto se nic nevrátilo. Otevřete ji v Elementoru, koncept publikujte nebo zahoďte a vrácení zopakujte.', 'raynet-lead-api-integration' ),
 			'restore'     => __( 'Vrácení se nezdařilo.', 'raynet-lead-api-integration' ),
 			'fields'      => __( 'Pole z RAYNETu se nepodařilo načíst. Podrobnosti jsou v panelu Pole z RAYNETu.', 'raynet-lead-api-integration' ),
+			'mapping'     => __( 'Mapování se nepodařilo uložit.', 'raynet-lead-api-integration' ),
 		);
+
+		// The reason for a refused mapping names fields and attributes, so it is
+		// built on the server and kept there for this user; the URL only says
+		// that there is one.
+		if ( 'mapping' === $error ) {
+			$flash = get_transient( $this->flash_key() );
+
+			if ( is_array( $flash ) && ! empty( $flash['message'] ) ) {
+				$errors['mapping'] = (string) $flash['message'];
+			}
+		}
 
 		if ( isset( $errors[ $error ] ) ) {
 			echo '<div class="notice notice-error"><p>' . esc_html( $errors[ $error ] ) . '</p></div>';
@@ -540,6 +590,7 @@ class Raynet_Elementor_Forms_Admin {
 		}
 
 		$messages = array(
+			'mapped'   => __( 'Mapování uloženo. Předchozí podoba stránky je zálohovaná.', 'raynet-lead-api-integration' ),
 			'fields'   => __( 'Pole z RAYNETu načtena.', 'raynet-lead-api-integration' ),
 			'restored' => __( 'Předchozí podoba stránky byla obnovena.', 'raynet-lead-api-integration' ),
 			'saved'    => __( 'Šablona uložena.', 'raynet-lead-api-integration' ),
@@ -622,13 +673,14 @@ class Raynet_Elementor_Forms_Admin {
 		}
 
 		$automap = ! empty( $_POST['automap'] );
+		$rest    = ! empty( $_POST['notice_rest'] );
 		$done    = 0;
 		$failed  = 0;
 		$bare    = 0;
 
 		foreach ( $pages as $post_id => $widget_ids ) {
 			$widget_ids = array_values( array_unique( $widget_ids ) );
-			$result     = Raynet_Elementor_Forms::apply( $post_id, $widget_ids, $templates[ $slug ]['lead'], $automap );
+			$result     = Raynet_Elementor_Forms::apply( $post_id, $widget_ids, $templates[ $slug ]['lead'], $automap, $rest );
 
 			if ( is_wp_error( $result ) ) {
 				$failed += count( $widget_ids );
@@ -655,6 +707,282 @@ class Raynet_Elementor_Forms_Admin {
 				'raynet_nocontact' => $bare,
 			)
 		);
+	}
+
+	/**
+	 * Link to the mapping screen of one form.
+	 *
+	 * @param array<string,mixed> $form Row from the scan.
+	 * @return string URL.
+	 */
+	private function mapping_url( array $form ) {
+		return add_query_arg(
+			array(
+				'page'    => self::PAGE,
+				'mapovat' => $form['post_id'] . ':' . $form['widget_id'],
+			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	/**
+	 * Transient key for a refused mapping, per user.
+	 *
+	 * @return string Key.
+	 */
+	private function flash_key() {
+		return 'raynet_elm_mapping_' . get_current_user_id();
+	}
+
+	/**
+	 * Renders the mapping screen: the form's own fields, each with a target.
+	 *
+	 * @param string $key "post_id:widget_id".
+	 * @return void
+	 */
+	private function render_mapping( $key ) {
+		$back     = add_query_arg( array( 'page' => self::PAGE ), admin_url( 'admin.php' ) );
+		$settings = null;
+
+		if ( preg_match( '/^(\d+):(.+)$/', $key, $parts ) ) {
+			$post_id   = (int) $parts[1];
+			$widget_id = $parts[2];
+			$settings  = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
+		}
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Mapování polí formuláře', 'raynet-lead-api-integration' ); ?></h1>
+			<p><a href="<?php echo esc_url( $back ); ?>">&larr; <?php esc_html_e( 'Zpět na přehled formulářů', 'raynet-lead-api-integration' ); ?></a></p>
+
+			<?php $this->notices(); ?>
+
+			<?php if ( null === $settings ) : ?>
+				<div class="notice notice-error"><p><?php esc_html_e( 'Formulář se nenašel. Stránka ho možná už neobsahuje.', 'raynet-lead-api-integration' ); ?></p></div>
+			</div>
+				<?php
+				return;
+			endif;
+
+			$fields   = Raynet_Elementor_Forms::mappable_fields( $settings );
+			$targets  = Raynet_Elementor_Forms::field_targets( $settings );
+			$proposed = Raynet_Elementor_Forms::suggest_targets( $settings );
+			$enabled  = in_array( Raynet_Elementor_Forms::ACTION_NAME, Raynet_Elementor_Forms::submit_actions( $settings ), true );
+			$flash    = get_transient( $this->flash_key() );
+
+			// After a refused save, show what was chosen rather than what is stored.
+			$enable_choice = true;
+
+			// array_replace, not array_merge: a field id such as "2" is an
+			// integer key, and array_merge would renumber it onto another field.
+			if ( is_array( $flash ) && isset( $flash['key'], $flash['targets'] ) && $flash['key'] === $key ) {
+				$targets       = array_replace( $targets, array_intersect_key( (array) $flash['targets'], $targets ) );
+				$proposed      = array();
+				$enable_choice = ! empty( $flash['enable'] );
+				delete_transient( $this->flash_key() );
+			}
+
+			$extras = Raynet_Elementor_Forms::extra_targets( $settings );
+
+			$groups = array(
+				'basic'    => __( 'Základní atributy', 'raynet-lead-api-integration' ),
+				'extended' => __( 'Další standardní atributy', 'raynet-lead-api-integration' ),
+				'custom'   => __( 'Vlastní pole z RAYNETu', 'raynet-lead-api-integration' ),
+			);
+			$options = array_fill_keys( array_keys( $groups ), array() );
+			$custom  = Raynet_Lead_Fields::custom();
+
+			foreach ( Raynet_Lead_Fields::mapping_rows() as $row ) {
+				$label = html_entity_decode( $row['label'], ENT_QUOTES, 'UTF-8' );
+
+				if ( 'custom' === $row['group'] ) {
+					$name  = Raynet_Lead_Fields::custom_name( $row['id'] );
+					$label = isset( $custom[ $name ] ) ? $custom[ $name ]['label'] : $name;
+				}
+
+				$options[ $row['group'] ][ $row['id'] ] = $label;
+			}
+
+			// A custom field mapped earlier but not in the fetched list stays
+			// selectable, so saving the screen does not silently drop it.
+			foreach ( $targets as $target ) {
+				if ( Raynet_Lead_Fields::is_custom_id( $target ) && ! isset( $options['custom'][ $target ] ) ) {
+					/* translators: %s: custom field code. */
+					$options['custom'][ $target ] = sprintf( __( '%s (není v načteném seznamu)', 'raynet-lead-api-integration' ), Raynet_Lead_Fields::custom_name( $target ) );
+				}
+			}
+
+			$form_name = isset( $settings['form_name'] ) && '' !== (string) $settings['form_name'] ? (string) $settings['form_name'] : __( 'bez názvu', 'raynet-lead-api-integration' );
+			?>
+			<p>
+				<strong><?php echo esc_html( $form_name ); ?></strong>
+				&mdash;
+				<?php echo esc_html( Raynet_Elementor_Forms::location_label( $post_id ) ); ?>
+				<?php echo esc_html( get_the_title( $post_id ) ); ?>
+				&nbsp;|&nbsp;
+				<a href="<?php echo esc_url( admin_url( 'post.php?post=' . $post_id . '&action=elementor' ) ); ?>"><?php esc_html_e( 'Otevřít v Elementoru', 'raynet-lead-api-integration' ); ?></a>
+			</p>
+
+			<?php if ( ! empty( Raynet_Elementor_Forms::pending_autosaves( $post_id ) ) ) : ?>
+				<div class="notice notice-warning inline">
+					<p><?php esc_html_e( 'Stránka má v Elementoru neuložený koncept. Tady vidíte publikovanou verzi. Co tu změníte, zapíše se do stránky i do konceptu; pole, která má jen koncept, tu nejsou a jejich nastavení zůstane, jak je.', 'raynet-lead-api-integration' ); ?></p>
+				</div>
+			<?php endif; ?>
+
+			<p class="description">
+				<?php esc_html_e( 'Tohle jsou pole, která formulář teď má. U každého vyberte, kam v RAYNETu patří. Pro pole, které v RAYNETu protějšek nemá, zvolte Zapsat do poznámky — jeho hodnota se připíše do poznámky leadu pod popiskem pole. Řádky označené jako návrh plugin odhadl; uloží se až tlačítkem.', 'raynet-lead-api-integration' ); ?>
+			</p>
+
+			<?php if ( empty( $fields ) ) : ?>
+				<p><?php esc_html_e( 'Formulář nemá žádné pole, které by šlo odeslat.', 'raynet-lead-api-integration' ); ?></p>
+			</div>
+				<?php
+				return;
+			endif;
+			?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="raynet_elm_save_mapping" />
+				<input type="hidden" name="form" value="<?php echo esc_attr( $key ); ?>" />
+				<?php wp_nonce_field( self::NONCE ); ?>
+
+				<table class="wp-list-table widefat striped raynet-elm__mapping">
+					<thead>
+						<tr>
+							<th><?php esc_html_e( 'Pole formuláře', 'raynet-lead-api-integration' ); ?></th>
+							<th><?php esc_html_e( 'Typ', 'raynet-lead-api-integration' ); ?></th>
+							<th><?php esc_html_e( 'Kam v RAYNETu', 'raynet-lead-api-integration' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $fields as $field ) : ?>
+							<?php
+							$current  = isset( $targets[ $field['id'] ] ) ? $targets[ $field['id'] ] : '';
+							$is_guess = '' === $current && isset( $proposed[ $field['id'] ] );
+							$selected = $is_guess ? $proposed[ $field['id'] ] : ( '' === $current ? '-' : $current );
+							?>
+							<tr<?php echo $is_guess ? ' class="raynet-elm__proposed"' : ''; ?>>
+								<td>
+									<strong><?php echo esc_html( '' !== $field['label'] ? $field['label'] : $field['id'] ); ?></strong><br />
+									<code><?php echo esc_html( $field['id'] ); ?></code>
+								</td>
+								<td><?php echo esc_html( $field['type'] ); ?></td>
+								<td>
+									<select name="target[<?php echo esc_attr( $field['id'] ); ?>]">
+										<option value="-" <?php selected( $selected, '-' ); ?>><?php esc_html_e( '— Neodesílat —', 'raynet-lead-api-integration' ); ?></option>
+										<option value="<?php echo esc_attr( Raynet_Elementor_Forms::TARGET_NOTICE ); ?>" <?php selected( $selected, Raynet_Elementor_Forms::TARGET_NOTICE ); ?>><?php esc_html_e( 'Zapsat do poznámky leadu', 'raynet-lead-api-integration' ); ?></option>
+										<?php foreach ( $groups as $group => $group_label ) : ?>
+											<?php if ( ! empty( $options[ $group ] ) ) : ?>
+												<optgroup label="<?php echo esc_attr( $group_label ); ?>">
+													<?php foreach ( $options[ $group ] as $value => $label ) : ?>
+														<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $selected, $value ); ?>><?php echo esc_html( $label ); ?></option>
+													<?php endforeach; ?>
+												</optgroup>
+											<?php endif; ?>
+										<?php endforeach; ?>
+									</select>
+									<?php if ( $is_guess ) : ?>
+										<span class="raynet-elm__proposal"><?php esc_html_e( 'návrh', 'raynet-lead-api-integration' ); ?></span>
+									<?php endif; ?>
+									<?php if ( ! empty( $extras[ (string) $field['id'] ] ) ) : ?>
+										<br /><span class="description">
+											<?php
+											printf(
+												/* translators: %s: list of RAYNET attributes. */
+												esc_html__( 'Pole plní také: %s. Zůstane to tak, dokud tu výběr nezměníte.', 'raynet-lead-api-integration' ),
+												esc_html(
+													implode(
+														', ',
+														array_map(
+															static function ( $remote ) {
+																return html_entity_decode( Raynet_Elementor_Forms::target_label( $remote ), ENT_QUOTES, 'UTF-8' );
+															},
+															$extras[ (string) $field['id'] ]
+														)
+													)
+												)
+											);
+											?>
+										</span>
+									<?php endif; ?>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+
+				<?php
+				// Judged on what the screen shows, proposals included: warning
+				// about a missing e-mail next to a proposed e-mail only confuses.
+				$shown = array_replace( $targets, $proposed );
+				?>
+				<?php if ( ! in_array( 'email', $shown, true ) && ! in_array( 'phone', $shown, true ) ) : ?>
+					<p class="raynet-elm__warn">&#9888; <?php esc_html_e( 'Žádné pole teď nemíří na E-mail ani Telefon. RAYNET lead bez jednoho z nich nepřijme.', 'raynet-lead-api-integration' ); ?></p>
+				<?php endif; ?>
+
+				<?php if ( $enabled ) : ?>
+					<p class="description"><?php esc_html_e( 'Odesílání do RAYNETu je u formuláře zapnuté. Vypnout ho jde v Elementoru, v Actions After Submit.', 'raynet-lead-api-integration' ); ?></p>
+				<?php else : ?>
+					<p>
+						<label>
+							<input type="checkbox" name="enable" value="1" <?php checked( $enable_choice ); ?> />
+							<?php esc_html_e( 'Zapnout odesílání do RAYNETu (akce RAYNET CRM po odeslání)', 'raynet-lead-api-integration' ); ?>
+						</label>
+					</p>
+				<?php endif; ?>
+
+				<p>
+					<button type="submit" class="button button-primary"><?php esc_html_e( 'Uložit mapování', 'raynet-lead-api-integration' ); ?></button>
+				</p>
+
+				<p class="description">
+					<?php esc_html_e( 'Uložení zapíše do stránky, stejně jako nasazení šablony: předchozí podoba se zálohuje a má-li stránka neuložený koncept, zapíše se i do něj. Nastavení leadu (priorita, kategorie…) tím nezměníte — to dělá šablona nebo sekce RAYNET CRM v Elementoru.', 'raynet-lead-api-integration' ); ?>
+				</p>
+			</form>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Saves the mapping screen.
+	 *
+	 * @return void
+	 */
+	public function handle_save_mapping() {
+		$this->guard();
+
+		$key     = isset( $_POST['form'] ) ? sanitize_text_field( wp_unslash( $_POST['form'] ) ) : '';
+		$raw     = isset( $_POST['target'] ) && is_array( $_POST['target'] ) ? wp_unslash( $_POST['target'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized key by key below.
+		$enable  = ! empty( $_POST['enable'] );
+		$targets = array();
+
+		foreach ( $raw as $field => $target ) {
+			if ( is_scalar( $target ) ) {
+				$targets[ sanitize_text_field( (string) $field ) ] = sanitize_text_field( (string) $target );
+			}
+		}
+
+		if ( ! preg_match( '/^(\d+):(.+)$/', $key, $parts ) ) {
+			$this->back( array( 'raynet_error' => 'no_targets' ) );
+		}
+
+		$result = Raynet_Elementor_Forms::save_targets( (int) $parts[1], $parts[2], $targets, $enable );
+
+		if ( is_wp_error( $result ) ) {
+			set_transient(
+				$this->flash_key(),
+				array(
+					'key'     => $key,
+					'targets' => $targets,
+					'enable'  => $enable,
+					'message' => $result->get_error_message(),
+				),
+				5 * MINUTE_IN_SECONDS
+			);
+
+			$this->back( array( 'mapovat' => $key, 'raynet_error' => 'mapping' ) );
+		}
+
+		$this->back( array( 'mapovat' => $key, 'raynet_done' => 'mapped' ) );
 	}
 
 	/**

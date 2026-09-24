@@ -35,6 +35,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - **Zkratka `[raynet_lead_form]`** — formulář vložíte do libovolné stránky, příspěvku nebo widgetu.
 - **Elementor Pro Forms** — leady umí zakládat i formuláře postavené v Elementoru, přes akci po odeslání.
 - **Hromadné nasazení** — plugin najde všechny formuláře Elementoru na webu, i ty v popupech, hlavičkách, patičkách a globálních widgetech, a nastaví je podle šablony, včetně odhadu mapování polí.
+- **Mapování po polích formuláře** — plugin načte pole, která formulář opravdu má, a u každého se zeptá, kam v RAYNETu patří. Co v RAYNETu protějšek nemá, zapíše do poznámky leadu.
 - **Všechna pole leadu, i vlastní** — v Elementoru namapujete kromě jména a kontaktu i IČO, DIČ, druhý e-mail, sociální sítě a vlastní pole, která si vaše instance RAYNETu definuje. Plugin je načte přímo z RAYNETu.
 - **Jedno pole pro celé jméno** — „Jan Novák" se do RAYNETu rozdělí na jméno a příjmení.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
@@ -276,6 +277,28 @@ Když RAYNET lead nepřijme, **záložní e-mail** obsahuje všechno namapované
 
 U formuláře v popupu, hlavičce nebo patičce zapíše **Uvést URL stránky** adresu stránky, na které se formulář zobrazil, ne adresu šablony.
 
+### Mapování po polích formuláře
+
+V **RAYNET CRM → Elementor formuláře** má každý formulář odkaz **Namapovat pole**. Obrazovka vypíše pole, která formulář teď má — s popiskem, ID a typem — a u každého nabídne, kam patří:
+
+- **atribut RAYNETu** — základní, další standardní nebo vlastní pole vaší instance,
+- **Zapsat do poznámky leadu** — pro pole, které v RAYNETu protějšek nemá; hodnota se připíše do poznámky pod popiskem pole, třeba `Preferovaná barva: Modrá`,
+- **Neodesílat** — pole se do RAYNETu nedostane vůbec.
+
+Pole, o kterých ještě nikdo nerozhodl, obrazovka předvyplní **návrhem** a zvýrazní ho: podle popisku a typu odhadne atribut, a co odhadnout nejde, navrhne do poznámky. Zaškrtávátko se souhlasem navrhne vynechat, souhlas zapisuje zvlášť přepínač *Zapsat udělení souhlasu*. Návrh se uloží až tlačítkem **Uložit mapování**.
+
+Přehled formulářů u zapnutého formuláře ukáže, kolik polí je **bez určení** — třeba když do formuláře v Elementoru přibude nové pole — a odkazem vede rovnou na mapování.
+
+Jeden atribut může plnit jen jedno pole a celé jméno nejde kombinovat se samostatným jménem nebo příjmením; takové uložení obrazovka odmítne a řekne proč. Pole, která odeslat nejde nebo nemá (nahrání souboru, **heslo**, reCAPTCHA, honeypot, HTML, krok), se nenabízejí. Heslo se do RAYNETu nepošle nikdy, ani když ho někdo namapuje v editoru.
+
+**Uložení mění jen to, co jste na obrazovce změnili.** Pole, které v Elementoru plní dva atributy, obrazovka ukáže s poznámkou „Pole plní také…" a druhé mapování zůstane, dokud výběr u pole nezměníte. Mapování, které obrazovka neukazuje (třeba nahraný soubor namapovaný v editoru), zůstane taky.
+
+Uložení zapisuje do stránky stejně jako nasazení šablony: předchozí podoba se zálohuje a neuložený koncept dostane změnu taky. Obrazovka ale ukazuje publikovanou verzi; má-li stránka koncept, upozorní na to, a pole, která má jen koncept, nechá, jak jsou.
+
+Hromadné nasazení šablony rozhodnutí z obrazovky respektuje: pole, které jste poslali do poznámky nebo vynechali, odhad znovu nenamapuje.
+
+Totéž jde i přímo v Elementoru: sekce **RAYNET CRM** má pod mapováním výběr **Zapsat do poznámky** s poli formuláře.
+
 ### Hromadné nasazení na víc formulářů
 
 V **RAYNET CRM → Elementor formuláře** plugin vypíše každý formulář Elementoru na webu: kde je, jak se jmenuje, jaká má pole a jestli u něj RAYNET běží.
@@ -293,7 +316,9 @@ Vyberete formuláře, zvolíte šablonu a nasadíte. U každého se zapne akce R
 
 **Odhad mapování** doplní jen to, co formulář namapované nemá. Co jste namapovali ručně, zůstane i při opakovaném nasazení. Odhad se řídí nejdřív popiskem a pak typem pole. Pozná „PSČ", „Jméno a příjmení", „IČO" i „IČ DPH", diakritika nevadí. Vlastní pole přiřadí, když se popisek pole formuláře shoduje s jeho názvem v RAYNETu. Jedno pole nikdy neobsadí dva atributy.
 
-Odhad není věštec. Po nasazení se vyplatí formulář otevřít v Elementoru a mapování zkontrolovat. Formulář, u kterého chybí namapovaný e-mail i telefon, tabulka označí: RAYNET by z něj žádný lead nepřijal.
+Volba **Pole bez protějšku v RAYNETu zapsat do poznámky** (ve výchozím stavu zapnutá) pošle do poznámky všechna pole, pro která odhad atribut nenašel a o kterých jste dřív nerozhodli jinak. Nic z toho, co návštěvník vyplnil, se tak neztratí.
+
+Odhad není věštec. Po nasazení se vyplatí formulář zkontrolovat přes **Namapovat pole**. Formulář, u kterého chybí namapovaný e-mail i telefon, tabulka označí: RAYNET by z něj žádný lead nepřijal.
 
 > **Nasazení zapisuje do vašich stránek.** Předchozí podoba se uloží a v tabulce přibude **Vrátit stránku zpět**. Vrací celou stránku, tedy i ostatní formuláře na ní.
 >

@@ -145,6 +145,23 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 
 		$this->register_mapping_control( $widget, $condition );
 
+		// The options are the form's own fields, which only the editor knows
+		// while it is open; assets/js/raynet-elementor-editor.js fills them in.
+		$widget->add_control(
+			Raynet_Elementor_Forms::NOTICE_KEY,
+			array(
+				'label'       => esc_html__( 'Zapsat do poznámky', 'raynet-lead-api-integration' ),
+				'type'        => Controls_Manager::SELECT2,
+				'multiple'    => true,
+				'options'     => array(),
+				'default'     => array(),
+				'label_block' => true,
+				'description' => esc_html__( 'Pole formuláře, jejichž hodnota se zapíše do poznámky leadu pod svým popiskem. Hodí se pro pole, která v RAYNETu nemají protějšek. Pohodlněji to nastavíte v RAYNET CRM → Elementor formuláře → Namapovat pole.', 'raynet-lead-api-integration' ),
+				'render_type' => 'none',
+				'condition'   => $condition,
+			)
+		);
+
 		$widget->add_control(
 			'raynet_crm_heading_lead',
 			array(
@@ -306,6 +323,7 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 		try {
 			$form_settings = (array) $record->get( 'form_settings' );
 			$mapped        = $this->mapped_values( $record, $form_settings );
+			$mapped['extras'] = $this->merge_lines( $this->noted_values( $record, $form_settings ), $mapped['extras'] );
 
 			$form   = new Raynet_Lead_Form();
 			$values = $form->collect_values( $mapped['basic'] );
@@ -380,6 +398,11 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 		foreach ( (array) $record->get( 'fields' ) as $id => $field ) {
 			$type = isset( $field['type'] ) ? (string) $field['type'] : '';
 
+			// A password never leaves the site, whatever the mapping says.
+			if ( 'password' === $type ) {
+				continue;
+			}
+
 			// `value` is the sanitized string. `raw_value` holds server paths for
 			// upload fields, which must never reach the CRM. A Number field is the
 			// exception the other way: Elementor runs its value through intval(),
@@ -447,6 +470,84 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Values of the fields chosen for the lead note, keyed by their labels.
+	 *
+	 * @param \ElementorPro\Modules\Forms\Classes\Form_Record $record        Submission.
+	 * @param array<string,mixed>                            $form_settings Form settings.
+	 * @return array<string,string> Label => value.
+	 */
+	private function noted_values( $record, array $form_settings ) {
+		$chosen = Raynet_Elementor_Forms::id_list( $form_settings, Raynet_Elementor_Forms::NOTICE_KEY );
+		$lines  = array();
+
+		if ( empty( $chosen ) ) {
+			return $lines;
+		}
+
+		// A field the mapping already sends is not repeated in the note; the
+		// mapping wins, as it does on the mapping screen.
+		$chosen = array_values( array_diff( $chosen, array_values( Raynet_Elementor_Forms::current_map( $form_settings ) ) ) );
+
+		foreach ( (array) $record->get( 'fields' ) as $id => $field ) {
+			$type = isset( $field['type'] ) ? (string) $field['type'] : '';
+
+			if ( ! in_array( (string) $id, $chosen, true ) || in_array( $type, Raynet_Elementor_Forms::UNSENDABLE_TYPES, true ) ) {
+				continue;
+			}
+
+			// Same rule as the mapping: a Number field's real input is raw_value.
+			$value = 'number' === $type && isset( $field['raw_value'] ) && is_scalar( $field['raw_value'] )
+				? (string) $field['raw_value']
+				: ( isset( $field['value'] ) ? (string) $field['value'] : '' );
+			$value = mb_substr( sanitize_textarea_field( $value ), 0, 1000 );
+
+			if ( '' === trim( $value ) ) {
+				continue;
+			}
+
+			$label = isset( $field['title'] ) && '' !== trim( (string) $field['title'] ) ? sanitize_text_field( (string) $field['title'] ) : (string) $id;
+
+			// Two fields sharing a label would overwrite each other.
+			$base = $label;
+
+			for ( $n = 2; isset( $lines[ $label ] ); $n++ ) {
+				$label = $base . ' (' . $n . ')';
+			}
+
+			$lines[ $label ] = $value;
+		}
+
+		return $lines;
+	}
+
+	/**
+	 * Joins two label => value lists for the note.
+	 *
+	 * Keys stay strings — array_merge() would renumber a label such as "2024" —
+	 * and a label already taken gets a number instead of overwriting.
+	 *
+	 * @param array<string,string> $first  Lines that come first.
+	 * @param array<string,string> $second Lines appended after them.
+	 * @return array<string,string> Joined lines.
+	 */
+	private function merge_lines( array $first, array $second ) {
+		$lines = $first;
+
+		foreach ( $second as $label => $value ) {
+			$label = (string) $label;
+			$base  = $label;
+
+			for ( $n = 2; array_key_exists( $label, $lines ); $n++ ) {
+				$label = $base . ' (' . $n . ')';
+			}
+
+			$lines[ $label ] = $value;
+		}
+
+		return $lines;
 	}
 
 	/**
@@ -549,6 +650,8 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 	public function on_export( $element ) {
 		foreach ( array(
 			self::ACTION_NAME . '_fields_map',
+			Raynet_Elementor_Forms::NOTICE_KEY,
+			Raynet_Elementor_Forms::IGNORED_KEY,
 			'raynet_crm_topic',
 			'raynet_crm_notice_prefix',
 			'raynet_crm_tags',

@@ -51,6 +51,32 @@ class Raynet_Elementor_Forms {
 	const TEMPLATES_OPTION = 'raynet_lead_elementor_templates';
 
 	/**
+	 * Widget setting listing the form fields whose values go to the lead note.
+	 */
+	const NOTICE_KEY = 'raynet_crm_notice_fields';
+
+	/**
+	 * Widget setting listing the form fields someone chose not to send.
+	 *
+	 * Kept apart from "never decided", so the mapping screen stops proposing
+	 * a target for a field that was left out on purpose.
+	 */
+	const IGNORED_KEY = 'raynet_crm_ignored_fields';
+
+	/**
+	 * Mapping target meaning "write the value into the lead note".
+	 */
+	const TARGET_NOTICE = '__notice';
+
+	/**
+	 * Field types that carry nothing a lead should hold, even in its note.
+	 *
+	 * A password is the one that is not empty: it must never reach a CRM in
+	 * plain text, whoever set up the mapping.
+	 */
+	const UNSENDABLE_TYPES = array( 'upload', 'password', 'recaptcha', 'recaptcha_v3', 'honeypot', 'html', 'step' );
+
+	/**
 	 * Post type of Elementor's template library.
 	 *
 	 * Popups, headers, footers, saved sections, loop items and global widgets
@@ -292,6 +318,8 @@ class Raynet_Elementor_Forms {
 					'enabled'     => in_array( self::ACTION_NAME, $actions, true ),
 					'mapped'      => self::mapped_count( $settings ),
 					'has_contact' => self::maps_contact( $settings ),
+					'undecided'   => count( array_keys( self::field_targets( $settings ), '', true ) ),
+					'noted'       => count( array_keys( self::field_targets( $settings ), self::TARGET_NOTICE, true ) ),
 					'atomic'      => false,
 					'edit_url'    => self::edit_url( $post_id ),
 				);
@@ -328,6 +356,8 @@ class Raynet_Elementor_Forms {
 			'enabled'     => false,
 			'mapped'      => 0,
 			'has_contact' => false,
+			'undecided'   => 0,
+			'noted'       => 0,
 			'atomic'      => true,
 			'edit_url'    => self::edit_url( $post_id ),
 		);
@@ -667,7 +697,29 @@ class Raynet_Elementor_Forms {
 	 * @return string[]|WP_Error Ids of the forms actually configured; ids that
 	 *                           were asked for but not found are not in it.
 	 */
-	public static function apply( $post_id, $widget_ids, array $lead, $automap = true ) {
+	public static function apply( $post_id, $widget_ids, array $lead, $automap = true, $notice_rest = false ) {
+		return self::update_forms(
+			$post_id,
+			$widget_ids,
+			static function ( array $settings ) use ( $lead, $automap, $notice_rest ) {
+				return self::configure( $settings, $lead, $automap, $notice_rest );
+			}
+		);
+	}
+
+	/**
+	 * Changes the settings of form widgets on one page.
+	 *
+	 * The single way this plugin writes a page: it keeps the rollback point,
+	 * refuses a page Elementor does not render, and carries the change into
+	 * pending drafts.
+	 *
+	 * @param int             $post_id    Page holding the forms.
+	 * @param string|string[] $widget_ids One or more form widget ids.
+	 * @param callable        $change     Receives a widget's settings, returns the new ones.
+	 * @return string[]|WP_Error Ids of the forms actually changed.
+	 */
+	public static function update_forms( $post_id, $widget_ids, callable $change ) {
 		$widget_ids = array_values( array_filter( array_map( 'strval', (array) $widget_ids ), 'strlen' ) );
 
 		if ( empty( $widget_ids ) ) {
@@ -686,7 +738,7 @@ class Raynet_Elementor_Forms {
 			return new WP_Error( 'raynet_no_data', __( 'Stránka nemá data Elementoru.', 'raynet-lead-api-integration' ) );
 		}
 
-		$configured = self::configure_tree( $tree, $widget_ids, $lead, $automap );
+		$configured = self::change_tree( $tree, $widget_ids, $change );
 
 		if ( empty( $configured ) ) {
 			return new WP_Error( 'raynet_no_form', __( 'Formulář se na stránce nenašel.', 'raynet-lead-api-integration' ) );
@@ -708,7 +760,7 @@ class Raynet_Elementor_Forms {
 		foreach ( self::pending_autosaves( $post_id ) as $autosave_id ) {
 			$draft = self::read_tree( $autosave_id );
 
-			if ( empty( $draft ) || empty( self::configure_tree( $draft, $widget_ids, $lead, $automap ) ) ) {
+			if ( empty( $draft ) || empty( self::change_tree( $draft, $widget_ids, $change ) ) ) {
 				continue;
 			}
 
@@ -724,20 +776,19 @@ class Raynet_Elementor_Forms {
 	}
 
 	/**
-	 * Configures the named form widgets inside one layout.
+	 * Applies a change to the named form widgets inside one layout.
 	 *
-	 * @param array<int,mixed>    $tree       Layout, by reference.
-	 * @param string[]            $widget_ids Form widget ids.
-	 * @param array<string,mixed> $lead       Lead settings.
-	 * @param bool                $automap    Fill the field mapping by guessing.
-	 * @return string[] Ids of the widgets found and configured.
+	 * @param array<int,mixed> $tree       Layout, by reference.
+	 * @param string[]         $widget_ids Form widget ids.
+	 * @param callable         $change     Receives settings, returns settings.
+	 * @return string[] Ids of the widgets found and changed.
 	 */
-	private static function configure_tree( array &$tree, array $widget_ids, array $lead, $automap ) {
+	private static function change_tree( array &$tree, array $widget_ids, callable $change ) {
 		$configured = array();
 
 		self::walk(
 			$tree,
-			static function ( &$element ) use ( $widget_ids, $lead, $automap, &$configured ) {
+			static function ( &$element ) use ( $widget_ids, $change, &$configured ) {
 				if ( ! isset( $element['widgetType'] ) || 'form' !== $element['widgetType'] ) {
 					return;
 				}
@@ -746,12 +797,408 @@ class Raynet_Elementor_Forms {
 					return;
 				}
 
-				$element['settings'] = self::configure( isset( $element['settings'] ) ? (array) $element['settings'] : array(), $lead, $automap );
+				$element['settings'] = $change( isset( $element['settings'] ) ? (array) $element['settings'] : array() );
 				$configured[]        = (string) $element['id'];
 			}
 		);
 
 		return $configured;
+	}
+
+	/**
+	 * Settings of one form widget as stored on its page.
+	 *
+	 * @param int    $post_id   Page id.
+	 * @param string $widget_id Form widget id.
+	 * @return array<string,mixed>|null Settings, or null when not found.
+	 */
+	public static function form_settings( $post_id, $widget_id ) {
+		$tree  = self::read_tree( $post_id );
+		$found = null;
+
+		self::walk(
+			$tree,
+			static function ( $element ) use ( $widget_id, &$found ) {
+				if ( null === $found && isset( $element['widgetType'], $element['id'] ) && 'form' === $element['widgetType'] && (string) $element['id'] === (string) $widget_id ) {
+					$found = isset( $element['settings'] ) ? (array) $element['settings'] : array();
+				}
+			}
+		);
+
+		return $found;
+	}
+
+	/**
+	 * Form fields that can be mapped or written to the note.
+	 *
+	 * @param array<string,mixed> $settings Widget settings.
+	 * @return array<int,array<string,string>> Fields.
+	 */
+	public static function mappable_fields( array $settings ) {
+		return array_values(
+			array_filter(
+				self::readable_fields( $settings ),
+				static function ( $field ) {
+					return ! in_array( $field['type'], self::UNSENDABLE_TYPES, true );
+				}
+			)
+		);
+	}
+
+	/**
+	 * Where each form field goes now.
+	 *
+	 * @param array<string,mixed> $settings Widget settings.
+	 * @return array<string,string> Field id => attribute id, TARGET_NOTICE,
+	 *                              "-" for left out on purpose, or "" undecided.
+	 */
+	public static function field_targets( array $settings ) {
+		$targets = array_fill_keys( array_column( self::mappable_fields( $settings ), 'id' ), '' );
+
+		foreach ( self::current_map( $settings ) as $remote => $local ) {
+			if ( isset( $targets[ $local ] ) && '' === $targets[ $local ] ) {
+				$targets[ $local ] = $remote;
+			}
+		}
+
+		foreach ( self::id_list( $settings, self::NOTICE_KEY ) as $local ) {
+			if ( isset( $targets[ $local ] ) && '' === $targets[ $local ] ) {
+				$targets[ $local ] = self::TARGET_NOTICE;
+			}
+		}
+
+		foreach ( self::id_list( $settings, self::IGNORED_KEY ) as $local ) {
+			if ( isset( $targets[ $local ] ) && '' === $targets[ $local ] ) {
+				$targets[ $local ] = '-';
+			}
+		}
+
+		return $targets;
+	}
+
+	/**
+	 * Proposes a target for every field nobody has decided on yet.
+	 *
+	 * The guess takes what the label and type suggest; a field RAYNET has no
+	 * attribute for is proposed for the note, so its value is not lost. The
+	 * consent box is left out: the note records consent on its own switch.
+	 *
+	 * @param array<string,mixed> $settings Widget settings.
+	 * @return array<string,string> Field id => proposed target, for undecided fields only.
+	 */
+	public static function suggest_targets( array $settings ) {
+		$targets    = self::field_targets( $settings );
+		$undecided  = array();
+
+		foreach ( self::mappable_fields( $settings ) as $field ) {
+			if ( '' === $targets[ $field['id'] ] ) {
+				$undecided[] = $field;
+			}
+		}
+
+		if ( empty( $undecided ) ) {
+			return array();
+		}
+
+		$guess = array();
+
+		foreach ( self::auto_map( $undecided, self::current_map( $settings ) ) as $row ) {
+			if ( '' !== $row['local_id'] && '' === ( $targets[ $row['local_id'] ] ?? 'x' ) && ! isset( $guess[ $row['local_id'] ] ) ) {
+				$guess[ $row['local_id'] ] = $row['remote_id'];
+			}
+		}
+
+		$proposed = array();
+
+		foreach ( $undecided as $field ) {
+			if ( isset( $guess[ $field['id'] ] ) ) {
+				$proposed[ $field['id'] ] = $guess[ $field['id'] ];
+			} else {
+				$proposed[ $field['id'] ] = 'acceptance' === $field['type'] ? '-' : self::TARGET_NOTICE;
+			}
+		}
+
+		return $proposed;
+	}
+
+	/**
+	 * Checks targets chosen on the mapping screen.
+	 *
+	 * @param array<string,mixed>  $settings Widget settings.
+	 * @param array<string,string> $targets  Field id => target.
+	 * @return array<string,string>|WP_Error Clean targets, or why they cannot be saved.
+	 */
+	public static function validate_targets( array $settings, array $targets ) {
+		$fields  = array_column( self::mappable_fields( $settings ), 'label', 'id' );
+		$allowed = array_column( Raynet_Lead_Fields::mapping_rows(), 'id' );
+
+		// A custom field mapped before, but not in the fetched list, stays a
+		// valid choice: it may simply not have been fetched on this site.
+		foreach ( self::current_map( $settings ) as $remote => $local ) {
+			if ( Raynet_Lead_Fields::is_custom_id( $remote ) ) {
+				$allowed[] = $remote;
+			}
+		}
+
+		$clean = array();
+		$used  = array();
+
+		foreach ( $targets as $field => $target ) {
+			$field  = (string) $field;
+			$target = (string) $target;
+
+			if ( ! isset( $fields[ $field ] ) ) {
+				continue;
+			}
+
+			if ( '' !== $target && '-' !== $target && self::TARGET_NOTICE !== $target && ! in_array( $target, $allowed, true ) ) {
+				return new WP_Error(
+					'raynet_unknown_target',
+					sprintf(
+						/* translators: %s: form field label. */
+						__( 'U pole %s je vybraný atribut, který plugin nezná. Načtěte pole z RAYNETu znovu a zkuste to ještě jednou.', 'raynet-lead-api-integration' ),
+						'' !== $fields[ $field ] ? $fields[ $field ] : $field
+					)
+				);
+			}
+
+			if ( '' !== $target && '-' !== $target && self::TARGET_NOTICE !== $target ) {
+				if ( isset( $used[ $target ] ) ) {
+					return new WP_Error(
+						'raynet_duplicate_target',
+						sprintf(
+							/* translators: 1: RAYNET attribute, 2: first form field, 3: second form field. */
+							__( 'Atribut %1$s je vybraný u dvou polí: %2$s a %3$s. Každý atribut může plnit jen jedno pole.', 'raynet-lead-api-integration' ),
+							html_entity_decode( self::target_label( $target ), ENT_QUOTES, 'UTF-8' ),
+							'' !== $fields[ $used[ $target ] ] ? $fields[ $used[ $target ] ] : $used[ $target ],
+							'' !== $fields[ $field ] ? $fields[ $field ] : $field
+						)
+					);
+				}
+
+				$used[ $target ] = $field;
+			}
+
+			$clean[ $field ] = $target;
+		}
+
+		if ( isset( $used['fullName'] ) && ( isset( $used['firstName'] ) || isset( $used['lastName'] ) ) ) {
+			return new WP_Error(
+				'raynet_name_conflict',
+				__( 'Jméno a příjmení v jednom poli nejde kombinovat se samostatným jménem nebo příjmením — jedno by přepsalo druhé.', 'raynet-lead-api-integration' )
+			);
+		}
+
+		return $clean;
+	}
+
+	/**
+	 * Writes changed targets into a widget's settings.
+	 *
+	 * Relative, not absolute: only the fields named in `$changes` are touched,
+	 * and only if this form has them. Everything else in the mapping stays as
+	 * it was — a field feeding two attributes, an upload mapped in the editor,
+	 * a field that exists only in an unpublished draft. The screen shows one
+	 * target per field and none of those, so rebuilding the whole mapping from
+	 * what it posted would quietly delete them.
+	 *
+	 * @param array<string,mixed>  $settings Widget settings.
+	 * @param array<string,string> $changes  Field id => new target, for changed fields only.
+	 * @param bool                 $enable   Turn the RAYNET action on as well.
+	 * @return array<string,mixed> Settings.
+	 */
+	public static function apply_targets( array $settings, array $changes, $enable ) {
+		$present = array_map( 'strval', array_column( self::mappable_fields( $settings ), 'id' ) );
+		$key     = self::ACTION_NAME . '_fields_map';
+		$map     = array();
+
+		foreach ( (array) ( isset( $settings[ $key ] ) ? $settings[ $key ] : array() ) as $row ) {
+			if ( is_array( $row ) && ! empty( $row['remote_id'] ) && ! empty( $row['local_id'] ) ) {
+				$map[ (string) $row['remote_id'] ] = (string) $row['local_id'];
+			}
+		}
+
+		$notice  = self::id_list( $settings, self::NOTICE_KEY );
+		$ignored = self::id_list( $settings, self::IGNORED_KEY );
+
+		foreach ( $changes as $field => $target ) {
+			$field  = (string) $field;
+			$target = (string) $target;
+
+			if ( ! in_array( $field, $present, true ) ) {
+				continue;
+			}
+
+			// The field's old targets go, whatever they were.
+			foreach ( array_keys( $map, $field, true ) as $remote ) {
+				unset( $map[ $remote ] );
+			}
+
+			$notice  = array_values( array_diff( $notice, array( $field ) ) );
+			$ignored = array_values( array_diff( $ignored, array( $field ) ) );
+
+			if ( self::TARGET_NOTICE === $target ) {
+				$notice[] = $field;
+			} elseif ( '-' === $target ) {
+				$ignored[] = $field;
+			} elseif ( '' !== $target ) {
+				// One attribute, one field: whoever held it before lets go.
+				$map[ $target ] = $field;
+			}
+		}
+
+		$rows   = array();
+		$listed = array();
+
+		foreach ( Raynet_Lead_Fields::mapping_rows() as $row ) {
+			$listed[ $row['id'] ] = true;
+			$rows[]               = array(
+				'_id'          => 'map' . ( count( $rows ) + 1 ),
+				'remote_id'    => $row['id'],
+				'remote_label' => $row['label'],
+				'remote_type'  => 'text',
+				'local_id'     => isset( $map[ $row['id'] ] ) ? $map[ $row['id'] ] : '',
+			);
+		}
+
+		foreach ( $map as $remote => $local ) {
+			if ( ! isset( $listed[ $remote ] ) && Raynet_Lead_Fields::is_custom_id( $remote ) ) {
+				$rows[] = array(
+					'_id'          => 'map' . ( count( $rows ) + 1 ),
+					'remote_id'    => $remote,
+					'remote_label' => esc_html( Raynet_Lead_Fields::custom_name( $remote ) ),
+					'remote_type'  => 'text',
+					'local_id'     => $local,
+				);
+			}
+		}
+
+		$settings[ $key ]              = $rows;
+		$settings[ self::NOTICE_KEY ]  = array_values( array_unique( $notice ) );
+		$settings[ self::IGNORED_KEY ] = array_values( array_unique( $ignored ) );
+
+		if ( $enable ) {
+			$actions = self::submit_actions( $settings );
+
+			if ( ! in_array( self::ACTION_NAME, $actions, true ) ) {
+				$actions[] = self::ACTION_NAME;
+			}
+
+			$settings['submit_actions'] = $actions;
+		}
+
+		return $settings;
+	}
+
+	/**
+	 * Other attributes a field feeds besides the one the screen shows.
+	 *
+	 * @param array<string,mixed> $settings Widget settings.
+	 * @return array<string,string[]> Field id => further attribute ids.
+	 */
+	public static function extra_targets( array $settings ) {
+		$shown = self::field_targets( $settings );
+		$extra = array();
+
+		foreach ( self::current_map( $settings ) as $remote => $local ) {
+			if ( isset( $shown[ $local ] ) && (string) $shown[ $local ] !== (string) $remote ) {
+				$extra[ (string) $local ][] = (string) $remote;
+			}
+		}
+
+		return $extra;
+	}
+
+	/**
+	 * Saves targets chosen on the mapping screen for one form.
+	 *
+	 * @param int                  $post_id   Page id.
+	 * @param string               $widget_id Form widget id.
+	 * @param array<string,string> $targets   Field id => target.
+	 * @param bool                 $enable    Turn the RAYNET action on as well.
+	 * @return true|WP_Error True on success.
+	 */
+	public static function save_targets( $post_id, $widget_id, array $targets, $enable ) {
+		$settings = self::form_settings( $post_id, $widget_id );
+
+		if ( null === $settings ) {
+			return new WP_Error( 'raynet_no_form', __( 'Formulář se na stránce nenašel.', 'raynet-lead-api-integration' ) );
+		}
+
+		$clean = self::validate_targets( $settings, $targets );
+
+		if ( is_wp_error( $clean ) ) {
+			return $clean;
+		}
+
+		// What changed is measured against what the screen showed — the
+		// published page — and only that is carried into every copy. A draft
+		// keeps whatever the editor set there for fields nobody touched here.
+		$shown   = self::field_targets( $settings );
+		$changes = array();
+
+		foreach ( $clean as $field => $target ) {
+			if ( ! isset( $shown[ $field ] ) || (string) $shown[ $field ] !== (string) $target ) {
+				$changes[ (string) $field ] = $target;
+			}
+		}
+
+		$enabled = in_array( self::ACTION_NAME, self::submit_actions( $settings ), true );
+
+		if ( empty( $changes ) && ( $enabled || ! $enable ) ) {
+			return true;
+		}
+
+		$result = self::update_forms(
+			$post_id,
+			$widget_id,
+			static function ( array $current ) use ( $changes, $enable ) {
+				return self::apply_targets( $current, $changes, $enable );
+			}
+		);
+
+		return is_wp_error( $result ) ? $result : true;
+	}
+
+	/**
+	 * Human label of a mapping target.
+	 *
+	 * @param string $target Target id.
+	 * @return string Label, HTML-escaped like the mapping rows.
+	 */
+	public static function target_label( $target ) {
+		if ( self::TARGET_NOTICE === $target ) {
+			return esc_html__( 'Zapsat do poznámky', 'raynet-lead-api-integration' );
+		}
+
+		if ( '-' === $target || '' === $target ) {
+			return esc_html__( 'Neodesílat', 'raynet-lead-api-integration' );
+		}
+
+		foreach ( Raynet_Lead_Fields::mapping_rows() as $row ) {
+			if ( $row['id'] === $target ) {
+				return $row['label'];
+			}
+		}
+
+		return esc_html( Raynet_Lead_Fields::custom_name( $target ) );
+	}
+
+	/**
+	 * A list of field ids kept in a widget setting.
+	 *
+	 * @param array<string,mixed> $settings Widget settings.
+	 * @param string              $key      Setting key.
+	 * @return string[] Field ids.
+	 */
+	public static function id_list( array $settings, $key ) {
+		$list = isset( $settings[ $key ] ) ? $settings[ $key ] : array();
+
+		if ( is_string( $list ) ) {
+			$list = '' === $list ? array() : explode( ',', $list );
+		}
+
+		return array_values( array_filter( array_map( 'strval', (array) $list ), 'strlen' ) );
 	}
 
 	/**
@@ -792,7 +1239,7 @@ class Raynet_Elementor_Forms {
 	 * @param bool                $automap  Fill the field mapping by guessing.
 	 * @return array<string,mixed> Settings.
 	 */
-	public static function configure( array $settings, array $lead, $automap = true ) {
+	public static function configure( array $settings, array $lead, $automap = true, $notice_rest = false ) {
 		$action  = self::ACTION_NAME;
 		$actions = self::submit_actions( $settings );
 
@@ -838,7 +1285,43 @@ class Raynet_Elementor_Forms {
 				}
 			}
 
-			$settings[ $action . '_fields_map' ] = self::auto_map( self::readable_fields( $settings ), $keep );
+			// A field sent to the note or left out on the mapping screen was
+			// decided by someone; the guess must not pull it back into the map.
+			$decided   = array_merge( self::id_list( $settings, self::NOTICE_KEY ), self::id_list( $settings, self::IGNORED_KEY ) );
+			$candidates = array();
+
+			foreach ( self::readable_fields( $settings ) as $field ) {
+				if ( ! in_array( (string) $field['id'], $decided, true ) && ! in_array( $field['type'], self::UNSENDABLE_TYPES, true ) ) {
+					$candidates[] = $field;
+				}
+			}
+
+			$settings[ $action . '_fields_map' ] = self::auto_map( $candidates, $keep );
+		}
+
+		// Fields nobody mapped, noted or left out on purpose go to the note, so
+		// what a visitor typed reaches the CRM even without an attribute for it.
+		if ( $notice_rest ) {
+			$targets = self::field_targets( $settings );
+			$notice  = self::id_list( $settings, self::NOTICE_KEY );
+			$ignored = self::id_list( $settings, self::IGNORED_KEY );
+
+			foreach ( self::mappable_fields( $settings ) as $meta ) {
+				if ( ! isset( $targets[ $meta['id'] ] ) || '' !== $targets[ $meta['id'] ] ) {
+					continue;
+				}
+
+				// The consent box is recorded by its own switch; in the note it
+				// would only say "on".
+				if ( 'acceptance' === $meta['type'] ) {
+					$ignored[] = (string) $meta['id'];
+				} else {
+					$notice[] = (string) $meta['id'];
+				}
+			}
+
+			$settings[ self::NOTICE_KEY ]  = array_values( array_unique( $notice ) );
+			$settings[ self::IGNORED_KEY ] = array_values( array_unique( $ignored ) );
 		}
 
 		return $settings;

@@ -17,7 +17,9 @@
 
 	var SECTION = 'section_raynet_crm';
 	var CONTROL = 'raynet_crm_fields_map';
+	var NOTICE_CONTROL = 'raynet_crm_notice_fields';
 	var CUSTOM_PREFIX = 'cf:';
+	var UNSENDABLE = [ 'upload', 'password', 'recaptcha', 'recaptcha_v3', 'honeypot', 'html', 'step' ];
 
 	function signature( rows ) {
 		return rows.map( function ( row ) {
@@ -70,10 +72,45 @@
 		view.updateMap( wanted );
 	}
 
+	/*
+	 * The note picker lists the form's own fields. PHP registers the control
+	 * once for every form, so the options can only come from here.
+	 */
+	function fillNoticeOptions( editor ) {
+		var model = editor.collection.findWhere( { name: NOTICE_CONTROL } );
+		var view = model ? editor.children.findByModelCid( model.cid ) : null;
+		var element = editor.getOption( 'editedElementView' );
+
+		if ( ! view || ! element ) {
+			return;
+		}
+
+		var fields = element.getEditModel().get( 'settings' ).get( 'form_fields' );
+		var options = {};
+
+		if ( fields && fields.models ) {
+			fields.models.forEach( function ( field, index ) {
+				var id = field.get( 'custom_id' );
+
+				if ( id && -1 === UNSENDABLE.indexOf( field.get( 'field_type' ) ) ) {
+					options[ id ] = field.get( 'field_label' ) || ( 'Pole #' + ( index + 1 ) );
+				}
+			} );
+		}
+
+		if ( JSON.stringify( model.get( 'options' ) ) === JSON.stringify( options ) ) {
+			return;
+		}
+
+		model.set( 'options', options );
+		view.render();
+	}
+
 	$( window ).on( 'elementor:init', function () {
 		elementor.channels.editor.on( 'section:activated', function ( sectionName, editor ) {
-			if ( SECTION === sectionName ) {
+			if ( SECTION === sectionName && editor && editor.collection && editor.children ) {
 				sync( editor );
+				fillNoticeOptions( editor );
 			}
 		} );
 	} );

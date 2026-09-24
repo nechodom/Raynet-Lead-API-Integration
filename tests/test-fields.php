@@ -427,5 +427,176 @@ check( 'kontakt na smazané pole se nepočítá', Raynet_Elementor_Forms::maps_c
 	'raynet_crm_fields_map' => array( array( 'remote_id' => 'email', 'local_id' => 'pryc' ) ),
 ) ), false );
 
+// ---------- Field-first mapping: every form field gets a target ----------
+$form_settings = array(
+	'submit_actions'        => array( 'email', 'raynet_crm' ),
+	'form_fields'           => array(
+		array( 'custom_id' => 'jm', 'field_type' => 'text', 'field_label' => 'Jméno a příjmení' ),
+		array( 'custom_id' => 'em', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+		array( 'custom_id' => 'zam', 'field_type' => 'number', 'field_label' => 'Počet zaměstnanců' ),
+		array( 'custom_id' => 'odkud', 'field_type' => 'select', 'field_label' => 'Odkud o nás víte' ),
+		array( 'custom_id' => 'utm', 'field_type' => 'hidden', 'field_label' => '' ),
+		array( 'custom_id' => 'gdpr', 'field_type' => 'acceptance', 'field_label' => 'Souhlasím' ),
+		array( 'custom_id' => 'cv', 'field_type' => 'upload', 'field_label' => 'Životopis' ),
+		array( 'custom_id' => 'cap', 'field_type' => 'recaptcha_v3', 'field_label' => '' ),
+	),
+	'raynet_crm_fields_map' => array(
+		array( 'remote_id' => 'email', 'local_id' => 'em' ),
+	),
+	'raynet_crm_notice_fields'  => array( 'odkud' ),
+	'raynet_crm_ignored_fields' => array( 'utm' ),
+);
+
+$mappable = array_column( Raynet_Elementor_Forms::mappable_fields( $form_settings ), 'id' );
+check( 'k mapování jsou pole, co jdou poslat', $mappable, array( 'jm', 'em', 'zam', 'odkud', 'utm', 'gdpr' ) );
+
+$now = Raynet_Elementor_Forms::field_targets( $form_settings );
+check( 'namapované pole', $now['em'], 'email' );
+check( 'pole do poznámky', $now['odkud'], '__notice' );
+check( 'vědomě vynechané pole', $now['utm'], '-' );
+check( 'nerozhodnuté pole', $now['jm'], '' );
+
+$proposal = Raynet_Elementor_Forms::suggest_targets( $form_settings );
+check( 'návrh jen pro nerozhodnutá', array_keys( $proposal ), array( 'jm', 'zam', 'gdpr' ) );
+check( 'návrh podle popisku', $proposal['jm'], 'fullName' );
+check( 'návrh vlastního pole', $proposal['zam'], 'cf:Pocet_zam_a1b2c' );
+check( 'souhlas se do poznámky nenavrhuje', $proposal['gdpr'], '-' );
+
+$bare_form = array( 'form_fields' => array( array( 'custom_id' => 'x', 'field_type' => 'text', 'field_label' => 'Barva auta' ) ) );
+check( 'pole bez protějšku se navrhne do poznámky', Raynet_Elementor_Forms::suggest_targets( $bare_form ), array( 'x' => '__notice' ) );
+
+$dup = Raynet_Elementor_Forms::validate_targets( $form_settings, array( 'jm' => 'email', 'em' => 'email' ) );
+check( 'dvě pole na jeden atribut odmítnuta', is_wp_error( $dup ) ? $dup->get_error_code() : '', 'raynet_duplicate_target' );
+check( 'chyba jmenuje obě pole', is_wp_error( $dup ) && false !== strpos( $dup->get_error_message(), 'Jméno a příjmení' ) && false !== strpos( $dup->get_error_message(), 'E-mail' ), true );
+
+$names = Raynet_Elementor_Forms::validate_targets( $form_settings, array( 'jm' => 'fullName', 'odkud' => 'lastName' ) );
+check( 'celé jméno s půlkou odmítnuto', is_wp_error( $names ) ? $names->get_error_code() : '', 'raynet_name_conflict' );
+
+$cleaned = Raynet_Elementor_Forms::validate_targets( $form_settings, array(
+	'jm'    => 'fullName',
+	'cv'    => '__notice',
+	'nic'   => 'email',
+	'em'    => 'email',
+) );
+check( 'pole, které nejde poslat, se zahodí', isset( $cleaned['cv'] ), false );
+check( 'neexistující pole se zahodí', isset( $cleaned['nic'] ), false );
+check( 'platné cíle zůstanou', $cleaned, array( 'jm' => 'fullName', 'em' => 'email' ) );
+
+$legacy = array_merge( $form_settings, array( 'raynet_crm_fields_map' => array( array( 'remote_id' => 'cf:Stare_z1', 'local_id' => 'odkud' ) ) ) );
+check( 'dřív namapované nenačtené vlastní pole je platný cíl', Raynet_Elementor_Forms::validate_targets( $legacy, array( 'odkud' => 'cf:Stare_z1' ) ), array( 'odkud' => 'cf:Stare_z1' ) );
+
+$saved_targets = Raynet_Elementor_Forms::apply_targets(
+	array( 'form_fields' => $form_settings['form_fields'] ),
+	array( 'jm' => 'fullName', 'em' => 'email', 'zam' => 'cf:Pocet_zam_a1b2c', 'odkud' => '__notice', 'utm' => '-', 'gdpr' => '-' ),
+	true
+);
+check( 'mapa má řádek za každý atribut', count( $saved_targets['raynet_crm_fields_map'] ), count( Raynet_Lead_Fields::mapping_rows() ) );
+check( 'mapa nese výběr', Raynet_Elementor_Forms::current_map( $saved_targets ), array( 'fullName' => 'jm', 'email' => 'em', 'cf:Pocet_zam_a1b2c' => 'zam' ) );
+check( 'poznámka nese výběr', $saved_targets['raynet_crm_notice_fields'], array( 'odkud' ) );
+check( 'vynechaná pole uložena', $saved_targets['raynet_crm_ignored_fields'], array( 'utm', 'gdpr' ) );
+check( 'zapnutí zachová výchozí e-mail', $saved_targets['submit_actions'], array( 'email', 'raynet_crm' ) );
+check( 'po uložení nic nerozhodnutého', array_keys( Raynet_Elementor_Forms::field_targets( $saved_targets ), '', true ), array() );
+
+$off = Raynet_Elementor_Forms::apply_targets( array( 'form_fields' => array() ), array(), false );
+check( 'bez zapnutí se akce nepřidá', isset( $off['submit_actions'] ), false );
+
+// Bulk apply can send whatever has no attribute to the note.
+$rest = Raynet_Elementor_Forms::configure(
+	array( 'form_fields' => array(
+		array( 'custom_id' => 'e', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+		array( 'custom_id' => 'b', 'field_type' => 'text', 'field_label' => 'Barva auta' ),
+		array( 'custom_id' => 'g', 'field_type' => 'acceptance', 'field_label' => 'Souhlas' ),
+		array( 'custom_id' => 'f', 'field_type' => 'upload', 'field_label' => 'Příloha' ),
+	) ),
+	array(),
+	true,
+	true
+);
+check( 'zbytek jde do poznámky', $rest['raynet_crm_notice_fields'], array( 'b' ) );
+$no_rest = Raynet_Elementor_Forms::configure( array( 'form_fields' => array( array( 'custom_id' => 'b', 'field_type' => 'text', 'field_label' => 'Barva auta' ) ) ), array(), true, false );
+check( 'bez volby se poznámky nedotkne', isset( $no_rest['raynet_crm_notice_fields'] ), false );
+
+check( 'seznam z řetězce', Raynet_Elementor_Forms::id_list( array( 'k' => 'a,b' ), 'k' ), array( 'a', 'b' ) );
+
+// ---------- Findings of the 2.6.0 review ----------
+
+// Saving changes only the fields that changed; what the screen cannot show stays.
+$rich = array(
+	'form_fields'               => array(
+		array( 'custom_id' => 'em', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+		array( 'custom_id' => 'msg', 'field_type' => 'textarea', 'field_label' => 'Zpráva' ),
+		array( 'custom_id' => 'cv', 'field_type' => 'upload', 'field_label' => 'Životopis' ),
+	),
+	'raynet_crm_fields_map'     => array(
+		array( 'remote_id' => 'email', 'local_id' => 'em' ),
+		array( 'remote_id' => 'email2', 'local_id' => 'em' ),
+		array( 'remote_id' => 'message', 'local_id' => 'msg' ),
+		array( 'remote_id' => 'cf:Priloha_z1', 'local_id' => 'cv' ),
+	),
+	'raynet_crm_notice_fields'  => array( 'jen_v_konceptu' ),
+);
+$untouched_save = Raynet_Elementor_Forms::apply_targets( $rich, array(), false );
+$untouched_map = Raynet_Elementor_Forms::current_map( $untouched_save );
+ksort( $untouched_map );
+check( 'uložení beze změny nic nesmaže', $untouched_map, array( 'cf:Priloha_z1' => 'cv', 'email' => 'em', 'email2' => 'em', 'message' => 'msg' ) );
+check( 'cizí položka poznámky zůstane', $untouched_save['raynet_crm_notice_fields'], array( 'jen_v_konceptu' ) );
+
+$changed_save = Raynet_Elementor_Forms::apply_targets( $rich, array( 'msg' => '__notice' ), false );
+$changed_map  = Raynet_Elementor_Forms::current_map( $changed_save );
+check( 'změněné pole opustí starý atribut', isset( $changed_map['message'] ), false );
+check( 'změněné pole jde do poznámky', in_array( 'msg', $changed_save['raynet_crm_notice_fields'], true ), true );
+check( 'druhý atribut nezměněného pole zůstane', $changed_map['email2'], 'em' );
+check( 'mapování uploadu zůstane', $changed_map['cf:Priloha_z1'], 'cv' );
+
+$moved = Raynet_Elementor_Forms::current_map( Raynet_Elementor_Forms::apply_targets( $rich, array( 'em' => 'phone' ), false ) );
+check( 'změna pole zruší všechny jeho staré atributy', array( isset( $moved['email'] ), isset( $moved['email2'] ), $moved['phone'] ), array( false, false, 'em' ) );
+
+check( 'změna pole, které formulář nemá, se ignoruje', Raynet_Elementor_Forms::apply_targets( $rich, array( 'neni' => 'phone' ), false )['raynet_crm_fields_map'], Raynet_Elementor_Forms::apply_targets( $rich, array(), false )['raynet_crm_fields_map'] );
+
+check( 'obrazovka zná další atributy pole', Raynet_Elementor_Forms::extra_targets( $rich ), array( 'em' => array( 'email2' ) ) );
+
+$unknown_target = Raynet_Elementor_Forms::validate_targets( $rich, array( 'msg' => 'owner' ) );
+check( 'neznámý cíl je chyba, ne tiché zahození', is_wp_error( $unknown_target ) ? $unknown_target->get_error_code() : '', 'raynet_unknown_target' );
+
+// A bulk apply does not undo choices made on the mapping screen.
+$decided = array(
+	'form_fields'               => array(
+		array( 'custom_id' => 'tel', 'field_type' => 'tel', 'field_label' => 'Telefon' ),
+		array( 'custom_id' => 'poz', 'field_type' => 'textarea', 'field_label' => 'Poznámka' ),
+		array( 'custom_id' => 'e', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+	),
+	'raynet_crm_ignored_fields' => array( 'tel' ),
+	'raynet_crm_notice_fields'  => array( 'poz' ),
+);
+$reapplied_decided = Raynet_Elementor_Forms::configure( $decided, array(), true, true );
+$decided_targets   = Raynet_Elementor_Forms::field_targets( $reapplied_decided );
+check( 'vynechané pole zůstane vynechané', $decided_targets['tel'], '-' );
+check( 'pole v poznámce zůstane v poznámce', $decided_targets['poz'], '__notice' );
+check( 'nerozhodnuté se namapuje', $decided_targets['e'], 'email' );
+
+// The consent box is left out rather than left undecided.
+$with_consent = Raynet_Elementor_Forms::configure( array( 'form_fields' => array(
+	array( 'custom_id' => 'e', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+	array( 'custom_id' => 'g', 'field_type' => 'acceptance', 'field_label' => 'Souhlas' ),
+) ), array(), true, true );
+check( 'souhlas je vědomě vynechaný', Raynet_Elementor_Forms::field_targets( $with_consent )['g'], '-' );
+
+// Passwords are never mapped, proposed or noted.
+$with_password = array( 'form_fields' => array(
+	array( 'custom_id' => 'login', 'field_type' => 'text', 'field_label' => 'Přihlašovací jméno' ),
+	array( 'custom_id' => 'pw', 'field_type' => 'password', 'field_label' => 'Heslo' ),
+) );
+check( 'heslo se nenabízí', in_array( 'pw', array_column( Raynet_Elementor_Forms::mappable_fields( $with_password ), 'id' ), true ), false );
+check( 'heslo se nenavrhuje', isset( Raynet_Elementor_Forms::suggest_targets( $with_password )['pw'] ), false );
+check( 'heslo nejde do poznámky ani hromadně', in_array( 'pw', Raynet_Elementor_Forms::configure( $with_password, array(), true, true )['raynet_crm_notice_fields'], true ), false );
+
+// Field ids made of digits are ids, not positions.
+$numeric = Raynet_Elementor_Forms::configure( array( 'form_fields' => array(
+	array( 'custom_id' => '1', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+	array( 'custom_id' => '2', 'field_type' => 'text', 'field_label' => 'Barva auta' ),
+) ), array(), true, true );
+check( 'číselné ID jde do poznámky', $numeric['raynet_crm_notice_fields'], array( '2' ) );
+check( 'číselné ID se namapuje', Raynet_Elementor_Forms::current_map( $numeric )['email'], '1' );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

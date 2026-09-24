@@ -1051,6 +1051,217 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'tlačítko načtení přesměruje', $refreshed['status'], 302 );
 		check( 'tlačítko pole znovu načte', count( Raynet_Lead_Fields::custom() ), 4 );
 
+		// --- Mapping a form field by field ------------------------------------
+		$map_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Mapovaná stránka', 'post_status' => 'publish' ) );
+		update_post_meta( $map_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta(
+			$map_page,
+			'_elementor_data',
+			wp_slash(
+				wp_json_encode(
+					array(
+						array(
+							'id'         => 'mapform',
+							'elType'     => 'widget',
+							'widgetType' => 'form',
+							'settings'   => array(
+								'form_name'   => 'Mapovaný',
+								'form_fields' => array(
+									array( '_id' => 'mj', 'custom_id' => 'mj', 'field_type' => 'text', 'field_label' => 'Jméno a příjmení' ),
+									array( '_id' => 'me', 'custom_id' => 'me', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+									array( '_id' => 'mb', 'custom_id' => 'mb', 'field_type' => 'text', 'field_label' => 'Barva auta' ),
+									array( '_id' => 'mn', 'custom_id' => 'mn', 'field_type' => 'number', 'field_label' => 'Počet zaměstnanců' ),
+									array( '_id' => 'mg', 'custom_id' => 'mg', 'field_type' => 'acceptance', 'field_label' => 'Souhlasím' ),
+								),
+							),
+							'elements'   => array(),
+						),
+					)
+				)
+			)
+		);
+
+		$map_key  = $map_page . ':mapform';
+		$map_path = '/wp-admin/admin.php?page=raynet-elementor-forms&mapovat=' . rawurlencode( $map_key );
+		$map_view = req( $map_path, null, true );
+
+		check( 'obrazovka mapování se načte', $map_view['status'], 200 );
+		check( 'vypíše pole formuláře', false !== strpos( $map_view['body'], 'name="target[mb]"' ), true );
+		check( 'nevypíše, co nejde poslat', false !== strpos( $map_view['body'], 'name="target[cap]"' ), false );
+		check( 'nabízí vlastní pole ve skupině', false !== strpos( $map_view['body'], 'Vlastní pole z RAYNETu' ), true );
+		check( 'návrhy jsou označené', substr_count( $map_view['body'], 'raynet-elm__proposed' ) >= 1, true );
+		check( 'pole bez protějšku navrženo do poznámky', (bool) preg_match( '/name="target\[mb\]".*?value="__notice"\s+selected/s', $map_view['body'] ), true );
+		check( 'celé jméno navrženo podle popisku', (bool) preg_match( '/name="target\[mj\]".*?value="fullName"\s+selected/s', $map_view['body'] ), true );
+
+		$scan_before = array_values( array_filter( Raynet_Elementor_Forms::scan(), function ( $row ) {
+			return 'mapform' === $row['widget_id'];
+		} ) );
+		check( 'přehled hlásí pole bez určení', $scan_before[0]['undecided'], 5 );
+
+		preg_match( '/name="action" value="raynet_elm_save_mapping".*?name="_wpnonce" value="([^"]+)"/s', $map_view['body'], $map_nonce );
+		$map_nonce = isset( $map_nonce[1] ) ? $map_nonce[1] : '';
+
+		// Two fields on one attribute: refused, and the screen says why.
+		$refused = req(
+			'/wp-admin/admin-post.php',
+			array(
+				'action'   => 'raynet_elm_save_mapping',
+				'_wpnonce' => $map_nonce,
+				'form'     => $map_key,
+				'target'   => array( 'mj' => 'email', 'me' => 'email' ),
+				'enable'   => '1',
+			),
+			true
+		);
+		check( 'duplicita přesměruje zpět', $refused['status'], 302 );
+		$refused_view = req( $map_path . '&raynet_error=mapping', null, true );
+		check( 'duplicita je vysvětlená', false !== strpos( $refused_view['body'], 'je vybraný u dvou polí' ), true );
+		check( 'výběr zůstal zachovaný', (bool) preg_match( '/name="target\[mj\]".*?value="email"\s+selected/s', $refused_view['body'] ), true );
+		wp_cache_flush();
+		check( 'nic se nezapsalo', Raynet_Elementor_Forms::has_backup( $map_page ), false );
+
+		$saved = req(
+			'/wp-admin/admin-post.php',
+			array(
+				'action'   => 'raynet_elm_save_mapping',
+				'_wpnonce' => $map_nonce,
+				'form'     => $map_key,
+				'target'   => array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '__notice', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-' ),
+				'enable'   => '1',
+			),
+			true
+		);
+		check( 'uložení přesměruje', $saved['status'], 302 );
+		wp_cache_flush();
+
+		$map_settings = Raynet_Elementor_Forms::form_settings( $map_page, 'mapform' );
+		check( 'akce zapnutá', in_array( 'raynet_crm', Raynet_Elementor_Forms::submit_actions( $map_settings ), true ), true );
+		check( 'výchozí akce zachované', in_array( 'email', Raynet_Elementor_Forms::submit_actions( $map_settings ), true ), true );
+		check( 'mapování uložené', Raynet_Elementor_Forms::current_map( $map_settings ), array( 'fullName' => 'mj', 'email' => 'me', 'cf:Pocet_zam_a1b2c' => 'mn' ) );
+		check( 'poznámka uložená', $map_settings['raynet_crm_notice_fields'], array( 'mb' ) );
+		check( 'souhlas vynechaný', $map_settings['raynet_crm_ignored_fields'], array( 'mg' ) );
+		check( 'záloha vznikla', Raynet_Elementor_Forms::has_backup( $map_page ), true );
+
+		$scan_after = array_values( array_filter( Raynet_Elementor_Forms::scan(), function ( $row ) {
+			return 'mapform' === $row['widget_id'];
+		} ) );
+		check( 'po uložení nic bez určení', $scan_after[0]['undecided'], 0 );
+		check( 'přehled ukáže počet v poznámce', $scan_after[0]['noted'], 1 );
+
+		$saved_view = req( $map_path . '&raynet_done=mapped', null, true );
+		check( 'potvrzení uložení', false !== strpos( $saved_view['body'], 'Mapování uloženo' ), true );
+		check( 'uložené se už nenavrhuje', substr_count( $saved_view['body'], 'raynet-elm__proposed' ), 0 );
+		check( 'u zapnutého formuláře není matoucí zaškrtávátko', false !== strpos( $saved_view['body'], 'name="enable"' ), false );
+
+		// A draft with a field the page does not have yet: saving the screen
+		// changes the fields changed here and leaves the draft's own alone.
+		$draft_tree = json_decode( get_post_meta( $map_page, '_elementor_data', true ), true );
+		$draft_tree[0]['settings']['form_fields'][] = array( '_id' => 'mf', 'custom_id' => 'mf', 'field_type' => 'text', 'field_label' => 'Firma' );
+		foreach ( $draft_tree[0]['settings']['raynet_crm_fields_map'] as &$draft_row ) {
+			if ( 'companyName' === $draft_row['remote_id'] ) {
+				$draft_row['local_id'] = 'mf';
+			}
+		}
+		unset( $draft_row );
+
+		$map_draft = (int) wp_insert_post( array( 'post_type' => 'revision', 'post_status' => 'inherit', 'post_parent' => $map_page, 'post_name' => $map_page . '-autosave-v1', 'post_author' => get_current_user_id() ) );
+		update_metadata( 'post', $map_draft, '_elementor_data', wp_slash( wp_json_encode( $draft_tree ) ) );
+		$wpdb->update( $wpdb->posts, array( 'post_modified_gmt' => '2020-01-01 00:00:00', 'post_modified' => '2020-01-01 00:00:00' ), array( 'ID' => $map_page ) );
+		$wpdb->update( $wpdb->posts, array( 'post_modified_gmt' => '2021-01-01 00:00:00', 'post_modified' => '2021-01-01 00:00:00' ), array( 'ID' => $map_draft ) );
+		clean_post_cache( $map_page );
+		clean_post_cache( $map_draft );
+
+		$draft_view = req( $map_path, null, true );
+		check( 'obrazovka upozorní na koncept', false !== strpos( $draft_view['body'], 'neuložený koncept' ), true );
+
+		req(
+			'/wp-admin/admin-post.php',
+			array(
+				'action'   => 'raynet_elm_save_mapping',
+				'_wpnonce' => $map_nonce,
+				'form'     => $map_key,
+				'target'   => array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '-', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-' ),
+			),
+			true
+		);
+		wp_cache_flush();
+
+		$draft_after = json_decode( get_metadata( 'post', $map_draft, '_elementor_data', true ), true );
+		$draft_map   = Raynet_Elementor_Forms::current_map( $draft_after[0]['settings'] );
+		check( 'koncept si nechal mapování svého pole', isset( $draft_map['companyName'] ) ? $draft_map['companyName'] : '', 'mf' );
+		check( 'koncept dostal změnu z obrazovky', in_array( 'mb', Raynet_Elementor_Forms::id_list( $draft_after[0]['settings'], 'raynet_crm_ignored_fields' ), true ), true );
+		check( 'koncept si nechal ostatní mapování', isset( $draft_map['email'] ) ? $draft_map['email'] : '', 'me' );
+		check( 'stránka dostala změnu taky', Raynet_Elementor_Forms::field_targets( Raynet_Elementor_Forms::form_settings( $map_page, 'mapform' ) )['mb'], '-' );
+		wp_delete_post( $map_draft, true );
+
+		// Back to the note for the submission test below.
+		Raynet_Elementor_Forms::save_targets( $map_page, 'mapform', array( 'mj' => 'fullName', 'me' => 'email', 'mb' => '__notice', 'mn' => 'cf:Pocet_zam_a1b2c', 'mg' => '-' ), false );
+		$map_settings = Raynet_Elementor_Forms::form_settings( $map_page, 'mapform' );
+
+		// A submission writes the noted field under its label.
+		update_option( 'raynet_test_http_calls', array() );
+		$map_record_settings = array_merge( $map_settings, array( 'form_post_id' => $map_page ) );
+		$map_record_settings['raynet_crm_notice_fields'][] = 'me';
+		$map_record_settings['raynet_crm_fields_map'][]    = array( 'remote_id' => 'otherContact', 'local_id' => 'pw' );
+		$map_record = new class( $map_record_settings, array(
+			'pw' => array( 'type' => 'password', 'title' => 'Heslo', 'value' => 'tajne123' ),
+			'mj' => array( 'type' => 'text', 'title' => 'Jméno a příjmení', 'value' => 'Eva Malá' ),
+			'me' => array( 'type' => 'email', 'title' => 'E-mail', 'value' => 'eva@example.cz' ),
+			'mb' => array( 'type' => 'text', 'title' => 'Barva auta', 'value' => 'červená' ),
+			'mn' => array( 'type' => 'number', 'title' => 'Počet zaměstnanců', 'value' => 12, 'raw_value' => '12' ),
+			'mg' => array( 'type' => 'acceptance', 'title' => 'Souhlasím', 'value' => 'on' ),
+		) ) {
+			private $fs;
+			private $f;
+			public function __construct( $fs, $f ) {
+				$this->fs = $fs;
+				$this->f  = $f;
+			}
+			public function get( $k ) {
+				return 'form_settings' === $k ? $this->fs : ( 'fields' === $k ? $this->f : null );
+			}
+		};
+
+		$map_error = '';
+
+		try {
+			$action->run( $map_record, $custom_handler );
+		} catch ( \Exception $e ) {
+			$map_error = $e->getMessage();
+		}
+
+		check( 'odeslání projde', $map_error, '' );
+		wp_cache_flush();
+		$map_lead = null;
+
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/lead/' ) ) {
+				$map_lead = json_decode( $call['body'], true );
+			}
+		}
+
+		check( 'pole v poznámce pod popiskem', isset( $map_lead['notice'] ) && false !== strpos( $map_lead['notice'], 'Barva auta: červená' ), true );
+		check( 'namapované pole se v poznámce neopakuje', isset( $map_lead['notice'] ) && false !== strpos( $map_lead['notice'], 'E-mail: eva@example.cz' ), false );
+		check( 'vynechané pole v poznámce není', isset( $map_lead['notice'] ) && false !== strpos( $map_lead['notice'], 'Souhlasím' ), false );
+		check( 'namapované jméno rozdělené', isset( $map_lead['lastName'] ) ? $map_lead['lastName'] : '', 'Malá' );
+		check( 'vlastní pole odešlo', isset( $map_lead['customFields']['Pocet_zam_a1b2c'] ) ? $map_lead['customFields']['Pocet_zam_a1b2c'] : null, 12 );
+		check( 'heslo neodešlo ani namapované', false !== strpos( (string) wp_json_encode( $map_lead ), 'tajne123' ), false );
+
+		// The same choice in Elementor's editor.
+		$notice_control = $form_widget ? $form_widget->get_controls( 'raynet_crm_notice_fields' ) : null;
+		check( 'výběr do poznámky je v editoru', $notice_control ? $notice_control['type'] : '', 'select2' );
+		check( 'výběr do poznámky je vícenásobný', $notice_control ? ! empty( $notice_control['multiple'] ) : false, true );
+
+		$exported_notice = $action->on_export( array( 'settings' => array( 'raynet_crm_notice_fields' => array( 'mb' ), 'raynet_crm_ignored_fields' => array( 'mg' ) ) ) );
+		check( 'export odstraní výběr do poznámky', isset( $exported_notice['settings']['raynet_crm_notice_fields'] ), false );
+
+		// Bulk apply can send the rest to the note as well.
+		Raynet_Elementor_Forms::apply( $map_page, 'mapform', array(), true, true );
+		$after_bulk = Raynet_Elementor_Forms::field_targets( Raynet_Elementor_Forms::form_settings( $map_page, 'mapform' ) );
+		check( 'hromadné nasazení nezmění rozhodnuté', array( $after_bulk['mb'], $after_bulk['mg'], $after_bulk['mj'] ), array( '__notice', '-', 'fullName' ) );
+
+		wp_delete_post( $map_page, true );
+
 		// --- A cap that dropped the oldest pages -------------------------------
 		// Two hundred newer posts saved with Elementor used to push an old
 		// contact page out of the list.
