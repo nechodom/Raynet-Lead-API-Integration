@@ -122,6 +122,85 @@ class Raynet_Lead_Api_Client {
 	}
 
 	/**
+	 * Uploads a file to RAYNET's storage.
+	 *
+	 * The first of two steps: RAYNET takes the file as multipart/form-data
+	 * under the name "file" and answers with its UUID, which attach() then
+	 * links to a record.
+	 *
+	 * @param string $path Local file.
+	 * @param string $name File name as the visitor had it.
+	 * @param string $type MIME type.
+	 * @return array{uuid:string,fileName:string,contentType:string,fileSize:int}|WP_Error File, or an error.
+	 */
+	public function upload_file( $path, $name, $type ) {
+		$content = is_readable( $path ) ? file_get_contents( $path ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- A local temporary copy.
+
+		if ( false === $content ) {
+			return new WP_Error( 'raynet_file_unreadable', __( 'Soubor se nepodařilo přečíst.', 'raynet-lead-api-integration' ) );
+		}
+
+		$boundary = 'raynet' . md5( uniqid( '', true ) );
+		$name     = str_replace( array( '"', "\r", "\n", '\\' ), '', (string) $name );
+		$type     = preg_match( '#^[\w.+-]+/[\w.+-]+$#', (string) $type ) ? (string) $type : 'application/octet-stream';
+		$body     = '--' . $boundary . "\r\n"
+			. 'Content-Disposition: form-data; name="file"; filename="' . $name . "\"\r\n"
+			. 'Content-Type: ' . $type . "\r\n\r\n"
+			. $content . "\r\n"
+			. '--' . $boundary . "--\r\n";
+
+		$response = $this->request(
+			'POST',
+			'fileUpload',
+			null,
+			array(
+				'body'         => $body,
+				'content_type' => 'multipart/form-data; boundary=' . $boundary,
+				'timeout'      => 60,
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		// The documented answer is the file itself; accept it wrapped in `data` too.
+		$file = isset( $response['data'] ) && is_array( $response['data'] ) ? $response['data'] : $response;
+
+		if ( empty( $file['uuid'] ) ) {
+			return new WP_Error( 'raynet_bad_response', __( 'RAYNET po nahrání souboru nevrátil jeho identifikátor.', 'raynet-lead-api-integration' ) );
+		}
+
+		return array(
+			'uuid'        => (string) $file['uuid'],
+			'fileName'    => isset( $file['fileName'] ) ? (string) $file['fileName'] : $name,
+			'contentType' => isset( $file['contentType'] ) ? (string) $file['contentType'] : $type,
+			'fileSize'    => isset( $file['fileSize'] ) ? (int) $file['fileSize'] : strlen( $content ),
+		);
+	}
+
+	/**
+	 * Links an uploaded file to a record as its attachment.
+	 *
+	 * @param string              $entity    Entity name, e.g. "lead".
+	 * @param int                 $entity_id Record id.
+	 * @param array<string,mixed> $file      What upload_file() returned.
+	 * @return array<string,mixed>|WP_Error Decoded response, or an error.
+	 */
+	public function attach( $entity, $entity_id, array $file ) {
+		return $this->request(
+			'PUT',
+			'attachment/' . rawurlencode( (string) $entity ) . '/' . (int) $entity_id . '/',
+			array(
+				'uuid'        => (string) $file['uuid'],
+				'fileName'    => (string) $file['fileName'],
+				'contentType' => (string) $file['contentType'],
+				'fileSize'    => (int) $file['fileSize'],
+			)
+		);
+	}
+
+	/**
 	 * Fetches the configuration of custom fields for every entity.
 	 *
 	 * RAYNET has no filter on this endpoint; it answers with one list per entity
@@ -194,7 +273,7 @@ class Raynet_Lead_Api_Client {
 	 * @param array<string,mixed>|null $body   Optional JSON body.
 	 * @return array<string,mixed>|WP_Error Decoded response, or an error.
 	 */
-	private function request( $method, $path, $body = null ) {
+	private function request( $method, $path, $body = null, array $raw = array() ) {
 		if ( '' === $this->base_url ) {
 			return new WP_Error(
 				'raynet_not_configured',
@@ -233,7 +312,13 @@ class Raynet_Lead_Api_Client {
 			'headers' => $headers,
 		);
 
-		if ( null !== $body ) {
+		// A prepared body, such as a file upload, goes out as it is.
+		if ( isset( $raw['body'], $raw['content_type'] ) ) {
+			$args['headers']['Content-Type'] = $raw['content_type'];
+			$args['body']                    = $raw['body'];
+			$args['data_format']             = 'body';
+			$args['timeout']                 = max( $this->timeout, isset( $raw['timeout'] ) ? (int) $raw['timeout'] : 0 );
+		} elseif ( null !== $body ) {
 			$args['headers']['Content-Type'] = 'application/json; charset=utf-8';
 			$args['body']                    = wp_json_encode( $body );
 			$args['data_format']             = 'body';

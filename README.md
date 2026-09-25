@@ -35,6 +35,7 @@ WordPress plugin, který posílá poptávky z webového formuláře přímo do [
 - **Zkratka `[raynet_lead_form]`** — formulář vložíte do libovolné stránky, příspěvku nebo widgetu.
 - **Elementor Pro Forms** — leady umí zakládat i formuláře postavené v Elementoru, přes akci po odeslání.
 - **Hromadné nasazení** — plugin najde všechny formuláře Elementoru na webu, i ty v popupech, hlavičkách, patičkách a globálních widgetech, a nastaví je podle šablony, včetně odhadu mapování polí.
+- **Přílohy** — soubory nahrané do formuláře Elementoru se k leadu v RAYNETu přiloží jako přílohy.
 - **Mapování po polích formuláře** — plugin načte pole, která formulář opravdu má, a u každého se zeptá, kam v RAYNETu patří. Co v RAYNETu protějšek nemá, zapíše do poznámky leadu.
 - **Všechna pole leadu, i vlastní** — v Elementoru namapujete kromě jména a kontaktu i IČO, DIČ, druhý e-mail, sociální sítě a vlastní pole, která si vaše instance RAYNETu definuje. Plugin je načte přímo z RAYNETu.
 - **Jedno pole pro celé jméno** — „Jan Novák" se do RAYNETu rozdělí na jméno a příjmení.
@@ -298,6 +299,19 @@ Uložení zapisuje do stránky stejně jako nasazení šablony: předchozí podo
 Hromadné nasazení šablony rozhodnutí z obrazovky respektuje: pole, které jste poslali do poznámky nebo vynechali, odhad znovu nenamapuje.
 
 Totéž jde i přímo v Elementoru: sekce **RAYNET CRM** má pod mapováním výběr **Zapsat do poznámky** s poli formuláře.
+
+### Přílohy z formuláře
+
+Soubory z polí typu **Nahrání souboru** (Upload) se po založení leadu nahrají do RAYNETu a připojí k leadu jako **přílohy** — v RAYNETu je najdete v záložce Přílohy u leadu. Poznámka leadu je navíc jmenuje pod názvem pole, třeba `Fotografie střechy: strecha1.jpg, strecha2.jpg`.
+
+- Platí pro každé nahrávací pole, u kterého jste na obrazovce **Namapovat pole** nezvolili **Neodesílat**.
+- Funguje v obou režimech Elementoru — odkaz i příloha e-mailu. U přílohy e-mailu Elementor soubor po odeslání e-mailu maže, plugin si ho proto zajistí dřív.
+- Soubor se v RAYNETu jmenuje tak, jak ho návštěvník nahrál, ne náhodným jménem, pod kterým ho uloží Elementor.
+- Limit je 20 MB na soubor a 50 MB na jeden lead. Co je větší, se nepřiloží a poznámka to u souboru uvede.
+- Když RAYNET přílohu odmítne, lead zůstane; chyba se zapíše do logu a ukáže nahoře na stránce nastavení. Když odmítne celý lead, dorazí soubory jako přílohy **záložního e-mailu** — do 10 MB celkem, protože větší e-maily poštovní servery odmítají; zbytek e-mail vyjmenuje. Kdyby server e-mail s přílohami přesto odmítl, odejde znovu bez nich.
+- Plugin posílá jen soubory, které Elementor sám přijal a uložil. Cesta k souboru, kterou by někdo podstrčil v odeslaných datech, se nepoužije.
+
+Každá příloha jsou dva požadavky na API (nahrání souboru a připojení k leadu), což se počítá do denního limitu 24 000 požadavků.
 
 ### Hromadné nasazení na víc formulářů
 

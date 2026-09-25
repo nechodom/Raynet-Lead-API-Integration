@@ -178,4 +178,5 @@ require_once $raynet_includes . 'class-raynet-updater.php';
 require_once $raynet_includes . 'elementor/class-raynet-elementor-forms.php';
 require_once $raynet_includes . 'class-raynet-api-client.php';
 require_once $raynet_includes . 'class-raynet-lead-fields.php';
+require_once $raynet_includes . 'elementor/class-raynet-elementor-attachments.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';

@@ -387,8 +387,15 @@ class Raynet_Lead_Form {
 			);
 		}
 
-		$has_consent  = false;
-		$consent_text = '';
+		$has_consent   = false;
+		$consent_text  = '';
+		$message_label = '';
+
+		foreach ( $fields as $field ) {
+			if ( 'message' === $field['source'] && isset( $field['label'] ) ) {
+				$message_label = wp_strip_all_tags( (string) $field['label'] );
+			}
+		}
 
 		foreach ( $fields as $field ) {
 			if ( 'consent' === $field['source'] ) {
@@ -420,6 +427,7 @@ class Raynet_Lead_Form {
 			'raynet_consent_text'   => $consent_text,
 			// The builder's consent box is required and was checked above.
 			'raynet_consent_record' => $has_consent,
+			'raynet_message_label'  => $message_label,
 		);
 
 		if ( '' === $values['email'] && '' === $values['phone'] ) {
@@ -794,7 +802,8 @@ class Raynet_Lead_Form {
 				$source_url,
 				isset( $input['raynet_extras'] ) && is_array( $input['raynet_extras'] ) ? $input['raynet_extras'] : array(),
 				! empty( $input['raynet_has_consent'] ),
-				isset( $input['raynet_consent_text'] ) ? sanitize_text_field( (string) $input['raynet_consent_text'] ) : ''
+				isset( $input['raynet_consent_text'] ) ? sanitize_text_field( (string) $input['raynet_consent_text'] ) : '',
+				isset( $input['raynet_message_label'] ) ? sanitize_text_field( (string) $input['raynet_message_label'] ) : ''
 			),
 			'contactInfo' => array_filter(
 				array(
@@ -862,6 +871,19 @@ class Raynet_Lead_Form {
 		}
 
 		return array_filter( $payload, array( $this, 'is_not_empty' ) );
+	}
+
+	/**
+	 * Logs a problem and shows it to administrators on the settings page.
+	 *
+	 * For failures after the lead exists, which must not reach the visitor.
+	 *
+	 * @param string $message Message.
+	 * @return void
+	 */
+	public function report_error( $message ) {
+		$this->log_error( $message );
+		$this->remember_last_error( $message );
 	}
 
 	/**
@@ -989,7 +1011,7 @@ class Raynet_Lead_Form {
 	 * @param bool                 $has_consent Whether the form carried a consent box.
 	 * @return string Note text.
 	 */
-	private function build_notice( array $values, array $settings, $source_url, array $extras = array(), $has_consent = false, $consent_text = '' ) {
+	private function build_notice( array $values, array $settings, $source_url, array $extras = array(), $has_consent = false, $consent_text = '', $message_label = '' ) {
 		$parts = array();
 
 		if ( '' !== trim( (string) $settings['notice_prefix'] ) ) {
@@ -997,7 +1019,11 @@ class Raynet_Lead_Form {
 		}
 
 		if ( '' !== $values['message'] ) {
-			$parts[] = $values['message'];
+			// Under the name of the field it was typed into, so the note reads
+			// like the form did.
+			$parts[] = '' !== trim( (string) $message_label )
+				? trim( (string) $message_label ) . ":\n" . $values['message']
+				: $values['message'];
 		}
 
 		if ( ! empty( $extras ) ) {
@@ -1104,15 +1130,42 @@ class Raynet_Lead_Form {
 			}
 		}
 
-		wp_mail(
-			$to,
-			sprintf(
-				/* translators: %s: site name. */
-				__( '[%s] Neodeslaný lead z webového formuláře', 'raynet-lead-api-integration' ),
-				wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES )
-			),
-			implode( "\n", $lines )
+		$files       = isset( $context['raynet_files'] ) && is_array( $context['raynet_files'] ) ? $context['raynet_files'] : array();
+		$attachments = array();
+
+		foreach ( isset( $files['attach'] ) && is_array( $files['attach'] ) ? $files['attach'] : array() as $file ) {
+			if ( is_string( $file ) && is_file( $file ) ) {
+				$attachments[] = $file;
+			}
+		}
+
+		if ( ! empty( $files['skipped'] ) && is_array( $files['skipped'] ) ) {
+			$lines[] = '';
+			$lines[] = sprintf(
+				/* translators: %s: list of file names. */
+				__( 'Nepřiloženo, na e-mail příliš velké: %s', 'raynet-lead-api-integration' ),
+				implode( ', ', array_map( 'strval', $files['skipped'] ) )
+			);
+		}
+
+		$subject = sprintf(
+			/* translators: %s: site name. */
+			__( '[%s] Neodeslaný lead z webového formuláře', 'raynet-lead-api-integration' ),
+			wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES )
 		);
+
+		if ( wp_mail( $to, $subject, implode( "\n", $lines ), '', $attachments ) || empty( $attachments ) ) {
+			return;
+		}
+
+		// The lead's data matters more than its files: if the server refused
+		// the message with them, it goes again without.
+		$lines[] = '';
+		$lines[] = __( 'Přílohy se k e-mailu nepodařilo připojit.', 'raynet-lead-api-integration' );
+
+		if ( ! wp_mail( $to, $subject, implode( "\n", $lines ) ) ) {
+			$this->log_error( 'Fallback e-mail could not be sent.' );
+		}
 	}
 
 	/**

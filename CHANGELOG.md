@@ -2,6 +2,23 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.8.0] — 2026-09-25
+
+### Přidáno
+
+- **Přílohy.** Soubory nahrané přes pole typu Nahrání souboru v Elementoru se po založení leadu nahrají do RAYNETu (`POST /fileUpload`) a připojí k leadu jako přílohy (`PUT /attachment/lead/{id}/`), pod původním jménem souboru. Funguje i v režimu „příloha e-mailu", kde Elementor soubor po odeslání e-mailu maže — plugin si ho zajistí dřív. Limit 20 MB na soubor a 50 MB na lead. Poznámka leadu soubory jmenuje pod názvem pole. Když RAYNET lead odmítne, soubory dorazí jako přílohy záložního e-mailu.
+- Na obrazovce **Namapovat pole** jde u nahrávacího pole zvolit **Přiložit k leadu** nebo **Neodesílat**.
+- **Zpráva v poznámce pod názvem pole.** Text zprávy stojí v poznámce leadu pod popiskem pole, do kterého ho návštěvník napsal, třeba „Popis poptávky:".
+
+### Bezpečnost souborů
+
+- Posílají se jen soubory, které Elementor sám přijal a uložil (`files` záznamu odeslání), a jen z jeho adresáře pro nahrané soubory. Cesta podstrčená v odeslaných datech se nepoužije.
+- Dočasné kopie leží v adresáři přístupném jen uživateli webu (0700, soubory 0600) a po odeslání se mažou; co po přerušeném požadavku zůstane, uklidí další odeslání.
+
+### Před vydáním
+
+Adversariální review potvrdilo 8 nálezů se 3 příčinami, všechny jsou opravené a pokryté testy: záložní e-mail by nesl přílohy s dočasným jménem `….tmp` místo původního, mohl nést až 50 MB příloh, které poštovní servery odmítnou (teď nejvýš 10 MB, zbytek jen vyjmenuje, a když server e-mail s přílohami odmítne, odejde znovu bez nich), a u nahrávacího pole obrazovka mapování skryla a při přepnutí smazala mapování nastavené v editoru.
+
 ## [2.7.0] — 2026-09-24
 
 ### Přidáno

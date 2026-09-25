@@ -69,6 +69,13 @@ class Raynet_Elementor_Forms {
 	const TARGET_NOTICE = '__notice';
 
 	/**
+	 * Mapping target of an upload field: attach its files to the lead.
+	 *
+	 * The default for every upload field; "-" leaves one out.
+	 */
+	const TARGET_ATTACH = '__attach';
+
+	/**
 	 * Field types that carry nothing a lead should hold, even in its note.
 	 *
 	 * A password is the one that is not empty: it must never reach a CRM in
@@ -893,6 +900,23 @@ class Raynet_Elementor_Forms {
 	}
 
 	/**
+	 * Fields the mapping screen lists: the mappable ones and the uploads.
+	 *
+	 * @param array<string,mixed> $settings Widget settings.
+	 * @return array<int,array<string,string>> Fields, in form order.
+	 */
+	public static function screen_fields( array $settings ) {
+		return array_values(
+			array_filter(
+				self::readable_fields( $settings ),
+				static function ( $field ) {
+					return 'upload' === $field['type'] || ! in_array( $field['type'], self::UNSENDABLE_TYPES, true );
+				}
+			)
+		);
+	}
+
+	/**
 	 * Where each form field goes now.
 	 *
 	 * @param array<string,mixed> $settings Widget settings.
@@ -901,6 +925,14 @@ class Raynet_Elementor_Forms {
 	 */
 	public static function field_targets( array $settings ) {
 		$targets = array_fill_keys( array_column( self::mappable_fields( $settings ), 'id' ), '' );
+		$ignored = self::id_list( $settings, self::IGNORED_KEY );
+
+		// Upload fields attach their files unless someone left them out.
+		foreach ( self::screen_fields( $settings ) as $field ) {
+			if ( 'upload' === $field['type'] ) {
+				$targets[ $field['id'] ] = in_array( (string) $field['id'], $ignored, true ) ? '-' : self::TARGET_ATTACH;
+			}
+		}
 
 		foreach ( self::current_map( $settings ) as $remote => $local ) {
 			if ( isset( $targets[ $local ] ) && '' === $targets[ $local ] ) {
@@ -980,7 +1012,8 @@ class Raynet_Elementor_Forms {
 	 * @return array<string,string>|WP_Error Clean targets, or why they cannot be saved.
 	 */
 	public static function validate_targets( array $settings, array $targets ) {
-		$fields  = array_column( self::mappable_fields( $settings ), 'label', 'id' );
+		$fields  = array_column( self::screen_fields( $settings ), 'label', 'id' );
+		$types   = array_column( self::screen_fields( $settings ), 'type', 'id' );
 		$allowed = array_column( Raynet_Lead_Fields::mapping_rows(), 'id' );
 
 		// A custom field mapped before, but not in the fetched list, stays a
@@ -999,6 +1032,19 @@ class Raynet_Elementor_Forms {
 			$target = (string) $target;
 
 			if ( ! isset( $fields[ $field ] ) ) {
+				continue;
+			}
+
+			// An upload is attached or left out; its value is a file, not text.
+			if ( 'upload' === $types[ $field ] ) {
+				if ( self::TARGET_ATTACH === $target || '-' === $target ) {
+					$clean[ $field ] = $target;
+				}
+
+				continue;
+			}
+
+			if ( self::TARGET_ATTACH === $target ) {
 				continue;
 			}
 
@@ -1059,7 +1105,14 @@ class Raynet_Elementor_Forms {
 	 * @return array<string,mixed> Settings.
 	 */
 	public static function apply_targets( array $settings, array $changes, $enable ) {
-		$present = array_map( 'strval', array_column( self::mappable_fields( $settings ), 'id' ) );
+		$present = array_map( 'strval', array_column( self::screen_fields( $settings ), 'id' ) );
+		$uploads = array();
+
+		foreach ( self::screen_fields( $settings ) as $screen_field ) {
+			if ( 'upload' === $screen_field['type'] ) {
+				$uploads[] = (string) $screen_field['id'];
+			}
+		}
 		$key     = self::ACTION_NAME . '_fields_map';
 		$map     = array();
 
@@ -1077,6 +1130,18 @@ class Raynet_Elementor_Forms {
 			$target = (string) $target;
 
 			if ( ! in_array( $field, $present, true ) ) {
+				continue;
+			}
+
+			// Attach or leave out concerns only an upload's files; a mapping of
+			// the same field made in the editor is left alone.
+			if ( self::TARGET_ATTACH === $target || ( '-' === $target && in_array( $field, $uploads, true ) ) ) {
+				$ignored = array_values( array_diff( $ignored, array( $field ) ) );
+
+				if ( '-' === $target ) {
+					$ignored[] = $field;
+				}
+
 				continue;
 			}
 

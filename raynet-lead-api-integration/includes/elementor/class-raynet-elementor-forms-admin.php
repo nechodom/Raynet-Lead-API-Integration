@@ -763,7 +763,7 @@ class Raynet_Elementor_Forms_Admin {
 				return;
 			endif;
 
-			$fields   = Raynet_Elementor_Forms::mappable_fields( $settings );
+			$fields   = Raynet_Elementor_Forms::screen_fields( $settings );
 			$targets  = Raynet_Elementor_Forms::field_targets( $settings );
 			$proposed = Raynet_Elementor_Forms::suggest_targets( $settings );
 			$enabled  = in_array( Raynet_Elementor_Forms::ACTION_NAME, Raynet_Elementor_Forms::submit_actions( $settings ), true );
@@ -829,7 +829,7 @@ class Raynet_Elementor_Forms_Admin {
 			<?php endif; ?>
 
 			<p class="description">
-				<?php esc_html_e( 'Tohle jsou pole, která formulář teď má. U každého vyberte, kam v RAYNETu patří. Pro pole, které v RAYNETu protějšek nemá, zvolte Zapsat do poznámky — jeho hodnota se připíše do poznámky leadu pod popiskem pole. Řádky označené jako návrh plugin odhadl; uloží se až tlačítkem.', 'raynet-lead-api-integration' ); ?>
+				<?php esc_html_e( 'Tohle jsou pole, která formulář teď má. U každého vyberte, kam v RAYNETu patří. Pro pole, které v RAYNETu protějšek nemá, zvolte Zapsat do poznámky — jeho hodnota se připíše do poznámky leadu pod popiskem pole. Soubory z polí pro nahrání se k leadu přiloží jako přílohy. Řádky označené jako návrh plugin odhadl; uloží se až tlačítkem.', 'raynet-lead-api-integration' ); ?>
 			</p>
 
 			<?php if ( empty( $fields ) ) : ?>
@@ -867,6 +867,18 @@ class Raynet_Elementor_Forms_Admin {
 								</td>
 								<td><?php echo esc_html( $field['type'] ); ?></td>
 								<td>
+									<?php if ( 'upload' === $field['type'] ) : ?>
+										<select name="target[<?php echo esc_attr( $field['id'] ); ?>]">
+											<option value="<?php echo esc_attr( Raynet_Elementor_Forms::TARGET_ATTACH ); ?>" <?php selected( $selected, Raynet_Elementor_Forms::TARGET_ATTACH ); ?>><?php esc_html_e( 'Přiložit k leadu jako přílohu', 'raynet-lead-api-integration' ); ?></option>
+											<option value="-" <?php selected( $selected, '-' ); ?>><?php esc_html_e( '— Neodesílat —', 'raynet-lead-api-integration' ); ?></option>
+										</select>
+										<?php $this->extras_note( $extras, $field ); ?>
+									</td>
+								</tr>
+										<?php
+										continue;
+									endif;
+									?>
 									<select name="target[<?php echo esc_attr( $field['id'] ); ?>]">
 										<option value="-" <?php selected( $selected, '-' ); ?>><?php esc_html_e( '— Neodesílat —', 'raynet-lead-api-integration' ); ?></option>
 										<option value="<?php echo esc_attr( Raynet_Elementor_Forms::TARGET_NOTICE ); ?>" <?php selected( $selected, Raynet_Elementor_Forms::TARGET_NOTICE ); ?>><?php esc_html_e( 'Zapsat do poznámky leadu', 'raynet-lead-api-integration' ); ?></option>
@@ -899,27 +911,7 @@ class Raynet_Elementor_Forms_Admin {
 											?>
 										</span>
 									<?php endif; ?>
-									<?php if ( ! empty( $extras[ (string) $field['id'] ] ) ) : ?>
-										<br /><span class="description">
-											<?php
-											printf(
-												/* translators: %s: list of RAYNET attributes. */
-												esc_html__( 'Pole plní také: %s. Zůstane to tak, dokud tu výběr nezměníte.', 'raynet-lead-api-integration' ),
-												esc_html(
-													implode(
-														', ',
-														array_map(
-															static function ( $remote ) {
-																return html_entity_decode( Raynet_Elementor_Forms::target_label( $remote ), ENT_QUOTES, 'UTF-8' );
-															},
-															$extras[ (string) $field['id'] ]
-														)
-													)
-												)
-											);
-											?>
-										</span>
-									<?php endif; ?>
+									<?php $this->extras_note( $extras, $field ); ?>
 								</td>
 							</tr>
 						<?php endforeach; ?>
@@ -955,6 +947,36 @@ class Raynet_Elementor_Forms_Admin {
 				</p>
 			</form>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Says which other attributes a field feeds, besides the one shown.
+	 *
+	 * @param array<string,string[]> $extras Field id => attribute ids.
+	 * @param array<string,string>   $field  Field.
+	 * @return void
+	 */
+	private function extras_note( array $extras, array $field ) {
+		if ( empty( $extras[ (string) $field['id'] ] ) ) {
+			return;
+		}
+
+		$labels = array();
+
+		foreach ( $extras[ (string) $field['id'] ] as $remote ) {
+			$labels[] = html_entity_decode( Raynet_Elementor_Forms::target_label( $remote ), ENT_QUOTES, 'UTF-8' );
+		}
+		?>
+		<br /><span class="description">
+			<?php
+			printf(
+				/* translators: %s: list of RAYNET attributes. */
+				esc_html__( 'Pole plní také: %s. Zůstane to tak, dokud tu výběr nezměníte.', 'raynet-lead-api-integration' ),
+				esc_html( implode( ', ', $labels ) )
+			);
+			?>
+		</span>
 		<?php
 	}
 

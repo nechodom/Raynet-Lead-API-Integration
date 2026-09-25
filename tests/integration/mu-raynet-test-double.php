@@ -52,6 +52,37 @@ add_filter(
 			);
 		}
 
+		// A RAYNET outage, switched on by the suite for the fallback tests.
+		if ( false !== strpos( $url, 'raynet' ) && false !== strpos( $url, '/lead/' ) && get_option( 'raynet_test_refuse_leads' ) ) {
+			return array(
+				'headers'  => array(),
+				'body'     => '{}',
+				'response' => array( 'code' => 503, 'message' => 'Service Unavailable' ),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		}
+
+		// The first step of an attachment: RAYNET stores the file and names it.
+		if ( false !== strpos( $url, 'raynet' ) && false !== strpos( $url, '/fileUpload' ) ) {
+			preg_match( '/filename="([^"]*)"/', (string) ( isset( $args['body'] ) ? $args['body'] : '' ), $name );
+
+			return array(
+				'headers'  => array(),
+				'body'     => wp_json_encode(
+					array(
+						'uuid'        => 'test-uuid-' . md5( (string) $args['body'] ),
+						'fileName'    => isset( $name[1] ) ? $name[1] : 'soubor',
+						'contentType' => 'application/pdf',
+						'fileSize'    => strlen( (string) $args['body'] ),
+					)
+				),
+				'response' => array( 'code' => 200, 'message' => 'OK' ),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		}
+
 		if ( false !== strpos( $url, 'raynet' ) ) {
 			return array(
 				'headers'  => array(),
@@ -85,4 +116,28 @@ add_filter(
 	},
 	10,
 	3
+);
+
+// Mail is captured instead of sent: what went out, with which attachments.
+add_filter(
+	'pre_wp_mail',
+	function ( $return, $atts ) {
+		$mails   = get_option( 'raynet_test_mails', array() );
+		$mails[] = array(
+			'to'          => $atts['to'],
+			'subject'     => $atts['subject'],
+			'message'     => $atts['message'],
+			'attachments' => array_map(
+				function ( $path ) {
+					return array( 'name' => basename( $path ), 'exists' => is_file( $path ), 'content' => is_file( $path ) ? (string) file_get_contents( $path ) : '' );
+				},
+				array_values( (array) $atts['attachments'] )
+			),
+		);
+		update_option( 'raynet_test_mails', $mails, false );
+
+		return true;
+	},
+	10,
+	2
 );

@@ -324,6 +324,7 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 			$form_settings = (array) $record->get( 'form_settings' );
 			$mapped        = $this->mapped_values( $record, $form_settings );
 			$mapped['extras'] = $this->merge_lines( $this->noted_values( $record, $form_settings ), $mapped['extras'] );
+			$mapped['extras'] = $this->merge_lines( $mapped['extras'], Raynet_Elementor_Attachments::note_lines() );
 
 			$form   = new Raynet_Lead_Form();
 			$values = $form->collect_values( $mapped['basic'] );
@@ -355,6 +356,10 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 					// A formal GDPR record needs proof: a mapped box that was ticked.
 					// The switch only ever claims consent in the note.
 					'raynet_consent_record' => true === $mapped['consent'],
+					'raynet_message_label'  => $mapped['message_label'],
+					// Copies of the uploaded files, for the fallback e-mail should
+					// RAYNET refuse the lead.
+					'raynet_files'          => Raynet_Elementor_Attachments::mail_files(),
 					'raynet_attributes'    => $mapped['attributes'],
 					'raynet_custom_fields' => $mapped['custom'],
 					'raynet_extras'        => $mapped['extras'],
@@ -372,6 +377,20 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 
 			if ( ! empty( $result['lead_id'] ) ) {
 				$ajax_handler->add_response_data( 'raynet_lead_id', (int) $result['lead_id'] );
+
+				$attached = Raynet_Elementor_Attachments::send( Raynet_Lead_Api_Client::from_settings(), (int) $result['lead_id'] );
+
+				// The lead exists; a file RAYNET refused is reported, not fatal.
+				if ( ! empty( $attached['failed'] ) ) {
+					$form->report_error(
+						sprintf(
+							/* translators: 1: lead id, 2: list of failures. */
+							__( 'Lead %1$d byl založen, ale některé přílohy se k němu nepodařilo nahrát: %2$s', 'raynet-lead-api-integration' ),
+							(int) $result['lead_id'],
+							implode( '; ', $attached['failed'] )
+						)
+					);
+				}
 			}
 		} catch ( \Exception $e ) {
 			// Elementor turns this into an admin-only notice and shows the
@@ -427,12 +446,13 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 			? (array) $form_settings[ self::ACTION_NAME . '_fields_map' ]
 			: array();
 		$result = array(
-			'basic'        => array(),
-			'attributes'   => array(),
-			'custom'       => array(),
-			'extras'       => array(),
-			'consent'      => null,
-			'consent_text' => '',
+			'basic'         => array(),
+			'attributes'    => array(),
+			'custom'        => array(),
+			'extras'        => array(),
+			'consent'       => null,
+			'consent_text'  => '',
+			'message_label' => '',
 		);
 		$titles = array();
 
@@ -464,6 +484,12 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 
 			if ( Raynet_Lead_Form_Definition::is_lead_source( $remote ) ) {
 				$result['basic'][ $remote ] = $fields[ $local ];
+
+				// The note says which field the message was typed into.
+				if ( 'message' === $remote && isset( $titles[ $local ] ) ) {
+					$result['message_label'] = $titles[ $local ];
+				}
+
 				continue;
 			}
 

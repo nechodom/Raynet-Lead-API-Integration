@@ -553,7 +553,49 @@ check( 'změna pole zruší všechny jeho staré atributy', array( isset( $moved
 
 check( 'změna pole, které formulář nemá, se ignoruje', Raynet_Elementor_Forms::apply_targets( $rich, array( 'neni' => 'phone' ), false )['raynet_crm_fields_map'], Raynet_Elementor_Forms::apply_targets( $rich, array(), false )['raynet_crm_fields_map'] );
 
-check( 'obrazovka zná další atributy pole', Raynet_Elementor_Forms::extra_targets( $rich ), array( 'em' => array( 'email2' ) ) );
+check( 'obrazovka zná další atributy pole', Raynet_Elementor_Forms::extra_targets( $rich ), array( 'em' => array( 'email2' ), 'cv' => array( 'cf:Priloha_z1' ) ) );
+
+// Uploads: attached by default, left out on request, never mapped as text.
+$upload_targets = Raynet_Elementor_Forms::field_targets( $rich );
+check( 'nahrávací pole se přikládá', $upload_targets['cv'], '__attach' );
+check( 'vynechané nahrávací pole', Raynet_Elementor_Forms::field_targets( array_merge( $rich, array( 'raynet_crm_ignored_fields' => array( 'cv' ) ) ) )['cv'], '-' );
+check( 'nahrávací pole: přiložit i vynechat projde', Raynet_Elementor_Forms::validate_targets( $rich, array( 'cv' => '-' ) ), array( 'cv' => '-' ) );
+check( 'nahrávací pole nejde do atributu', Raynet_Elementor_Forms::validate_targets( $rich, array( 'cv' => 'email2' ) ), array() );
+check( 'textové pole nejde přiložit', Raynet_Elementor_Forms::validate_targets( $rich, array( 'msg' => '__attach' ) ), array() );
+$upload_off = Raynet_Elementor_Forms::apply_targets( $rich, array( 'cv' => '-' ), false );
+check( 'vynechání uloží pole mezi vynechaná', in_array( 'cv', $upload_off['raynet_crm_ignored_fields'], true ), true );
+check( 'vynechání přílohy nesmaže mapování z editoru', Raynet_Elementor_Forms::current_map( $upload_off )['cf:Priloha_z1'], 'cv' );
+$upload_on = Raynet_Elementor_Forms::apply_targets( $upload_off, array( 'cv' => '__attach' ), false );
+check( 'znovu přiložit vrátí pole z vynechaných', in_array( 'cv', $upload_on['raynet_crm_ignored_fields'], true ), false );
+check( 'a mapování z editoru pořád drží', Raynet_Elementor_Forms::current_map( $upload_on )['cf:Priloha_z1'], 'cv' );
+
+// The fallback e-mail takes files only up to what a mail server accepts.
+$pending_ref = new ReflectionProperty( 'Raynet_Elementor_Attachments', 'pending' );
+$pending_ref->setAccessible( true );
+$pending_ref->setValue( null, array(
+	'a' => array(
+		array( 'name' => 'mala.pdf', 'path' => '/tmp/x/mala.pdf', 'size' => 3 * 1048576, 'reason' => '', 'label' => 'Příloha', 'type' => 'application/pdf' ),
+		array( 'name' => 'velka.pdf', 'path' => '/tmp/y/velka.pdf', 'size' => 9 * 1048576, 'reason' => '', 'label' => 'Příloha', 'type' => 'application/pdf' ),
+		array( 'name' => 'dalsi.pdf', 'path' => '/tmp/z/dalsi.pdf', 'size' => 2 * 1048576, 'reason' => '', 'label' => 'Příloha', 'type' => 'application/pdf' ),
+		array( 'name' => 'obri.pdf', 'path' => '', 'size' => 30 * 1048576, 'reason' => 'size', 'label' => 'Příloha', 'type' => 'application/pdf' ),
+	),
+) );
+check( 'e-mail vezme, co se vejde', Raynet_Elementor_Attachments::mail_files(), array( 'attach' => array( '/tmp/x/mala.pdf', '/tmp/z/dalsi.pdf' ), 'skipped' => array( 'velka.pdf' ) ) );
+check( 'poznámka zmíní nepřiložený soubor', Raynet_Elementor_Attachments::note_lines(), array( 'Příloha' => 'mala.pdf, velka.pdf, dalsi.pdf, obri.pdf (nepřiloženo — větší než 20 MB)' ) );
+$pending_ref->setValue( null, array() );
+check( 'nahrávací pole nemá nerozhodnutý stav', in_array( 'cv', array_keys( Raynet_Elementor_Forms::field_targets( $rich ), '', true ), true ), false );
+
+// The message sits under the name of the field it came from.
+$labelled = call_private( new Raynet_Lead_Form(), 'build_notice', array(
+	array( 'message' => 'Prosím o nabídku.' ) + array_fill_keys( Raynet_Lead_Form::SUPPORTED_FIELDS, '' ),
+	Raynet_Lead_Settings::all(),
+	'',
+	array(),
+	false,
+	'',
+	'Popis poptávky',
+) );
+check( 'zpráva pod názvem pole', false !== strpos( $labelled, "Popis poptávky:\nProsím o nabídku." ), true );
 
 $unknown_target = Raynet_Elementor_Forms::validate_targets( $rich, array( 'msg' => 'owner' ) );
 check( 'neznámý cíl je chyba, ne tiché zahození', is_wp_error( $unknown_target ) ? $unknown_target->get_error_code() : '', 'raynet_unknown_target' );

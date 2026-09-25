@@ -1426,6 +1426,150 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'nastavení má sekci GDPR', false !== strpos( $settings_view['body'], 'GDPR souhlas v RAYNETu' ), true );
 		check( 'nastavení má šablonu právního titulu', false !== strpos( $settings_view['body'], '[gdpr_template]' ), true );
 
+		// --- Attachments and the message label, through Elementor's own handler
+		$files_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Poptávka s přílohou', 'post_status' => 'publish' ) );
+		update_post_meta( $files_page, '_elementor_edit_mode', 'builder' );
+		$files_form = array(
+			'id'         => 'filesform',
+			'elType'     => 'widget',
+			'widgetType' => 'form',
+			'settings'   => array(
+				'form_name'             => 'S přílohou',
+				'submit_actions'        => array( 'email', 'raynet_crm' ),
+				'form_fields'           => array(
+					array( '_id' => 'fn', 'custom_id' => 'fn', 'field_type' => 'text', 'field_label' => 'Jméno a příjmení' ),
+					array( '_id' => 'fe', 'custom_id' => 'fe', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+					array( '_id' => 'fz', 'custom_id' => 'fz', 'field_type' => 'textarea', 'field_label' => 'Popis poptávky' ),
+					array( '_id' => 'fp', 'custom_id' => 'fp', 'field_type' => 'upload', 'field_label' => 'Fotografie střechy', 'attachment_type' => 'attach', 'allow_multiple_upload' => 'yes', 'file_types' => 'pdf,jpg,txt' ),
+				),
+				'raynet_crm_fields_map' => array(
+					array( 'remote_id' => 'fullName', 'local_id' => 'fn' ),
+					array( 'remote_id' => 'email', 'local_id' => 'fe' ),
+					array( 'remote_id' => 'message', 'local_id' => 'fz' ),
+				),
+			),
+			'elements'   => array(),
+		);
+		update_post_meta( $files_page, '_elementor_data', wp_slash( wp_json_encode( array( $files_form ) ) ) );
+
+		$upload_dir = wp_upload_dir();
+		$sample     = trailingslashit( get_temp_dir() ) . 'nabidka-strechy.txt';
+		file_put_contents( $sample, "Obsah přílohy pro RAYNET\n" );
+
+		$send_files = function ( array $fields, array $files ) use ( $base, $files_page ) {
+			$post = array(
+				'action'     => 'elementor_pro_forms_send_form',
+				'post_id'    => (string) $files_page,
+				'form_id'    => 'filesform',
+				'queried_id' => (string) $files_page,
+			);
+			foreach ( $fields as $key => $value ) {
+				$post[ 'form_fields[' . $key . ']' ] = $value;
+			}
+			foreach ( $files as $key => $path ) {
+				$post[ 'form_fields[' . $key . '][]' ] = new CURLFile( $path, 'text/plain', basename( $path ) );
+			}
+			$ch = curl_init( $base . '/wp-admin/admin-ajax.php' );
+			curl_setopt_array( $ch, array( CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $post, CURLOPT_TIMEOUT => 60 ) );
+			$body = (string) curl_exec( $ch );
+			return json_decode( $body, true );
+		};
+
+		update_option( 'raynet_test_http_calls', array() );
+		$files_response = $send_files(
+			array( 'fn' => 'Karel Střecha', 'fe' => 'karel@example.cz', 'fz' => 'Prosím o nabídku zateplení.' ),
+			array( 'fp' => $sample )
+		);
+		wp_cache_flush();
+
+		$files_calls = get_option( 'raynet_test_http_calls', array() );
+		$upload_call = null;
+		$attach_call = null;
+		$files_lead  = null;
+		foreach ( $files_calls as $call ) {
+			if ( false !== strpos( $call['url'], '/fileUpload' ) ) {
+				$upload_call = $call;
+			} elseif ( false !== strpos( $call['url'], '/attachment/' ) ) {
+				$attach_call = $call;
+			} elseif ( false !== strpos( $call['url'], '/lead/' ) ) {
+				$files_lead = json_decode( $call['body'], true );
+			}
+		}
+
+		check( 'odeslání s přílohou založilo lead', isset( $files_response['data']['data']['raynet_lead_id'] ) ? $files_response['data']['data']['raynet_lead_id'] : 0, 4242 );
+		check( 'soubor se nahrál do RAYNETu', null !== $upload_call, true );
+		check( 'nahrání je multipart s polem file', null !== $upload_call && false !== strpos( $upload_call['body'], 'name="file"; filename="nabidka-strechy.txt"' ), true );
+		check( 'nahrál se obsah souboru', null !== $upload_call && false !== strpos( $upload_call['body'], 'Obsah přílohy pro RAYNET' ), true );
+		check( 'soubor se připojil k leadu', null !== $attach_call && false !== strpos( $attach_call['url'], '/attachment/lead/4242/' ), true );
+		check( 'připojení nese UUID', null !== $attach_call && false !== strpos( $attach_call['body'], 'test-uuid-' ), true );
+		check( 'připojení až po založení leadu', null !== $files_lead && array_search( $attach_call, $files_calls, true ) > array_search( $upload_call, $files_calls, true ), true );
+		check( 'poznámka jmenuje přílohu pod polem', isset( $files_lead['notice'] ) && false !== strpos( $files_lead['notice'], 'Fotografie střechy: nabidka-strechy.txt' ), true );
+		check( 'zpráva v poznámce pod názvem pole', isset( $files_lead['notice'] ) && false !== strpos( $files_lead['notice'], "Popis poptávky:\nProsím o nabídku zateplení." ), true );
+
+		$leftover = glob( trailingslashit( get_temp_dir() ) . 'raynet-att-*', GLOB_ONLYDIR );
+		check( 'dočasné kopie po odeslání uklizené', is_array( $leftover ) ? count( $leftover ) : 0, 0 );
+
+		// RAYNET is down: the fallback e-mail carries the file under its own name.
+		$fallback_before = get_option( Raynet_Lead_Settings::OPTION );
+		update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array_merge( (array) $fallback_before, array( 'fallback_email' => 'zaloha@example.cz' ) ) ) );
+		update_option( 'raynet_test_refuse_leads', 1 );
+		update_option( 'raynet_test_mails', array() );
+		update_option( 'raynet_test_http_calls', array() );
+		$send_files( array( 'fn' => 'Karel Střecha', 'fe' => 'karel@example.cz', 'fz' => 'RAYNET neběží.' ), array( 'fp' => $sample ) );
+		delete_option( 'raynet_test_refuse_leads' );
+		update_option( Raynet_Lead_Settings::OPTION, $fallback_before );
+		wp_cache_flush();
+
+		$fallback_mail = null;
+		foreach ( get_option( 'raynet_test_mails', array() ) as $mail ) {
+			if ( 'zaloha@example.cz' === $mail['to'] ) {
+				$fallback_mail = $mail;
+			}
+		}
+		$fallback_names = null !== $fallback_mail ? array_column( $fallback_mail['attachments'], 'name' ) : array();
+		check( 'záložní e-mail odešel', null !== $fallback_mail, true );
+		check( 'záložní e-mail nese přílohu pod původním jménem', $fallback_names, array( 'nabidka-strechy.txt' ) );
+		check( 'příloha záložního e-mailu má obsah', null !== $fallback_mail && isset( $fallback_mail['attachments'][0] ) && false !== strpos( $fallback_mail['attachments'][0]['content'], 'Obsah přílohy' ), true );
+		$fallback_uploads = 0;
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/fileUpload' ) ) {
+				$fallback_uploads++;
+			}
+		}
+		check( 'bez leadu se do RAYNETu nic nenahrává', $fallback_uploads, 0 );
+
+		// A visitor posting a server path as the upload field's value, with no
+		// file, must not get that file sent anywhere.
+		update_option( 'raynet_test_http_calls', array() );
+		$send_files( array( 'fn' => 'Útočník', 'fe' => 'zly@example.cz', 'fz' => 'x', 'fp' => ABSPATH . 'wp-config.php' ), array() );
+		wp_cache_flush();
+		$spoof_uploads = 0;
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/fileUpload' ) ) {
+				$spoof_uploads++;
+			}
+		}
+		check( 'podstrčená cesta se nenahraje', $spoof_uploads, 0 );
+
+		// Left out on the mapping screen: not attached.
+		Raynet_Elementor_Forms::save_targets( $files_page, 'filesform', array( 'fp' => '-' ), false );
+		update_option( 'raynet_test_http_calls', array() );
+		$send_files( array( 'fn' => 'Karel Střecha', 'fe' => 'karel@example.cz', 'fz' => 'Bez přílohy.' ), array( 'fp' => $sample ) );
+		wp_cache_flush();
+		$skipped_uploads = 0;
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/fileUpload' ) ) {
+				$skipped_uploads++;
+			}
+		}
+		check( 'vynechané pole se nepřikládá', $skipped_uploads, 0 );
+
+		$files_view = req( '/wp-admin/admin.php?page=raynet-elementor-forms&mapovat=' . rawurlencode( $files_page . ':filesform' ), null, true );
+		check( 'obrazovka nabízí přiložení', false !== strpos( $files_view['body'], 'Přiložit k leadu jako přílohu' ), true );
+
+		unlink( $sample );
+		wp_delete_post( $files_page, true );
+
 		// --- A cap that dropped the oldest pages -------------------------------
 		// Two hundred newer posts saved with Elementor used to push an old
 		// contact page out of the list.
@@ -1469,6 +1613,13 @@ if ( file_exists( $log ) ) {
 
 		// The SQLite driver is noisy on PHP 8.5 and is not ours.
 		if ( false !== strpos( $line, 'sqlite-database-integration' ) || false !== strpos( $line, 'wp-cli.phar' ) ) {
+			continue;
+		}
+
+		// Elementor Pro's own warnings when a request carries no file part at
+		// all, which the forged-path test above sends on purpose and no browser
+		// ever does.
+		if ( false !== strpos( $line, 'elementor-pro/modules/forms/fields/upload.php' ) ) {
 			continue;
 		}
 
