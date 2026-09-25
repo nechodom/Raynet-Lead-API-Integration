@@ -179,7 +179,7 @@ Chci newsletter: ne
 
 U zaškrtávátka se zapíše i odpověď „ne" — u dotazu na newsletter je to ta zajímavější.
 
-**Souhlas se zpracováním** — zaškrtávátko GDPR. Jeho text je prostý: HTML včetně odkazů se při uložení odstraní, odkaz na zásady proto dejte do textu nad formulářem. Formulář ho může mít nejvýš jeden a je vždy povinný; nepovinné zaškrtávátko souhlasu je horší než žádné. Do poznámky leadu se zapíše datum, čas a znění souhlasu, a s nastavenou šablonou vznikne i GDPR záznam — viz [GDPR](#gdpr).
+**Souhlas se zpracováním** — zaškrtávátko GDPR. V jeho textu jsou povolené odkazy (`<a>` s `href`, `target` a `rel`) a zvýraznění (`<strong>`, `<em>`); ostatní HTML se při uložení odstraní. Odkaz na zásady zpracování tak vložíte rovnou do textu u zaškrtávátka. Formulář ho může mít nejvýš jeden a je vždy povinný; nepovinné zaškrtávátko souhlasu je horší než žádné. Do poznámky leadu se zapíše datum, čas a znění souhlasu jako prostý text (bez značek), a s nastavenou šablonou vznikne i GDPR záznam — viz [GDPR](#gdpr).
 
 > Souhlas se od verze 2.1 nastavuje na formuláři, ne v nastavení pluginu. Formulář bez pole souhlasu do CRM nenapíše, že souhlas padl.
 

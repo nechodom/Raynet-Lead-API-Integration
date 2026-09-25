@@ -176,6 +176,26 @@ check( 'builder načítá svůj skript', false !== strpos( $edit['body'], 'rayne
 check( 'builder načítá svůj styl', false !== strpos( $edit['body'], 'raynet-form-builder.css' ), true );
 check( 'builder je lokalizovaný', false !== strpos( $edit['body'], 'raynetFormBuilder' ), true );
 
+// The consent label promises a link to the privacy policy, so a real save must
+// keep the <a> while stripping script and event-handler markup; every other
+// label stays plain text.
+$consent_probe = array(
+	array( 'source' => 'firstName', 'label' => 'Jméno <a href="/x">odkaz</a>' ),
+	array( 'source' => 'consent', 'label' => 'Souhlasím se <a href="/gdpr" target="_blank" rel="noopener" onclick="steal()">zásadami</a>.<script>evil()</script>' ),
+);
+$fields_backup = get_post_meta( $default, Raynet_Lead_Form_Post_Type::META_FIELDS, true );
+Raynet_Lead_Form_Post_Type::save_fields( $default, $consent_probe );
+$saved_fields = Raynet_Lead_Form_Post_Type::get_fields( $default );
+update_post_meta( $default, Raynet_Lead_Form_Post_Type::META_FIELDS, $fields_backup );
+
+$saved_by_source = array_column( $saved_fields, 'label', 'source' );
+$saved_consent   = isset( $saved_by_source['consent'] ) ? $saved_by_source['consent'] : '';
+
+check( 'uložený souhlas nese odkaz',  false !== strpos( $saved_consent, '<a href="/gdpr"' ), true );
+check( 'uložený souhlas bez onclick', false !== strpos( $saved_consent, 'onclick' ), false );
+check( 'uložený souhlas bez script',  false !== strpos( $saved_consent, '<script' ), false );
+check( 'jiné uložené pole bez HTML',  isset( $saved_by_source['firstName'] ) ? $saved_by_source['firstName'] : '', 'Jméno odkaz' );
+
 // The preview is rendered into the post edit form, so its controls must not
 // take part in it: a required one blocks Update, a named one is saved with the
 // post.

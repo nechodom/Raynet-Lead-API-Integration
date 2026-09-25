@@ -46,6 +46,25 @@ class Raynet_Lead_Form_Definition {
 	const CUSTOM_TYPES = array( 'text', 'textarea', 'select', 'checkbox' );
 
 	/**
+	 * Inline tags the consent label may keep.
+	 *
+	 * The consent wording promises a link to the privacy policy, so its label
+	 * is the one label that survives sanitising with markup. Every other label
+	 * stays plain text.
+	 *
+	 * @var array<string,array<string,bool>>
+	 */
+	const CONSENT_LABEL_TAGS = array(
+		'a'      => array(
+			'href'   => true,
+			'target' => true,
+			'rel'    => true,
+		),
+		'strong' => array(),
+		'em'     => array(),
+	);
+
+	/**
 	 * Counter making ids unique within one sanitize_fields() call.
 	 *
 	 * @var int
@@ -213,7 +232,7 @@ class Raynet_Lead_Form_Definition {
 			return null;
 		}
 
-		$label = isset( $raw['label'] ) ? sanitize_text_field( (string) $raw['label'] ) : '';
+		$label = isset( $raw['label'] ) ? self::sanitize_label( $source, (string) $raw['label'] ) : '';
 
 		if ( '' === trim( $label ) ) {
 			if ( 'custom' === $source ) {
@@ -348,6 +367,27 @@ class Raynet_Lead_Form_Definition {
 			: '';
 
 		return $clean;
+	}
+
+	/**
+	 * Sanitises a field label.
+	 *
+	 * The consent box keeps a small set of inline tags so its wording can link
+	 * to the privacy policy; the renderer prints that label through
+	 * wp_kses_post(). Every other label is plain text. The consent text copied
+	 * into the lead note is stripped to plain text separately, in
+	 * Raynet_Lead_Form::process().
+	 *
+	 * @param string $source Field source.
+	 * @param string $label  Raw label.
+	 * @return string Clean label.
+	 */
+	private static function sanitize_label( $source, $label ) {
+		if ( 'consent' !== $source ) {
+			return sanitize_text_field( $label );
+		}
+
+		return trim( wp_kses( $label, self::CONSENT_LABEL_TAGS ) );
 	}
 
 	/**

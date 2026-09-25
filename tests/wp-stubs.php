@@ -109,6 +109,30 @@ function esc_attr( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
 function esc_html( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
 function esc_textarea( $t ) { return htmlspecialchars( (string) $t, ENT_QUOTES ); }
 function wp_kses_post( $t ) { return (string) $t; }
+function wp_kses( $string, $allowed_html = array(), $allowed_protocols = array() ) {
+	return preg_replace_callback(
+		'#</?([a-zA-Z0-9]+)((?:\s+[^<>]*)?)/?>#',
+		function ( $m ) use ( $allowed_html ) {
+			$tag = strtolower( $m[1] );
+			if ( ! isset( $allowed_html[ $tag ] ) ) {
+				return ''; // Disallowed tag: drop the markup, keep the text.
+			}
+			if ( '/' === $m[0][1] ) {
+				return '</' . $tag . '>';
+			}
+			$attrs = '';
+			if ( preg_match_all( '#([a-zA-Z0-9\-]+)\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#', $m[2], $found, PREG_SET_ORDER ) ) {
+				foreach ( $found as $a ) {
+					if ( ! empty( $allowed_html[ $tag ][ strtolower( $a[1] ) ] ) ) {
+						$attrs .= ' ' . strtolower( $a[1] ) . '=' . $a[2];
+					}
+				}
+			}
+			return '<' . $tag . $attrs . '>';
+		},
+		(string) $string
+	);
+}
 function is_email( $email ) { return (bool) filter_var( (string) $email, FILTER_VALIDATE_EMAIL ); }
 function wp_check_invalid_utf8( $s ) { return mb_check_encoding( (string) $s, 'UTF-8' ) ? (string) $s : ''; }
 function wp_strip_all_tags( $s ) { return trim( strip_tags( (string) $s ) ); }

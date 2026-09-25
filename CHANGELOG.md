@@ -2,6 +2,12 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.8.1] — 2026-09-25
+
+### Opraveno
+
+- **Odkaz v textu souhlasu se zachová.** Text zaškrtávátka souhlasu smí obsahovat odkazy (`<a>` s `href`, `target` a `rel`) a zvýraznění (`<strong>`, `<em>`) — builder to sliboval a renderer to vykresloval, ale uložení předtím strhlo všechny značky (`sanitize_text_field`), takže odkaz na zásady zpracování z popisku zmizel. Nově se popisek souhlasu čistí přes `wp_kses` s tímto výčtem značek; ostatní pole zůstávají prostý text. Znění zapsané do poznámky leadu je dál prostý text (bez značek).
+
 ## [2.8.0] — 2026-09-25
 
 ### Přidáno
