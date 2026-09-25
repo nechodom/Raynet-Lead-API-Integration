@@ -63,6 +63,26 @@ check( 'neznámý vlastní typ spadne na text',
 check( 'vlastní pole bez popisku vypadne',
 	count( Raynet_Lead_Form_Definition::sanitize_fields( array( array( 'source' => 'custom', 'label' => '  ' ) ) ) ), 0 );
 
+// ---------- Definition: consent label keeps a link ----------
+$consent_label = Raynet_Lead_Form_Definition::sanitize_fields( array(
+	array(
+		'source' => 'consent',
+		'label'  => 'Souhlasím se <a href="/gdpr" target="_blank" rel="noopener" onclick="steal()">zásadami</a>.<script>evil()</script>',
+	),
+) )[0]['label'];
+
+check( 'souhlas: odkaz zůstal',        str_contains( $consent_label, '<a href="/gdpr"' ), true );
+check( 'souhlas: target zůstal',       str_contains( $consent_label, 'target="_blank"' ), true );
+check( 'souhlas: rel zůstal',          str_contains( $consent_label, 'rel="noopener"' ), true );
+check( 'souhlas: onclick pryč',        str_contains( $consent_label, 'onclick' ), false );
+check( 'souhlas: script pryč',         str_contains( $consent_label, '<script' ), false );
+
+// A non-consent field still strips every tag.
+check( 'jiné pole strhne HTML',
+	Raynet_Lead_Form_Definition::sanitize_fields( array(
+		array( 'source' => 'message', 'label' => 'Zpráva <a href="/x">odkaz</a>' ),
+	) )[0]['label'], 'Zpráva odkaz' );
+
 // ---------- Definition: lead settings ----------
 $lead = Raynet_Lead_Form_Definition::sanitize_lead_settings( array(
 	'priority' => 'critical', 'category' => '-3', 'owner' => '7',
