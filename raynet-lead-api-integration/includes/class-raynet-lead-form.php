@@ -326,10 +326,11 @@ class Raynet_Lead_Form {
 	public function handle_rest( WP_REST_Request $request ) {
 		$result = $this->process( $request->get_params() );
 
+		// A new error, not the one from process(): its data carries the real
+		// reason for administrators, and add_data() would only move it aside,
+		// where WordPress still prints it to the anonymous caller.
 		if ( is_wp_error( $result ) ) {
-			$result->add_data( array( 'status' => 400 ) );
-
-			return $result;
+			return new WP_Error( $result->get_error_code(), $result->get_error_message(), array( 'status' => 400 ) );
 		}
 
 		return new WP_REST_Response( array( 'success' => true, 'data' => $result ), 200 );

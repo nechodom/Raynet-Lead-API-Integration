@@ -141,6 +141,16 @@ class Raynet_Lead_Api_Client {
 		for ( $page = 0; $page < 10; $page++ ) {
 			$response = $this->request( 'GET', add_query_arg( array( 'limit' => 1000, 'offset' => $offset ), 'userAccount/' ) );
 
+			// The generic 403 text speaks of creating leads; here the account
+			// may create them and only lack the right to list users.
+			if ( is_wp_error( $response ) && 403 === $this->status_of( $response ) ) {
+				return new WP_Error(
+					$response->get_error_code(),
+					__( 'Uživatel API nemá v RAYNETu oprávnění vypisovat uživatele (403). Vlastníka zadejte číslem, nebo mu oprávnění přidejte.', 'raynet-lead-api-integration' ),
+					$response->get_error_data()
+				);
+			}
+
 			if ( is_wp_error( $response ) ) {
 				return $response;
 			}
@@ -428,6 +438,18 @@ class Raynet_Lead_Api_Client {
 				'body'   => $decoded,
 			)
 		);
+	}
+
+	/**
+	 * HTTP status of an error the API answered with, 0 for a transport error.
+	 *
+	 * @param WP_Error $error Error from request().
+	 * @return int Status.
+	 */
+	private function status_of( WP_Error $error ) {
+		$data = $error->get_error_data();
+
+		return is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
 	}
 
 	/**

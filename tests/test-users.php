@@ -97,6 +97,14 @@ $GLOBALS['wp_request_queue'] = array();
 $GLOBALS['wp_next_response'] = array( 'code' => 200, 'body' => '<html>údržba</html>' );
 check( 'odpověď bez dat je chyba', is_wp_error( client()->get_users() ), true );
 
+// A key that may create leads but not list users: say so, not "create leads".
+$GLOBALS['wp_next_response'] = array( 'code' => 403, 'body' => '{}' );
+$forbidden = client()->get_users();
+check( '403 je chyba', is_wp_error( $forbidden ), true );
+check( '403 mluví o vypisování uživatelů', is_wp_error( $forbidden ) && false !== strpos( $forbidden->get_error_message(), 'vypisovat uživatele (403)' ), true );
+check( '403 nemluví o leadech', is_wp_error( $forbidden ) && false !== strpos( $forbidden->get_error_message(), 'zakládat leady' ), false );
+check( '403 nese stav', is_wp_error( $forbidden ) ? $forbidden->get_error_data()['status'] : 0, 403 );
+
 // ---------- Keeping the list ----------
 update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array(
 	'region' => 'cz', 'username' => 'u@e.cz', 'api_key' => 'K', 'instance_name' => 'inst',

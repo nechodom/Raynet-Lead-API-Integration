@@ -60,7 +60,7 @@ add_filter(
 				return array(
 					'headers'  => array(),
 					'body'     => wp_json_encode( array( 'message' => 'Nemáte dostatečná oprávnění' ) ),
-					'response' => array( 'code' => 500, 'message' => 'Internal Server Error' ),
+					'response' => array( 'code' => 403, 'message' => 'Forbidden' ),
 					'cookies'  => array(),
 					'filename' => null,
 				);

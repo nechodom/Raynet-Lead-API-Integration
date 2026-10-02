@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-02T09:00:26+00:00\n"
+"POT-Creation-Date: 2026-10-02T09:43:15+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: raynet-lead-api-integration\n"
@@ -507,63 +507,67 @@ msgid "Smazat všechna data pluginu při odinstalaci."
 msgstr ""
 
 #: includes/class-raynet-api-client.php:149
-#: includes/class-raynet-api-client.php:287
+msgid "Uživatel API nemá v RAYNETu oprávnění vypisovat uživatele (403). Vlastníka zadejte číslem, nebo mu oprávnění přidejte."
+msgstr ""
+
+#: includes/class-raynet-api-client.php:159
+#: includes/class-raynet-api-client.php:297
 msgid "RAYNET vrátil neočekávanou odpověď bez dat. Zkontrolujte adresu API."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:203
+#: includes/class-raynet-api-client.php:213
 msgid "Soubor se nepodařilo přečíst."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:234
+#: includes/class-raynet-api-client.php:244
 msgid "RAYNET po nahrání souboru nevrátil jeho identifikátor."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:343
+#: includes/class-raynet-api-client.php:353
 msgid "Není nastavena adresa RAYNET API."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:350
+#: includes/class-raynet-api-client.php:360
 msgid "Chybí uživatelské jméno nebo API klíč."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:357
+#: includes/class-raynet-api-client.php:367
 msgid "Chybí název instance (X-Instance-Name) ani její ID."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:392
+#: includes/class-raynet-api-client.php:402
 msgid "Data se nepodařilo zakódovat do JSON."
 msgstr ""
 
 #. translators: %s: transport error message.
-#: includes/class-raynet-api-client.php:405
+#: includes/class-raynet-api-client.php:415
 #, php-format
 msgid "Spojení s RAYNET API selhalo: %s"
 msgstr ""
 
-#: includes/class-raynet-api-client.php:444
+#: includes/class-raynet-api-client.php:466
 msgid "RAYNET odmítl přihlášení (401). Zkontrolujte e-mail, API klíč a název instance. Po 20 neúspěšných pokusech RAYNET blokuje IP adresu na 60 minut."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:447
+#: includes/class-raynet-api-client.php:469
 msgid "Uživatel nemá oprávnění zakládat leady (403)."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:450
+#: includes/class-raynet-api-client.php:472
 msgid "Endpoint nebyl nalezen (404). Zkontrolujte zvolený region RAYNET API."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:453
+#: includes/class-raynet-api-client.php:475
 msgid "Byl překročen limit RAYNET API (429). Zkuste to prosím za chvíli."
 msgstr ""
 
 #. translators: 1: HTTP status code, 2: error detail from the API.
-#: includes/class-raynet-api-client.php:470
+#: includes/class-raynet-api-client.php:492
 #, php-format
 msgid "RAYNET API vrátilo chybu %1$d: %2$s"
 msgstr ""
 
-#: includes/class-raynet-api-client.php:472
+#: includes/class-raynet-api-client.php:494
 msgid "bez dalších údajů."
 msgstr ""
 
@@ -970,115 +974,115 @@ msgstr ""
 msgid "RAYNET: není nastaven výchozí formulář. Založte ho v RAYNET CRM → Formuláře."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:361
+#: includes/class-raynet-lead-form.php:362
 msgid "Platnost formuláře vypršela. Zkuste to prosím znovu."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:411
+#: includes/class-raynet-lead-form.php:412
 msgid "Bez souhlasu se zpracováním údajů nelze formulář odeslat."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:436
+#: includes/class-raynet-lead-form.php:437
 msgid "Vyplňte prosím e-mail nebo telefon."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:443
+#: includes/class-raynet-lead-form.php:444
 #: includes/elementor/class-raynet-elementor-form-action.php:362
 msgid "Zadaná e-mailová adresa není platná."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:467
-#: includes/class-raynet-lead-form.php:472
+#: includes/class-raynet-lead-form.php:468
+#: includes/class-raynet-lead-form.php:473
 msgid "Plugin není nastaven."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:530
+#: includes/class-raynet-lead-form.php:531
 msgid "Formulář byl úspěšně odeslán. Děkujeme, ozveme se vám."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:550
+#: includes/class-raynet-lead-form.php:551
 msgid "Odeslání formuláře selhalo."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:563
+#: includes/class-raynet-lead-form.php:564
 msgid "Platnost formuláře vypršela. Načtěte prosím stránku znovu."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:572
+#: includes/class-raynet-lead-form.php:573
 msgid "Formulář byl odeslán příliš rychle. Zkuste to prosím znovu."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:580
+#: includes/class-raynet-lead-form.php:581
 msgid "Počkejte prosím chvíli před dalším odesláním."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:711
-#: includes/class-raynet-lead-form.php:1126
+#: includes/class-raynet-lead-form.php:712
+#: includes/class-raynet-lead-form.php:1127
 msgid "ano"
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:712
-#: includes/class-raynet-lead-form.php:1126
+#: includes/class-raynet-lead-form.php:713
+#: includes/class-raynet-lead-form.php:1127
 msgid "ne"
 msgstr ""
 
 #. translators: %s: site name.
-#: includes/class-raynet-lead-form.php:786
+#: includes/class-raynet-lead-form.php:787
 #, php-format
 msgid "Poptávka z webu %s"
 msgstr ""
 
 #. translators: %s: lead topic.
-#: includes/class-raynet-lead-form.php:868
+#: includes/class-raynet-lead-form.php:869
 #, php-format
 msgid "Nový lead z webu: %s"
 msgstr ""
 
 #. translators: 1: lead id, 2: error message.
-#: includes/class-raynet-lead-form.php:939
+#: includes/class-raynet-lead-form.php:940
 #, php-format
 msgid "Lead %1$d byl založen, ale GDPR souhlas se k němu nepodařilo zapsat: %2$s"
 msgstr ""
 
 #. translators: %s: page URL.
-#: includes/class-raynet-lead-form.php:1042
+#: includes/class-raynet-lead-form.php:1043
 #, php-format
 msgid "Odesláno ze stránky: %s"
 msgstr ""
 
 #. translators: %s: date and time of the consent.
-#: includes/class-raynet-lead-form.php:1051
+#: includes/class-raynet-lead-form.php:1052
 #, php-format
 msgid "Souhlas se zpracováním údajů udělen: %s"
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:1081
+#: includes/class-raynet-lead-form.php:1082
 msgid "Lead se nepodařilo odeslat do RAYNET CRM."
 msgstr ""
 
 #. translators: %s: failure reason.
-#: includes/class-raynet-lead-form.php:1084
+#: includes/class-raynet-lead-form.php:1085
 #, php-format
 msgid "Důvod: %s"
 msgstr ""
 
 #. translators: %s: list of file names.
-#: includes/class-raynet-lead-form.php:1146
+#: includes/class-raynet-lead-form.php:1147
 #, php-format
 msgid "Nepřiloženo, na e-mail příliš velké: %s"
 msgstr ""
 
 #. translators: %s: site name.
-#: includes/class-raynet-lead-form.php:1153
+#: includes/class-raynet-lead-form.php:1154
 #, php-format
 msgid "[%s] Neodeslaný lead z webového formuláře"
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:1164
+#: includes/class-raynet-lead-form.php:1165
 msgid "Přílohy se k e-mailu nepodařilo připojit."
 msgstr ""
 
-#: includes/class-raynet-lead-form.php:1183
+#: includes/class-raynet-lead-form.php:1184
 msgid "Odeslání formuláře se nezdařilo. Zkuste to prosím znovu později."
 msgstr ""
 

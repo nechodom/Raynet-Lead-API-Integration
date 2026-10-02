@@ -335,6 +335,37 @@ check( 'bez souhlasu odmítnuto', isset( $refused['data']['code'] ) ? $refused['
 wp_cache_flush();
 check( 'bez souhlasu se nevolá RAYNET', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
 
+// The REST route, as a headless front end calls it: anonymous, no cookie.
+$rest_submission = $submission;
+unset( $rest_submission['action'] );
+
+$rest_ok   = req( '/?rest_route=/raynet-lead/v1/submit', $rest_submission );
+$rest_json = json_decode( $rest_ok['body'], true );
+check( 'REST přijme odeslání', $rest_ok['status'], 200 );
+check( 'REST vrátí lead', ! empty( $rest_json['data']['lead_id'] ), true );
+
+// RAYNET refuses the lead. The visitor gets the configured wording and
+// nothing else: the reason is for administrators (log, last error, e-mail).
+update_option( 'raynet_test_refuse_leads', 1 );
+$rest_failed = req( '/?rest_route=/raynet-lead/v1/submit', $rest_submission );
+$rest_json   = json_decode( $rest_failed['body'], true );
+wp_cache_flush();
+$last_error  = get_option( 'raynet_lead_last_error' );
+$diagnostic  = is_array( $last_error ) && isset( $last_error['message'] ) ? (string) $last_error['message'] : '';
+check( 'REST odmítnutí je 400', $rest_failed['status'], 400 );
+check( 'REST odmítnutí má kód', isset( $rest_json['code'] ) ? $rest_json['code'] : '', 'raynet_api_error' );
+check( 'důvod odmítnutí je zapsaný pro správce', '' !== $diagnostic, true );
+// Compared decoded: WordPress escapes the diacritics in JSON.
+check( 'REST neprozradí důvod návštěvníkovi', '' !== $diagnostic && false !== strpos( (string) wp_json_encode( $rest_json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $diagnostic ), false );
+check( 'REST nemá další data chyby', isset( $rest_json['additional_data'] ) || isset( $rest_json['additional_errors'][0]['data']['diagnostic'] ), false );
+check( 'REST data jen se stavem', isset( $rest_json['data'] ) ? $rest_json['data'] : null, array( 'status' => 400 ) );
+
+$ajax_failed = json_decode( req( '/wp-admin/admin-ajax.php', $submission )['body'], true );
+check( 'AJAX odmítnutí má kód', isset( $ajax_failed['data']['code'] ) ? $ajax_failed['data']['code'] : '', 'raynet_api_error' );
+check( 'AJAX neprozradí důvod návštěvníkovi', '' !== $diagnostic && false !== strpos( (string) wp_json_encode( $ajax_failed, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $diagnostic ), false );
+delete_option( 'raynet_test_refuse_leads' );
+delete_option( 'raynet_lead_last_error' );
+
 echo "\n=== Aktualizace ===\n";
 
 delete_site_transient( 'raynet_lead_latest_release' );
@@ -1508,6 +1539,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$refused_view = req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
 		check( 'bez seznamu číselné pole s hodnotou', (bool) preg_match( '/<input type="number" min="0" id="raynet-owner" name="raynet_lead_settings\[owner\]" value="9"/', $refused_view['body'] ), true );
 		check( 'chyba načtení je u vlastníka vidět', false !== strpos( $refused_view['body'], 'Seznam uživatelů z RAYNETu se nepodařilo načíst' ), true );
+		check( 'u vlastníka je skutečný důvod (403)', false !== strpos( $refused_view['body'], 'nemá v RAYNETu oprávnění vypisovat uživatele (403)' ), true );
 		check( 'odkaz pro načtení je i bez seznamu', false !== strpos( $refused_view['body'], 'Načíst uživatele z RAYNETu' ), true );
 
 		preg_match( '/raynetLeadAdmin = \{[^;]*?"nonce":"([^"]+)"/', $refused_view['body'], $test_nonce );
