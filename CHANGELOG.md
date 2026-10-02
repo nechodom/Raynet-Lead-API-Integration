@@ -2,6 +2,17 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [Nevydáno]
+
+### Opraveno
+
+- **REST endpoint neprozradí návštěvníkovi, proč RAYNET lead odmítl.** Odpověď `POST /wp-json/raynet-lead/v1/submit` při chybě nesla v `additional_data` skutečný důvod z RAYNETu (hlášku API, u neznámé chyby i úryvek odpovědi) — WordPress od verze 5.6 vypisuje i data, která `add_data()` jen odsune stranou. Teď vrací jen kód, hlášku pro návštěvníka a stav 400; důvod zůstává v logu, v **Poslední chyba API** a v záložním e-mailu. Formuláře přes `admin-ajax.php` a Elementor se to netýkalo.
+- **Výběr vlastníka u odmítnutého API klíče** psal „Uživatel nemá oprávnění zakládat leady (403)“, i když klíč leady zakládat smí a chybí mu jen právo vypisovat uživatele. Teď „Uživatel API nemá v RAYNETu oprávnění vypisovat uživatele (403)“.
+
+### Dokumentace
+
+- README prošlo kontrolou proti kódu 2.9.0: opraveno a doplněno přes 30 míst — mimo jiné že šablona se do formuláře kopíruje a po její změně je potřeba ji nasadit znovu (a jak místo toho dědit vlastníka z nastavení), co přesně nasazení přepíše, na které formuláře platí hlášky a ochrana proti spamu, omezení frekvence za proxy, odinstalace, REST endpoint pro vlastní frontend, hook `raynet_lead_split_name` a nové řádky v řešení potíží.
+
 ## [2.9.0] — 2026-10-02
 
 ### Přidáno

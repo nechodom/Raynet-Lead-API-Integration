@@ -117,11 +117,11 @@ Priorita (`MINOR` / `DEFAULT` / `CRITICAL`), přepínač *Fyzická osoba* (`lead
 
 **ID kategorie, stavu leadu a zdroje kontaktu nemusíte hledat ručně** — tlačítko *Otestovat spojení* je po úspěšném přihlášení vypíše. ID bezpečnostní úrovně najdete v RAYNETu.
 
-**Vlastníka leadu vyberete podle jména.** Plugin načte uživatele RAYNETu (`GET /userAccount/`, i víc než 1000 po stránkách) a místo čísla nabídne seznam „Jméno Příjmení (login)". Seznam se načte při *Otestovat spojení*, sám se obnovuje jednou za 12 hodin při návštěvě nastavení, šablon nebo builderu, a odkazem **Načíst znovu** hned. Účty bez kontaktní osoby se nenabízejí. RAYNET jako vlastníka chce ID **kontaktní osoby** uživatele, ne ID jeho účtu — plugin posílá to správné.
+**Vlastníka leadu vyberete podle jména.** Plugin načte uživatele RAYNETu (`GET /userAccount/`, i víc než 1000 po stránkách) a místo čísla nabídne seznam „Jméno Příjmení (login)". Seznam se načte při *Otestovat spojení*, sám se obnovuje jednou za 12 hodin při návštěvě nastavení, šablon nebo builderu, a hned odkazem **Načíst znovu** u pole **Vlastník leadu** v nastavení (ukáže se, jakmile je vyplněné připojení; dokud seznam načtený není, jmenuje se **Načíst uživatele z RAYNETu**). Po neúspěšném načtení to plugin sám znovu zkusí nejdřív za hodinu, aby špatné přihlašovací údaje nevedly k zablokování IP adresy v RAYNETu; odkaz i *Otestovat spojení* načtou seznam hned. Nenabízejí se účty bez kontaktní osoby ani účty, které RAYNET vede jako neplatné. RAYNET jako vlastníka chce ID **kontaktní osoby** uživatele, ne ID jeho účtu — plugin posílá to správné.
 
 Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci RAYNET CRM v Elementoru. Editor Elementoru otevírají i autoři a redaktoři, proto tam výběr ukazuje jen jména; login (e-mail) přidá jen u dvou lidí se stejným jménem, nebo když osoba v RAYNETu jméno nemá.
 
-- Dokud seznam načtený není, zůstává pole pro ID. Když se načíst nepodaří — třeba proto, že API klíč nesmí vypisovat uživatele —, u pole je důvod a test spojení na to upozorní. Nepodaří-li se jen obnovit, výběr dál nabízí seznam načtený dřív.
+- Dokud seznam načtený není, zůstává pole pro ID. Když se načíst nepodaří — třeba proto, že API klíč nesmí vypisovat uživatele („Uživatel API nemá v RAYNETu oprávnění vypisovat uživatele (403)“) —, u pole je důvod a test spojení na to upozorní. Nepodaří-li se jen obnovit, výběr dál nabízí seznam načtený dřív.
 - Vlastník nastavený dřív zůstane vybraný, i když mezi načtenými uživateli není (zobrazí se jako „ID 14 (není mezi načtenými uživateli)").
 - Seznam patří k jednomu připojení. Po změně instance nebo účtu se starý nenabízí a načte se znovu na stránce nastavení, aby se nevybral člověk z jiné instance. Totéž platí pro vlastní pole. Vlastník už uložený ve formulářích se nemění; když jeho ID v nové instanci nikomu nepatří, zobrazí se jako ID mimo seznam. Seznam vlastních polí uložený verzí 2.8 a starší k připojení přiřazený není — při změně instance hned po aktualizaci ho načtěte znovu tlačítkem.
 
@@ -131,7 +131,9 @@ Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci R
 
 ### Chování formuláře
 
-Hlášky po odeslání i při chybě, přesměrování po úspěchu, nastavení ochrany proti spamu, záložní e-mail, zapisování chyb do logu a mazání dat při odinstalaci. Souhlas se zpracováním údajů se nastavuje na formuláři, ne tady.
+Hlášky po odeslání i při chybě, přesměrování po úspěchu, nastavení ochrany proti spamu, záložní e-mail, kontrola aktualizací (viz [Aktualizace](#aktualizace)), zapisování chyb do logu a mazání dat při odinstalaci. Hlášky, přesměrování a ochrana proti spamu platí jen pro formuláře z builderu; formuláře Elementoru mají vlastní (viz [Co obstarává Elementor a co plugin](#co-obstarává-elementor-a-co-plugin)). Záložní e-mail a log platí pro oba. Souhlas se zpracováním údajů se nastavuje na formuláři, ne tady.
+
+**Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API a zálohy stránek z nasazení šablon. Akce RAYNET CRM a mapování uložené ve formulářích Elementoru zůstanou ve stránkách; leady v RAYNETu plugin nemaže nikdy.
 
 ---
 
@@ -141,7 +143,7 @@ Plugin není na wordpress.org, takže si o nové verze říká sám — sleduje 
 
 V **RAYNET CRM → Nastavení → Aktualizace** vidíte nainstalovanou i poslední vydanou verzi a tlačítkem **Zkontrolovat aktualizace** se zeptáte hned. Jinak se plugin ptá dvakrát denně, spolu s tím, jak WordPress kontroluje ostatní pluginy.
 
-Nová verze se pak nabídne na stránce **Pluginy** jako u každého jiného pluginu, včetně odkazu **Zapnout automatické aktualizace**.
+Nová verze se pak nabídne na stránce **Pluginy** jako u každého jiného pluginu, včetně odkazu pro zapnutí automatických aktualizací (v anglické administraci *Enable auto-updates*).
 
 ### Co to dělá a co ne
 
@@ -171,13 +173,13 @@ Pořadí změníte přetažením, nebo šipkami, když nemáte myš. Kliknutím 
 | Popisek | všechna pole |
 | Placeholder | textová pole |
 | Nápověda pod polem | všechna kromě souhlasu |
-| Povinné | všechna kromě souhlasu, ten je povinný vždy |
+| Povinné | všechna kromě souhlasu, ten je povinný vždy. Povinnost hlídá prohlížeč; server sám trvá jen na zaškrtnutém souhlasu a na e-mailu nebo telefonu |
 | Šířka (celá / poloviční) | jednořádková pole |
 | Typ a možnosti | jen vlastní pole |
 
 ### Druhy polí
 
-**Pole RAYNETu** — deset atributů leadu: Jméno, Příjmení, Společnost, E-mail, Telefon, Předmět, Zpráva, Ulice, Město, PSČ. K tomu **Jméno a příjmení**, které se do RAYNETu rozdělí na jméno a příjmení — viz [Jedno pole pro celé jméno](#jedno-pole-pro-celé-jméno). Každé smí být ve formuláři jen jednou a jeho typ se měnit nedá; přepnutí e-mailu na dlouhý text by rozbilo validaci i mapování. Jméno a příjmení nejde kombinovat se samostatným Jménem nebo Příjmením: pole přidané jako druhé se při uložení zahodí.
+**Pole RAYNETu** — deset atributů leadu: Jméno, Příjmení, Společnost, E-mail, Telefon, Předmět, Zpráva, Ulice, Město, PSČ. K tomu **Jméno a příjmení**, které se do RAYNETu rozdělí na jméno a příjmení — viz [Jedno pole pro celé jméno](#jedno-pole-pro-celé-jméno). Každé smí být ve formuláři jen jednou a jeho typ se měnit nedá; přepnutí e-mailu na dlouhý text by rozbilo validaci i mapování. Jméno a příjmení nejde kombinovat se samostatným Jménem nebo Příjmením. Builder je přidat dovolí, ale při uložení se bez upozornění zahodí to, co je v seznamu níž: stojí-li nad Jménem a příjmením Jméno nebo Příjmení, zahodí se Jméno a příjmení, jinak samostatná pole (náhled to ukáže hned).
 
 **Vlastní pole** — cokoliv, co v RAYNETu vlastní atribut nemá: „Odkud jste se o nás dozvěděli?", „Počet zaměstnanců", zaškrtávátko „Chci newsletter". Na výběr je jednořádkový text, víceřádkový text, výběr z možností a zaškrtávátko. **Hodnota se zapíše do poznámky leadu** pod popiskem, který jste poli dali:
 
@@ -186,7 +188,7 @@ Odkud jste se o nás dozvěděli?: Google
 Chci newsletter: ne
 ```
 
-U zaškrtávátka se zapíše i odpověď „ne" — u dotazu na newsletter je to ta zajímavější.
+U zaškrtávátka se zapíše i odpověď „ne" — u dotazu na newsletter je to ta zajímavější. Vlastní pole bez popisku se při uložení zahodí. Dvě vlastní pole se stejným popiskem (třeba dvě nepřejmenovaná „Vlastní pole“) si v poznámce přepíšou hodnotu, dejte proto každému jiný. Hodnota se zkrátí na 500 znaků a víceřádkový text se slije do jednoho řádku.
 
 **Souhlas se zpracováním** — zaškrtávátko GDPR. V jeho textu jsou povolené odkazy (`<a>` s `href`, `target` a `rel`) a zvýraznění (`<strong>`, `<em>`); ostatní HTML se při uložení odstraní. Odkaz na zásady zpracování tak vložíte rovnou do textu u zaškrtávátka. Formulář ho může mít nejvýš jeden a je vždy povinný; nepovinné zaškrtávátko souhlasu je horší než žádné. Do poznámky leadu se zapíše datum, čas a znění souhlasu jako prostý text (bez značek), a s nastavenou šablonou vznikne i GDPR záznam — viz [GDPR](#gdpr).
 
@@ -200,7 +202,7 @@ V pravém sloupci nastavíte pro tenhle formulář předmět, prioritu, typ lead
 
 ### Výchozí formulář
 
-Jeden formulář lze označit jako **výchozí**. Ten obslouží zkratku `[raynet_lead_form]` bez atributu `id`.
+Jeden formulář lze označit jako **výchozí**. Ten obslouží zkratku `[raynet_lead_form]` bez atributu `id`. Označíte ho zaškrtávátkem **Výchozí formulář** v rámečku *Vložení do stránky*; v přehledu formulářů nese štítek *Výchozí*. Při první aktivaci plugin sám založí **Kontaktní formulář** a nastaví ho jako výchozí, takže zkratka funguje hned. Vykreslí se jen publikovaný formulář; bez výchozího formuláře zkratka bez `id` návštěvníkovi nic neukáže a přihlášený správce místo ní vidí upozornění.
 
 ---
 
@@ -241,7 +243,7 @@ V mapování je proto vedle Jména a Příjmení i atribut **Jméno a příjmen�
 
 Jedno slovo se bere jako příjmení, protože podle něj se v CRM vyhledává.
 
-Namapovat současně celé jméno i jednu z jeho půlek nejde — jedno by přepsalo druhé. V builderu se taková kombinace neuloží: pozdější z obou polí se z formuláře tiše vypustí. V Elementoru vyhraje samostatně namapovaná půlka.
+Namapovat současně celé jméno i jednu z jeho půlek nejde — jedno by přepsalo druhé. V builderu se taková kombinace neuloží: pole, které je v seznamu níž, se při uložení tiše vypustí (viz [Pole](#pole)). V editoru Elementoru se to uložit dá: vyhraje samostatně namapovaná půlka a druhá se doplní z rozděleného celého jména. Obrazovka **Namapovat pole** takové uložení odmítne.
 
 Potřebujete-li jiné pravidlo, třeba pro formulář ptající se na „Příjmení a jméno", přepište ho filtrem:
 
@@ -291,7 +293,7 @@ Prázdná hodnota se neposílá vůbec. RAYNET by prázdnou hodnotou pole vymaza
 
 Dvě standardní pole se chovají zvlášť:
 
-- **Země** — RAYNET bere jen dvoupísmenný kód ISO (`CZ`). Plugin pozná platné kódy, zkratky ČR, SR a UK i běžné názvy: Česko, Česká republika, Slovensko, Polsko, Německo, Rakousko, Maďarsko, Velká Británie, USA.
+- **Země** — RAYNET bere jen dvoupísmenný kód ISO (`CZ`). Plugin pozná platné kódy, zkratky ČR, SR a UK a tyto názvy: Česko, Česká republika, Czech Republic, Czechia, Slovensko, Slovenská republika, Slovakia, Polsko, Poland, Německo, Germany, Rakousko, Austria, Maďarsko, Hungary, Velká Británie, Spojené království, United Kingdom, USA, Spojené státy (americké), United States. Velikost písmen a diakritika nevadí. Jiný název skončí v poznámce.
 - **Souhlas s marketingovými sděleními** — RAYNET ukládá opak, „neposílat marketingová sdělení". Souhlas platí jen jako jasné ano: zaškrtnuté zaškrtávátko, nebo odpověď typu „Ano" či „Souhlasím". Nezaškrtnuté pole, „Nesouhlasím" i odpověď, ze které nejde nic poznat, znamenají *neposílat*; nejasnou odpověď plugin navíc zapíše do poznámky.
 
 Vyplněné IČO, stejně jako název společnosti, přepne lead na firmu.
@@ -310,9 +312,11 @@ V **RAYNET CRM → Elementor formuláře** má každý formulář odkaz **Namapo
 
 Pole, o kterých ještě nikdo nerozhodl, obrazovka předvyplní **návrhem** a zvýrazní ho: podle popisku a typu odhadne atribut, a co odhadnout nejde, navrhne do poznámky. Pole typu **Souhlas** (Acceptance) pozná jako souhlas podle popisku a textu, který návštěvník vidí vedle něj (obyčejné pole **Zaškrtávátko** takhle nerozpozná, souhlas v něm namapujte ručně): „gdpr", „zpracování osobních údajů" a podobné navrhne jako **Souhlas se zpracováním údajů (GDPR)**, „newsletter" nebo „obchodní sdělení" jako **Souhlas s marketingovými sděleními**. Zaškrtávátko, které souhlas **odmítá** („Nepřeji si zasílat obchodní sdělení", „Nesouhlasím…") nebo jen potvrzuje seznámení („Beru na vědomí…"), jako souhlas nikdy nenavrhne — zaškrtnutí by zapsalo opak toho, co návštěvník řekl. Takové a jiné nerozpoznané navrhne vynechat. U zaškrtávátka, které je uložené jako „Neodesílat", ale vypadá jako souhlas (typicky z verze 2.6.0), obrazovka upozorní, ať ho přepnete. Návrh se uloží až tlačítkem **Uložit mapování**.
 
+Nemá-li formulář akci RAYNET CRM zapnutou, obrazovka nabídne zaškrtávátko **Zapnout odesílání do RAYNETu (akce RAYNET CRM po odeslání)**, ve výchozím stavu zaškrtnuté. Necháte-li ho tak, uložení mapování akci zapne a formulář začne zakládat leady. Vypnout ji jde v Elementoru, v *Actions After Submit*. Nastavení leadu (priorita, kategorie…) tahle obrazovka nemění — to dělá šablona nebo sekce RAYNET CRM v Elementoru.
+
 Přehled formulářů u zapnutého formuláře ukáže, kolik polí je **bez určení** — třeba když do formuláře v Elementoru přibude nové pole — a odkazem vede rovnou na mapování.
 
-Jeden atribut může plnit jen jedno pole a celé jméno nejde kombinovat se samostatným jménem nebo příjmením; takové uložení obrazovka odmítne a řekne proč. Pole pro nahrání souboru nabízí jen **Přiložit k leadu** nebo **Neodesílat** — viz [Přílohy z formuláře](#přílohy-z-formuláře). Pole, která odeslat nejde nebo nemá (**heslo**, reCAPTCHA, honeypot, HTML, krok), se nenabízejí vůbec. Heslo se do RAYNETu nepošle nikdy, ani když ho někdo namapuje v editoru.
+Jeden atribut může plnit jen jedno pole a celé jméno nejde kombinovat se samostatným jménem nebo příjmením; takové uložení obrazovka odmítne a řekne proč. Pole pro nahrání souboru nabízí jen **Přiložit k leadu jako přílohu** nebo **Neodesílat** — viz [Přílohy z formuláře](#přílohy-z-formuláře). Pole, která odeslat nejde nebo nemá (**heslo**, reCAPTCHA, honeypot, HTML, krok), se nenabízejí vůbec. Heslo se do RAYNETu nepošle nikdy, ani když ho někdo namapuje v editoru.
 
 **Uložení mění jen to, co jste na obrazovce změnili.** Pole, které v Elementoru plní dva atributy, obrazovka ukáže s poznámkou „Pole plní také…" a druhé mapování zůstane, dokud výběr u pole nezměníte. Mapování, které obrazovka neukazuje (třeba nahraný soubor namapovaný v editoru), zůstane taky.
 
@@ -346,11 +350,13 @@ Dva druhy formulářů tabulka ukáže, ale nastavit nedovolí:
 - **Stránka přepnutá zpět do editoru WordPressu.** Elementor ji už nevykresluje, starý formulář na webu není.
 - **Atomový formulář Elementoru 4.** Je to jiný prvek než widget Formulář, s pevným seznamem akcí (e-mail, sběr odeslání, webhook), do kterého se RAYNET zatím zapojit nedá. Pro leady použijte widget **Formulář**.
 
-**Šablona** nese nastavení leadu — předmět, prioritu, typ leadu, předponu poznámky, číselníková ID, štítky a notifikační e-maily. Šablon můžete mít víc, třeba zvlášť pro poptávky a zvlášť pro kontaktní formuláře.
+**Šablona** nese nastavení leadu — předmět, prioritu, typ leadu, předponu poznámky, číselníková ID, štítky a notifikační e-maily. Šablon můžete mít víc, třeba zvlášť pro poptávky a zvlášť pro kontaktní formuláře. Založíte je na téže obrazovce v části **Šablony** (*Název šablony*, **Uložit šablonu**); kliknutím na název šablonu upravíte nebo smažete (**Smazat**).
 
-Vyberete formuláře, zvolíte šablonu a nasadíte. U každého se zapne akce RAYNET CRM a vyplní se nastavení ze šablony. Akce, které formulář měl — třeba e-mailová notifikace — zůstanou.
+Vyberete formuláře, zvolíte šablonu v **Nasadit šablonu** a kliknete na **Nasadit na vybrané**. U každého se zapne akce RAYNET CRM a nastavení leadu se šablonou přepíše celé, včetně hodnot, které jste u formuláře nastavili v Elementoru: co šablona nechává prázdné, se vyprázdní i ve formuláři a formulář to zdědí z nastavení pluginu. Přepínače *Zapsat udělení souhlasu* a *Uvést URL stránky* nasazení nemění. Akce, které formulář měl — třeba e-mailová notifikace — zůstanou.
 
-**Odhad mapování** doplní jen to, co formulář namapované nemá. Co jste namapovali ručně, zůstane i při opakovaném nasazení. Odhad se řídí nejdřív popiskem a pak typem pole. Pozná „PSČ", „Jméno a příjmení", „IČO" i „IČ DPH", diakritika nevadí. Vlastní pole přiřadí, když se popisek pole formuláře shoduje s jeho názvem v RAYNETu. Jedno pole nikdy neobsadí dva atributy.
+**Šablona se do formuláře zkopíruje, formulář na ni dál neodkazuje.** Když šablonu později změníte — třeba vlastníka leadu —, formuláře se samy nezmění; nasaďte ji na ně znovu. Hodnotu, která má být všude stejná a měnit se najednou (typicky vlastník), nechte v šabloně prázdnou (u vlastníka **Zdědit z nastavení pluginu**) a nastavte ji v **RAYNET CRM → Nastavení → Výchozí hodnoty leadu**. Formulář ji čte při každém odeslání, takže změna tam platí hned pro všechny formuláře bez nového nasazení.
+
+**Odhad mapování** (volba **Doplnit mapování odhadem**, ve výchozím stavu zapnutá) doplní jen to, co formulář namapované nemá. Co jste namapovali ručně, zůstane i při opakovaném nasazení. Odhad se řídí nejdřív popiskem a pak typem pole. Pozná „PSČ", „Jméno a příjmení", „IČO" i „IČ DPH", diakritika nevadí. Vlastní pole přiřadí, když se popisek pole formuláře shoduje s jeho názvem v RAYNETu. Jedno pole nikdy neobsadí dva atributy.
 
 Volba **Pole bez protějšku v RAYNETu zapsat do poznámky** (ve výchozím stavu zapnutá) pošle do poznámky všechna pole, pro která odhad atribut nenašel a o kterých jste dřív nerozhodli jinak, takže se nic z vyplněného neztratí. Výjimkou je nerozpoznané zaškrtávátko typu Souhlas: to nastaví na **Neodesílat**, protože v poznámce by stálo jen „on“.
 
@@ -418,7 +424,7 @@ echo do_shortcode( '[raynet_lead_form id="paticka" topic="Kontakt z patičky"]' 
 
 | Atribut | Výchozí | Popis |
 |---|---|---|
-| `id` | výchozí formulář | Který formulář vykreslit. Přijímá zkratku (slug) i číselné ID. |
+| `id` | výchozí formulář | Který formulář vykreslit. Přijímá zkratku (slug) i číselné ID. Vykreslí se jen publikovaný formulář: neexistující, nepublikovaný nebo smazaný formulář (i chybějící výchozí) návštěvník neuvidí vůbec, přihlášený správce místo něj uvidí hlášku. |
 | `topic` | – | Předmět leadu pro případ, že formulář nemá pole Předmět nebo ho návštěvník nevyplní. Má přednost před předmětem nastaveným na formuláři i v nastavení pluginu. |
 | `title` | – | Nadpis nad formulářem. |
 | `button` | `Odeslat` | Popisek odesílacího tlačítka. |
@@ -492,11 +498,11 @@ Selže-li některý z nich, lead zůstane a chyba se ukáže nahoře na stránce
 
 ## Ochrana proti spamu
 
-Tři nezávislé vrstvy, všechny vypnutelné v nastavení:
+Tři nezávislé vrstvy, všechny vypnutelné v nastavení v části *Chování formuláře → Ochrana proti spamu*. Platí jen pro formuláře z builderu (zkratka i REST endpoint), u formulářů Elementoru se nepoužijí — viz [Co obstarává Elementor a co plugin](#co-obstarává-elementor-a-co-plugin):
 
 1. **Honeypot** — skryté pole `website`. Vyplněné pole = robot.
-2. **Časová past** — formulář nelze odeslat dřív než N sekund od chvíle, kdy server stránku vykreslil. Časová značka je podepsaná přes `wp_hash()`, takže ji nelze podvrhnout, a platí 24 hodin; starší stránku past odmítne.
-3. **Omezení frekvence** — z jedné IP adresy nejvýš jedno odeslání za N sekund, drženo v transientu.
+2. **Časová past** — formulář nelze odeslat dřív než N sekund (*Minimální doba vyplňování*, výchozí 3, nejvýš 120) od chvíle, kdy server stránku vykreslil. Časová značka je podepsaná přes `wp_hash()`, takže ji nelze podvrhnout, a platí 24 hodin; starší stránku past odmítne.
+3. **Omezení frekvence** — z jedné IP adresy nejvýš jedno odeslání za N sekund (*Pauza mezi odesláními z jedné IP*, výchozí 20, nejvýš 3600), drženo v transientu; návštěvník mezitím uvidí „Počkejte prosím chvíli před dalším odesláním.“ Odpočet spustí odeslání do RAYNETu (i z formuláře Elementoru, u kterého se omezení samo nekontroluje) a zachycený spam, ne chyba ve vyplnění, třeba překlep v e-mailu. Adresu plugin bere z `REMOTE_ADDR`. Za reverzní proxy nebo CDN, po které server tuto hodnotu nepřepíše na adresu návštěvníka, sdílejí návštěvníci adresu proxy a limit je blokuje navzájem. Tam limit vypněte nulou, nebo server nastavte tak, aby v `REMOTE_ADDR` byla skutečná adresa návštěvníka.
 
 K tomu WordPress nonce. Pokud běží na webu plná cache stránek a nonce vyprší, JavaScript si jednou automaticky vyžádá nový a odeslání zopakuje. Časovou značku ale neobnoví: stránku z cache starší než 24 hodin časová past odmítne. Stránky s formulářem proto držte v cache kratší dobu než den, nebo časovou past vypněte nulou.
 
@@ -509,7 +515,7 @@ K tomu WordPress nonce. Pokud běží na webu plná cache stránek a nonce vypr�
 - Udělený souhlas se zapíše do poznámky leadu s datem, časem a zněním — textem, který návštěvník u zaškrtávátka viděl, ne interním popiskem pole. Třeba: `Souhlas se zpracováním údajů udělen: 2026-09-24 15:30 — „Souhlasím se zpracováním osobních údajů"`.
 - **GDPR záznam v RAYNETu.** Vyberete-li v **Nastavení → GDPR souhlas v RAYNETu** šablonu právního titulu, plugin k novému leadu založí i právní titul (`PUT /gdpr/`) — v RAYNETu ho uvidíte v GDPR záložce leadu. Volitelně s formou souhlasu (třeba „elektronicky") a platností v měsících od data odeslání (31. 1. + 1 měsíc = 28. 2.). ID šablon a forem vypíše tlačítko **Otestovat spojení**. Záznam vzniká jen z doloženého souhlasu: ze zaškrtnutého pole Souhlas v builderu nebo ze zaškrtnutého pole namapovaného na Souhlas se zpracováním údajů v Elementoru.
 - Kdyby RAYNET GDPR záznam odmítl, lead už existuje a odeslání se nezruší. Chyba se zapíše do logu a ukáže nahoře na stránce nastavení; souhlas zůstane zaznamenaný v poznámce.
-- Plugin **neukládá odeslaná data do databáze WordPressu**. Jdou rovnou do RAYNETu.
+- Plugin **neukládá odeslaná data do databáze WordPressu**. Jdou rovnou do RAYNETu; jen když je RAYNET nepřijme (nebo plugin není nastavený), odejdou na **záložní e-mail** z nastavení, je-li vyplněný, u Elementoru i s nahranými soubory do 10 MB celkem.
 - Soubory nahrané přes formulář Elementoru ukládá Elementor sám do `uploads/elementor/forms/` (a u režimu příloha e-mailu je po odeslání maže). Plugin si dělá jen dočasné kopie v dočasném adresáři serveru, čitelné jen pro systémového uživatele, pod kterým běží PHP, a na konci požadavku je maže. Kopie po přerušeném požadavku smaže nejpozději další odeslání formuláře po hodině.
 - IP adresa se používá jen pro omezení frekvence, ukládá se jako hash v transientu a do CRM se neposílá.
 - Do poznámky leadu jde URL stránky, ze které poptávka přišla.
@@ -518,9 +524,11 @@ K tomu WordPress nonce. Pokud běží na webu plná cache stránek a nonce vypr�
 
 ## Hooky pro vývojáře
 
+Hooky platí pro formuláře z builderu, REST endpoint i formuláře Elementoru. ID formuláře nedostávají.
+
 ### `raynet_lead_payload` (filtr)
 
-Poslední místo před odesláním do RAYNETu.
+Poslední místo před odesláním do RAYNETu. `$values` nese základní pole (`firstName`, `lastName`, `companyName`, `email`, `phone`, `topic`, `message`, `street`, `city`, `zipCode`); nevyplněná jsou prázdný řetězec a celé jméno už je rozdělené. Další standardní atributy a vlastní pole z Elementoru najdete jen v `$payload`.
 
 ```php
 add_filter( 'raynet_lead_payload', function ( $payload, $values ) {
@@ -548,15 +556,21 @@ add_action( 'raynet_lead_created', function ( $lead_id, $payload ) {
 
 ### `raynet_lead_failed` (akce)
 
+Spustí se, když RAYNET lead odmítne nebo není k dosažení — až po zápisu do logu a odeslání záložního e-mailu (jsou-li zapnuté). Když plugin není nastavený (chybí přihlašovací údaje, instance nebo adresa API), lead se neodesílá a akce se nespustí. Nespustí ji ani odmítnutá příloha nebo GDPR záznam; lead v tu chvíli už existuje.
+
 ```php
 add_action( 'raynet_lead_failed', function ( WP_Error $error, $payload ) {
 	// Vlastní notifikace, zápis do fronty k opakování apod.
 }, 10, 2 );
 ```
 
+### `raynet_lead_split_name` (filtr)
+
+Určí, jak se jedno pole s celým jménem rozdělí na `firstName` a `lastName`, v builderu i v Elementoru. Dostane pole s klíči `firstName` a `lastName` a celé jméno, vrací pole se stejnými klíči. Příklad je v [Jedno pole pro celé jméno](#jedno-pole-pro-celé-jméno).
+
 ### `raynet_lead_gdpr_record` (filtr)
 
-Upraví GDPR záznam (právní titul) před odesláním do RAYNETu, třeba jinou šablonu pro určitý formulář.
+Upraví GDPR záznam (tělo `PUT /gdpr/`: `gdprTemplate`, `lead`, `validFrom`, volitelně `validTill` a `gdprFormAgreement`) před odesláním do RAYNETu, třeba šablonu nebo platnost. Volá se jen u souhlasu doloženého zaškrtnutým polem a jen tehdy, když je v nastavení vybraná šablona právního titulu — viz [GDPR](#gdpr). Filtr dostane jen záznam a ID leadu, ne formulář.
 
 ```php
 add_filter( 'raynet_lead_gdpr_record', function ( array $record, $lead_id ) {
@@ -577,6 +591,13 @@ POST /wp-json/raynet-lead/v1/submit
 
 Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_nonce`, `raynet_ts` a `raynet_ts_hash`. Nejjednodušší je nechat je vykreslit zkratkou a přečíst si je ze skrytých polí.
 
+- Pole leadu se jmenují podle atributu (`firstName`, `lastName`, `fullName`, `companyName`, `email`, `phone`, `topic`, `message`, `street`, `city`, `zipCode`), souhlas `consent`, vlastní pole builderu `raynet_custom[<id pole>]`; honeypot `website` musí zůstat prázdný.
+- `raynet_form_id` (ID nebo zkratka) určuje formulář, jehož pole a nastavení leadu platí; bez něj platí výchozí formulář. Pole, která formulář nemá, server zahodí. Volitelně `raynet_fixed_topic` (jako atribut `topic` zkratky) a `raynet_source_url` (URL do poznámky).
+- Server kontroluje nonce, ochranu proti spamu včetně limitu na IP, zaškrtnutý souhlas (má-li ho formulář), vyplněný e-mail nebo telefon a platnost e-mailu. Povinnost ostatních polí hlídá jen prohlížeč.
+- Úspěch vrátí `200` a `{"success": true, "data": {"message": …, "redirect": …, "lead_id": …}}`. Chyba vrátí `400` a `{"code": …, "message": …, "data": {"status": 400}}` s kódem (`raynet_nonce_expired`, `raynet_too_fast`, `raynet_throttled`, `raynet_contact_required`, `raynet_invalid_email`, `raynet_api_error`…) a hláškou pro návštěvníka. Skutečný důvod, proč RAYNET lead odmítl, odpověď nenese — je v logu a v **Poslední chyba API**.
+- Požadavek s cookie přihlášeného uživatele, ale bez hlavičky `X-WP-Nonce`, vyřídí WordPress jako nepřihlášený; `raynet_nonce` vykreslený pro přihlášeného pak neprojde („Platnost formuláře vypršela. Zkuste to prosím znovu.“). Pošlete i `X-WP-Nonce` s nonce pro `wp_rest`, nebo testujte odhlášení.
+- Čerstvý nonce vrátí `admin-ajax.php` s `action=raynet_lead_refresh_nonce`.
+
 ---
 
 ## Řešení potíží
@@ -586,10 +607,12 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **„Odeslání formuláře se nezdařilo“** a v logu `401` | Špatný e-mail, API klíč nebo název instance. Pozor: po 20 neúspěšných pokusech blokuje RAYNET vaši IP na 60 minut. |
 | V logu `404` | Špatně zvolený region. Česká instance běží na `app.raynet.cz`, slovenská na `app.raynetcrm.sk`. |
 | V logu `429` | Překročený limit API (24 000 požadavků/den, max. 4 souběžná spojení). |
+| V logu `403` | Uživatel, na kterého je API klíč vydaný, nemá v RAYNETu potřebné oprávnění. U leadu, GDPR záznamu, přílohy i číselníků zní hláška „Uživatel nemá oprávnění zakládat leady (403).“, u načítání uživatelů pro výběr vlastníka „Uživatel API nemá v RAYNETu oprávnění vypisovat uživatele (403).“ Oprávnění upravte v RAYNETu, nebo použijte účet s dostatečnými právy. |
 | **„Platnost formuláře vypršela. Zkuste to prosím znovu.“** | Nonce vypršel. Plugin se zotaví sám; pokud ne, zkontrolujte, že cache nekešuje i `admin-ajax.php`. |
 | **„Platnost formuláře vypršela. Načtěte prosím stránku znovu.“** | Chybí nebo nesedí podepsaná časová značka (`raynet_ts`, `raynet_ts_hash`) — typicky stránka z cache po změně bezpečnostních klíčů webu, nebo vlastní frontend, který tato pole neposílá. Vyprázdněte cache stránek. |
 | **„Formulář byl odeslán příliš rychle“** | Časová past: návštěvník odeslal dřív, než uplynula „Minimální doba vyplňování“, nebo je stránka s formulářem starší než 24 hodin (plná cache stránek, dlouho otevřená záložka). Snižte dobu, držte stránky s formulářem v cache kratší dobu než 24 hodin, nebo časovou past vypněte nulou. |
-| **Formulář se nevykreslí** | Zkratka musí být v obsahu stránky, ne v úryvku. V blokovém editoru použijte blok *Zkratka*. |
+| **„Počkejte prosím chvíli před dalším odesláním.“** | Omezení frekvence: z téže IP adresy přišlo další odeslání dřív, než uplynula „Pauza mezi odesláními z jedné IP“ (výchozí 20 s). Počítá se i odeslání, které RAYNET odmítl nebo zachytila ochrana proti spamu. Plugin bere IP z `REMOTE_ADDR`; za reverzní proxy nebo CDN, kde server nepřepíše `REMOTE_ADDR` na adresu návštěvníka, sdílejí návštěvníci adresu proxy a blokují se navzájem. Nastavte na serveru předávání skutečné IP (třeba `mod_remoteip` nebo `real_ip` v nginx), nebo omezení vypněte nulou. |
+| **Formulář se nevykreslí** | Zkratka musí být v obsahu stránky, ne v úryvku. V blokovém editoru použijte blok *Zkratka*. Vykreslí se jen publikovaný formulář: koncept, formulář v koši, neexistující `id` nebo chybějící výchozí formulář návštěvník neuvidí vůbec. Přihlášený správce místo formuláře vidí „RAYNET: formulář „…“ neexistuje nebo je v koši.“, případně „RAYNET: není nastaven výchozí formulář. Založte ho v RAYNET CRM → Formuláře.“ |
 | **Tlačítko nereaguje** | Chyba v konzoli prohlížeče. Nejčastěji jiný plugin rozbil načítání skriptů. |
 | **Test spojení hlásí chybu, ale údaje jsou správné** | Nastavení nejdřív **uložte**, teprve pak testujte. |
 | **Formulář Elementoru v přehledu chybí** | Od verze 2.5.0 přehled prohledává i popupy, hlavičky, patičky a globální widgety. Chybí-li formulář dál, jde o jiný prvek než widget Formulář Elementor Pro. |
@@ -599,10 +622,11 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **Souhlas je v poznámce bez znění** | Zapsal ho přepínač *Zapsat udělení souhlasu*, ne namapované pole. V **Namapovat pole** přepněte zaškrtávátko souhlasu na **Souhlas se zpracováním údajů (GDPR)**. |
 | **GDPR záznam u leadu nevzniká** | V nastavení chybí šablona právního titulu, nebo zaškrtávátko není namapované na Souhlas se zpracováním údajů (samotný přepínač GDPR záznam nezakládá). Když ho RAYNET odmítl, důvod je nahoře na stránce nastavení. |
 | **Přílohy u leadu chybí** | Nahrávací pole je v **Namapovat pole** nastavené na Neodesílat, soubor je větší než 20 MB nebo s ostatními přesáhl 50 MB na lead, server ho nemohl zkopírovat do dočasného adresáře (v těchto případech to říká poznámka leadu u souboru), nebo ho RAYNET odmítl — důvod je nahoře na stránce nastavení. |
-| **Ve výběru vlastníka chybí uživatel** | Seznam je starý — v nastavení klikněte na **Načíst znovu** u vlastníka. Účty bez kontaktní osoby se nenabízejí. Když místo výběru zůstává pole pro ID, popisek pod ním říká proč (nejčastěji API klíč bez práva vypisovat uživatele). |
+| **Ve výběru vlastníka chybí uživatel** | Seznam je starý — v nastavení klikněte na **Načíst znovu** u vlastníka. Účty bez kontaktní osoby a účty, které RAYNET vede jako neplatné (bývalí uživatelé), se nenabízejí. Když místo výběru zůstává pole pro ID, popisek pod ním říká proč (nejčastěji API klíč bez práva vypisovat uživatele). |
 | **Formulář hlásí chybu, ale lead v RAYNETu je** | Selhala jiná akce formuláře, typicky e-mailová notifikace Elementoru (nefunkční odesílání pošty na webu). Přihlášený správce vidí u chyby, která akce to byla. |
+| **„RAYNET: integrace s Elementor Pro Forms není aktivní“** | Elementor Pro je zapnutý, ale jeho formuláře se nenačetly. Nejčastěji chybí nebo je zastaralý základní Elementor (Elementor Pro to hlásí i vlastním upozorněním); jinak tato verze Elementor Pro nemá rozhraní akcí po odeslání, se kterým plugin počítá. Formuláře Elementoru do té doby leady nezakládají, formuláře z builderu fungují dál. Aktivujte nebo aktualizujte Elementor. |
 
-Chyby API se zapisují do PHP logu s prefixem `[Raynet Lead API Integration]`. Poslední chyba se navíc zobrazuje nahoře na stránce nastavení. Pro zapnutí logu WordPressu:
+Chyby API se zapisují do PHP logu s prefixem `[Raynet Lead API Integration]`, pokud je zapnuté *Zapisovat chyby API do PHP logu* (ve výchozím stavu je). Poslední chyba se navíc zobrazuje nahoře na stránce nastavení jako **Poslední chyba API:** s datem a časem. Zůstane tam, dokud ji nepřepíše další chyba nebo dokud neproběhne úspěšný test spojení — úspěšně založený lead ji nesmaže. Pro zapnutí logu WordPressu:
 
 ```php
 define( 'WP_DEBUG', true );
@@ -656,7 +680,7 @@ Ověřuje pořadí hooků, že `manage_options` zůstává funkční, položky m
 
 Adresář `.wp-test/` je mimo git a dá se kdykoliv zahodit; `bin/wp-test-setup.sh --fresh` ho postaví znovu.
 
-Většina kontrol se týká Elementoru a běží jen tehdy, když je Elementor Pro v testovací instalaci přítomné: nakopírujte `elementor` a `elementor-pro` do `.wp-test/wp/wp-content/plugins/` a aktivujte je. Pak sada projde i hledání formulářů v šablonách a popupech, nasazení šablon se zálohou a koncepty, obrazovku mapování přes HTTP, vlastní pole, souhlas s GDPR záznamem a skutečné nahrání přílohy přes AJAX Elementoru. Bez Elementor Pro tuhle část přeskočí.
+Většina kontrol se týká Elementoru a běží jen tehdy, když je Elementor Pro v testovací instalaci přítomné: nakopírujte `elementor` a `elementor-pro` do `.wp-test/wp/wp-content/plugins/` a aktivujte je. Pak sada projde i hledání formulářů v šablonách a popupech, nasazení šablon se zálohou a koncepty, obrazovku mapování přes HTTP, vlastní pole, souhlas s GDPR záznamem, skutečné nahrání přílohy přes AJAX Elementoru a výběr vlastníka z uživatelů RAYNETu (v nastavení, šablonách, builderu i v Elementoru). Bez Elementor Pro tuhle část přeskočí celou, včetně kontrol nastavení a builderu, které v ní jsou.
 
 Historie změn je v [CHANGELOG.md](CHANGELOG.md).
 
