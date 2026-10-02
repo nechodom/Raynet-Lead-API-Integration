@@ -6,20 +6,22 @@ Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
 ### Přidáno
 
-- **Vlastník leadu podle jména.** Plugin načte uživatele z RAYNETu (`GET /userAccount/`, po stránkách i nad 1000) a místo čísla „Vlastník (ID)“ nabídne výběr „Jméno Příjmení (login)“ — v nastavení pluginu, v šablonách pro Elementor, v builderu u každého formuláře i v sekci RAYNET CRM v editoru Elementoru. Do leadu jde ID kontaktní osoby uživatele, jak ho RAYNET pro vlastníka chce, ne ID uživatelského účtu. Účty bez kontaktní osoby se nenabízejí.
-- V editoru Elementoru, který otevírají i autoři a redaktoři, výběr ukazuje jen jména; login (e-mail) jen u shodných jmen.
-- Seznam se načte při **Otestovat spojení** (a vypíše se v jeho výsledku), obnovuje se sám jednou za 12 hodin při návštěvě nastavení, šablon nebo builderu, a hned odkazem v nastavení. Po chybě se o načtení sám nepokusí dřív než za hodinu, aby špatné přihlašovací údaje nevedly k zablokování IP. Chyba se ukáže u pole i ve výsledku testu spojení.
+- **Vlastník leadu podle jména.** Plugin načte uživatele z RAYNETu (`GET /userAccount/`, po stránkách i nad 1000, i když RAYNET nepošle `totalCount`) a místo čísla „Vlastník (ID)“ nabídne výběr „Jméno Příjmení (login)“ — v nastavení pluginu, v šablonách pro Elementor, v builderu u každého formuláře i v sekci RAYNET CRM v editoru Elementoru. Do leadu jde ID kontaktní osoby uživatele, jak ho RAYNET pro vlastníka chce, ne ID uživatelského účtu. Účty bez kontaktní osoby se nenabízejí.
+- V editoru Elementoru, který otevírají i autoři a redaktoři, výběr ukazuje jen jména; login (e-mail) jen u shodných jmen, nebo když osoba v RAYNETu jméno nemá.
+- Seznam se načte při **Otestovat spojení** (a vypíše se v jeho výsledku, seřazený podle jména), obnovuje se sám jednou za 12 hodin při návštěvě nastavení, šablon nebo builderu, a hned odkazem v nastavení. Po chybě se o načtení sám nepokusí dřív než za hodinu, aby špatné přihlašovací údaje nevedly k zablokování IP. Chyba se ukáže u pole i ve výsledku testu spojení; když se nepodaří jen obnovit, výběr dál nabízí seznam načtený dřív a test spojení to řekne.
 - Dokud seznam načtený není, zůstává pole pro ID. Vlastník nastavený dřív zůstane vybraný, i když mezi načtenými uživateli není — i v Elementoru.
 
 ### Změněno
 
-- Seznam uživatelů i vlastních polí patří k jednomu připojení (adresa API, instance, účet). Po jeho změně se starý seznam nepoužije a načte se znovu, aby se do leadu nedostalo ID z jiné instance. Seznam vlastních polí uložený starší verzí zůstává platný, aby formuláře po aktualizaci fungovaly dál.
+- Seznam uživatelů i vlastních polí patří k jednomu připojení (adresa API, instance, účet). Po jeho změně se starý seznam nenabízí a oba se načtou znovu na stránce nastavení, kam se po uložení vrátíte, aby se nevybral člověk nebo pole z jiné instance. Vlastník už uložený ve formulářích se tím nemění. Seznam vlastních polí uložený starší verzí zůstává platný, aby formuláře po aktualizaci fungovaly dál — u změny instance hned po aktualizaci ho proto načtěte znovu tlačítkem, jinak se vymění až po 12 hodinách.
 - Odinstalace s mazáním dat maže i uložené seznamy uživatelů a vlastních polí.
-- Testovací prostředí nepouští žádné požadavky mimo počítač; čekání na wordpress.org ho shazovalo.
+- Testovací prostředí nepouští žádné požadavky mimo počítač; čekání na wordpress.org ho shazovalo. Testy pouští i JavaScriptový test výběru vlastníka v Elementoru (Node.js) a test odinstalace.
 
 ### Před vydáním
 
-Adversariální review potvrdilo 13 nálezů se 6 příčinami, všechny jsou opravené a pokryté testy: vlastník mimo seznam se v Elementoru zobrazil prázdný, i když na něj leady dál chodily, a výběr se tam řadil podle čísla; seznam nebyl svázaný s instancí; chyba při načítání uživatelů nebyla nikde vidět; hláška o načtení se opakovala po každém uložení nastavení; chybělo stránkování nad 1000 uživatelů; odinstalace seznamy nemazala; loginy všech kolegů viděl v Elementoru každý editor.
+Adversariální review potvrdilo 13 nálezů, všechny jsou opravené a pokryté testy: vlastník mimo seznam se v Elementoru zobrazil prázdný, i když na něj leady dál chodily, a výběr se tam řadil podle čísla; seznam nebyl svázaný s instancí; chyba při načítání uživatelů nebyla nikde vidět; hláška o načtení se opakovala po každém uložení nastavení; chybělo stránkování nad 1000 uživatelů; odinstalace seznamy nemazala; loginy všech kolegů viděl v Elementoru každý editor. Kontrola balíčku před vydáním pak našla v tomto CHANGELOGu chybějící záznam 2.8.1 a dva nálezy bez testu (doplněno) a k tomu čtyři drobnosti, opravené s testy: stránkování končilo po 1000 uživatelích, když RAYNET nepošle `totalCount`; test spojení po nepovedeném obnovení tvrdil, že vlastníka zadáte jen číslem, i když výběr dál nabízel starší seznam; uživatele v jeho výsledku řadil podle ID; vlastní pole se po změně připojení načítala znovu jen na obrazovce Elementor formulářů, ne na stránce nastavení.
+
+## [2.8.1] — 2026-09-25
 
 ### Opraveno
 

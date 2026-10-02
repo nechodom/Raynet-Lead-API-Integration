@@ -66,6 +66,32 @@ $many         = client()->get_users();
 check( 'načte i druhou stránku', count( $many ), 1001 );
 check( 'druhá stránka od offsetu 1000', end( $GLOBALS['wp_requests'] )['url'], 'https://app.raynet.cz/api/v2/userAccount/?limit=1000&offset=1000' );
 check( 'dva požadavky', count( $GLOBALS['wp_requests'] ) - $before_pages, 2 );
+
+// A full page without totalCount may still be followed by more.
+$GLOBALS['wp_request_queue'] = array(
+	array( 'code' => 200, 'body' => json_encode( array( 'data' => $page_one ) ) ),
+	array( 'code' => 200, 'body' => json_encode( array( 'data' => array( array( 'id' => 9999, 'username' => 'posledni@firma.cz', 'person' => array( 'id' => 9998, 'fullName' => 'Poslední' ) ) ) ) ) ),
+);
+$before_pages = count( $GLOBALS['wp_requests'] );
+check( 'bez totalCount čte dál', count( client()->get_users() ), 1001 );
+check( 'bez totalCount dva požadavky', count( $GLOBALS['wp_requests'] ) - $before_pages, 2 );
+
+// Exactly a thousand, with the total given: no needless second request.
+$GLOBALS['wp_request_queue'] = array(
+	array( 'code' => 200, 'body' => json_encode( array( 'totalCount' => 1000, 'data' => $page_one ) ) ),
+);
+$before_pages = count( $GLOBALS['wp_requests'] );
+check( 'přesně tisíc', count( client()->get_users() ), 1000 );
+check( 'přesně tisíc jedním požadavkem', count( $GLOBALS['wp_requests'] ) - $before_pages, 1 );
+
+// Exactly a thousand without the total: one more request finds the end.
+$GLOBALS['wp_request_queue'] = array(
+	array( 'code' => 200, 'body' => json_encode( array( 'data' => $page_one ) ) ),
+	array( 'code' => 200, 'body' => json_encode( array( 'data' => array() ) ) ),
+);
+$before_pages = count( $GLOBALS['wp_requests'] );
+check( 'tisíc bez totalCount', count( client()->get_users() ), 1000 );
+check( 'prázdná stránka ukončí čtení', count( $GLOBALS['wp_requests'] ) - $before_pages, 2 );
 $GLOBALS['wp_request_queue'] = array();
 
 $GLOBALS['wp_next_response'] = array( 'code' => 200, 'body' => '<html>údržba</html>' );

@@ -1458,7 +1458,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'nastavení nabízí vlastníka výběrem', false !== strpos( $owner_view['body'], 'name="raynet_lead_settings[owner]"' ) && false !== strpos( $owner_view['body'], '<select id="raynet-owner"' ), true );
 		check( 'nastavení ukazuje jména', false !== strpos( $owner_view['body'], 'Jana Nováková (jana@firma.cz)' ), true );
 		check( 'uložený vlastník je vybraný', (bool) preg_match( '/value="9" selected/', $owner_view['body'] ), true );
-		check( 'neaktivní uživatel se nenabízí', false !== strpos( $owner_view['body'], 'Bývalý Kolega' ), false );
+		check( 'řádek označený INVALID se nenabízí', false !== strpos( $owner_view['body'], 'Bývalý Kolega' ), false );
 
 		preg_match( '/href="([^"]*action=raynet_lead_refresh_users[^"]*)"/', $owner_view['body'], $refresh_link );
 		check( 'odkaz na nové načtení', isset( $refresh_link[1] ), true );
@@ -1523,6 +1523,34 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'test spojení varuje, že uživatelé chybí', isset( $connection_json['data']['warning'] ) && false !== strpos( $connection_json['data']['warning'], 'Uživatele z RAYNETu se nepodařilo načíst' ), true );
 		delete_option( 'raynet_test_refuse_users' );
 		Raynet_Lead_Users::refresh();
+
+		// A refresh that fails over a list fetched before keeps that list,
+		// and the warning says so rather than "only by number".
+		$connection_test = req( '/wp-admin/admin-ajax.php', array( 'action' => 'raynet_lead_test_connection', 'nonce' => isset( $test_nonce[1] ) ? $test_nonce[1] : '' ), true );
+		$connection_json = json_decode( $connection_test['body'], true );
+		$owner_list      = isset( $connection_json['data']['codeLists']['Uživatelé — vlastník leadu (owner)'] ) ? $connection_json['data']['codeLists']['Uživatelé — vlastník leadu (owner)'] : array();
+		check( 'test spojení vypíše uživatele podle jména', array_column( $owner_list, 'label' ), array( 'Jana Nováková (jana@firma.cz)', 'Petr Svoboda (petr@firma.cz)' ) );
+		check( 'test spojení nese ID osob', array_column( $owner_list, 'id' ), array( '11', '9' ) );
+		check( 'úspěšný test bez varování', isset( $connection_json['data']['warning'] ) ? $connection_json['data']['warning'] : null, '' );
+
+		update_option( 'raynet_test_refuse_users', 1 );
+		$connection_test = req( '/wp-admin/admin-ajax.php', array( 'action' => 'raynet_lead_test_connection', 'nonce' => isset( $test_nonce[1] ) ? $test_nonce[1] : '' ), true );
+		$connection_json = json_decode( $connection_test['body'], true );
+		$kept_warning    = isset( $connection_json['data']['warning'] ) ? $connection_json['data']['warning'] : '';
+		check( 'neobnovený seznam: varování o starém seznamu', false !== strpos( $kept_warning, 'výběr vlastníka nabízí ten načtený dřív' ), true );
+		check( 'neobnovený seznam: netvrdí, že jen číslem', false !== strpos( $kept_warning, 'jen číslem' ), false );
+		check( 'neobnovený seznam: uživatelé dál vypsaní', isset( $connection_json['data']['codeLists']['Uživatelé — vlastník leadu (owner)'] ), true );
+		wp_cache_flush();
+		check( 'neobnovený seznam zůstal', array_keys( Raynet_Lead_Users::all() ), array( 11, 9 ) );
+		delete_option( 'raynet_test_refuse_users' );
+		Raynet_Lead_Users::refresh();
+
+		// After a change of connection the admin lands on the settings page;
+		// the custom fields are fetched again there, not only on the forms screen.
+		delete_option( Raynet_Lead_Fields::OPTION );
+		req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
+		wp_cache_flush();
+		check( 'nastavení znovu načte vlastní pole', count( Raynet_Lead_Fields::custom() ) > 0, true );
 
 		update_option( Raynet_Lead_Settings::OPTION, $owner_before );
 

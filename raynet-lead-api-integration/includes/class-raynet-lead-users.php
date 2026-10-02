@@ -218,8 +218,8 @@ class Raynet_Lead_Users {
 
 		$current = (int) $current;
 
-		// An owner set before, by id or for a user who has since left, stays
-		// visible and selected rather than silently becoming "inherit".
+		// An owner set before, by id or for a person RAYNET no longer lists,
+		// stays visible and selected rather than silently becoming "inherit".
 		if ( $current > 0 && ! isset( $options[ (string) $current ] ) ) {
 			/* translators: %d: contact person id. */
 			$options[ (string) $current ] = sprintf( __( 'ID %d (není mezi načtenými uživateli)', 'raynet-lead-api-integration' ), $current );

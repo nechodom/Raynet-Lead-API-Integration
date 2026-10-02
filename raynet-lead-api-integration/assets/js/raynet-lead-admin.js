@@ -6,12 +6,6 @@
 
 	var config = window.raynetLeadAdmin || {};
 
-	/**
-	 * Renders the code lists returned by the connection test.
-	 *
-	 * @param {Object} lists Label => { id: name } map.
-	 * @return {string} HTML.
-	 */
 	// Names come from the RAYNET instance; nothing from there is markup.
 	function escapeHtml( value ) {
 		return String( value ).replace( /[&<>"']/g, function ( c ) {
@@ -19,13 +13,25 @@
 		} );
 	}
 
+	/**
+	 * Renders the code lists returned by the connection test.
+	 *
+	 * @param {Object} lists Label => { id: name } map, or label => [ { id, label } ].
+	 * @return {string} HTML.
+	 */
 	function renderLists( lists ) {
 		var html = '';
 
 		Object.keys( lists || {} ).forEach( function ( label ) {
 			var rows = lists[ label ];
-			var items = Object.keys( rows ).map( function ( id ) {
-				return '<li><code>' + escapeHtml( id ) + '</code> — ' + escapeHtml( rows[ id ] ) + '</li>';
+			// Either id => label, or a list of { id, label } kept in its order.
+			var pairs = Array.isArray( rows )
+				? rows
+				: Object.keys( rows || {} ).map( function ( id ) {
+					return { id: id, label: rows[ id ] };
+				} );
+			var items = pairs.map( function ( row ) {
+				return '<li><code>' + escapeHtml( row.id ) + '</code> — ' + escapeHtml( row.label ) + '</li>';
 			} );
 
 			if ( items.length ) {

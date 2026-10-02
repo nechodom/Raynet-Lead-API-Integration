@@ -119,11 +119,11 @@ Priorita (`MINOR` / `DEFAULT` / `CRITICAL`), přepínač *Fyzická osoba* (`lead
 
 **Vlastníka leadu vyberete podle jména.** Plugin načte uživatele RAYNETu (`GET /userAccount/`, i víc než 1000 po stránkách) a místo čísla nabídne seznam „Jméno Příjmení (login)". Seznam se načte při *Otestovat spojení*, sám se obnovuje jednou za 12 hodin při návštěvě nastavení, šablon nebo builderu, a odkazem **Načíst znovu** hned. Účty bez kontaktní osoby se nenabízejí. RAYNET jako vlastníka chce ID **kontaktní osoby** uživatele, ne ID jeho účtu — plugin posílá to správné.
 
-Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci RAYNET CRM v Elementoru. Editor Elementoru otevírají i autoři a redaktoři, proto tam výběr ukazuje jen jména; login (e-mail) přidá jen u dvou lidí se stejným jménem.
+Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci RAYNET CRM v Elementoru. Editor Elementoru otevírají i autoři a redaktoři, proto tam výběr ukazuje jen jména; login (e-mail) přidá jen u dvou lidí se stejným jménem, nebo když osoba v RAYNETu jméno nemá.
 
-- Dokud seznam načtený není, zůstává pole pro ID. Když se načíst nepodaří — třeba proto, že API klíč nesmí vypisovat uživatele —, u pole je důvod a test spojení na to upozorní.
+- Dokud seznam načtený není, zůstává pole pro ID. Když se načíst nepodaří — třeba proto, že API klíč nesmí vypisovat uživatele —, u pole je důvod a test spojení na to upozorní. Nepodaří-li se jen obnovit, výběr dál nabízí seznam načtený dřív.
 - Vlastník nastavený dřív zůstane vybraný, i když mezi načtenými uživateli není (zobrazí se jako „ID 14 (není mezi načtenými uživateli)").
-- Seznam patří k jednomu připojení. Po změně instance nebo účtu se starý nenabízí a načte se znovu, aby se nevybral člověk z jiné instance. Totéž platí pro vlastní pole.
+- Seznam patří k jednomu připojení. Po změně instance nebo účtu se starý nenabízí a načte se znovu na stránce nastavení, aby se nevybral člověk z jiné instance. Totéž platí pro vlastní pole. Vlastník už uložený ve formulářích se nemění; když jeho ID v nové instanci nikomu nepatří, zobrazí se jako ID mimo seznam. Seznam vlastních polí uložený verzí 2.8 a starší k připojení přiřazený není — při změně instance hned po aktualizaci ho načtěte znovu tlačítkem.
 
 ### GDPR souhlas v RAYNETu
 
@@ -218,7 +218,7 @@ Ve widgetu formuláře otevřete **Actions After Submit** a přidejte **RAYNET C
 
 > Pohodlnější je opačný pohled: **RAYNET CRM → Elementor formuláře → Namapovat pole** vypíše pole formuláře a u každého se zeptá, kam patří. Viz [Mapování po polích formuláře](#mapování-po-polích-formuláře).
 
-Seznam atributů se doplňuje sám: nový atribut v pluginu nebo vlastní pole, které už plugin z RAYNETu načetl (viz *Pole z RAYNETu* níže), se objeví v mapování i u formuláře nastaveného dřív, jakmile sekci RAYNET CRM otevřete. Nové vlastní pole z RAYNETu se v editoru ukáže až po načtení na obrazovce **Elementor formuláře** — samo nejdřív po 12 hodinách, hned tlačítkem **Načíst pole z RAYNETu znovu**. Co už bylo namapované, zůstane.
+Seznam atributů se doplňuje sám: nový atribut v pluginu nebo vlastní pole, které už plugin z RAYNETu načetl (viz *Pole z RAYNETu* níže), se objeví v mapování i u formuláře nastaveného dřív, jakmile sekci RAYNET CRM otevřete. Nové vlastní pole z RAYNETu se v editoru ukáže až po načtení — samo nejdřív po 12 hodinách při návštěvě nastavení pluginu nebo obrazovky **Elementor formuláře**, hned tlačítkem **Načíst pole z RAYNETu znovu**. Co už bylo namapované, zůstane.
 
 **Nastavení leadu** — předmět, priorita, typ leadu, předpona poznámky, číselníková ID, štítky a notifikační e-maily, zvlášť pro tenhle formulář. Prázdné pole znamená zdědit z nastavení pluginu, stejně jako u builderu.
 
@@ -264,7 +264,7 @@ Mapování nabízí tři skupiny atributů:
 2. **Další standardní** — titul před a za jménem, IČO, DIČ, datová schránka, druhý e-mail a telefon, web, fax, jiný kontakt, kraj, země, souhlas se zpracováním údajů (GDPR), souhlas s marketingovými sděleními a sociální sítě.
 3. **Vlastní pole** vaší instance — v mapování je poznáte podle přípony *(vlastní pole)*.
 
-Vlastní pole plugin načítá z RAYNETu (`GET /customField/config/`). Stav najdete v **RAYNET CRM → Elementor formuláře → Pole z RAYNETu**: seznam polí s typem a kódem v API, čas posledního načtení a tlačítko **Načíst pole z RAYNETu znovu**. Samo se načítání obnovuje jednou za 12 hodin při návštěvě té obrazovky. Po chybě to zkouší až za hodinu, protože RAYNET po 20 neúspěšných přihlášeních blokuje IP adresu.
+Vlastní pole plugin načítá z RAYNETu (`GET /customField/config/`). Stav najdete v **RAYNET CRM → Elementor formuláře → Pole z RAYNETu**: seznam polí s typem a kódem v API, čas posledního načtení a tlačítko **Načíst pole z RAYNETu znovu**. Samo se načítání obnovuje jednou za 12 hodin při návštěvě té obrazovky nebo nastavení pluginu. Po chybě to zkouší až za hodinu, protože RAYNET po 20 neúspěšných přihlášeních blokuje IP adresu.
 
 Nenabízejí se vlastní pole jen pro čtení a vlastní pole typu soubor. Soubory z formuláře se místo toho přikládají k leadu jako přílohy — viz [Přílohy z formuláře](#přílohy-z-formuláře).
 
@@ -641,7 +641,7 @@ Repozitář obsahuje testy, které plugin proženou bez instalace WordPressu —
 php tests/run.php
 ```
 
-Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky, builder, stránku nastavení, aktualizace, odhad mapování, převod hodnot vlastních polí, souhlas a přílohy. Testy vyžadují PHP 8.0+; samotný plugin běží od PHP 7.4.
+Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky, builder, stránku nastavení, aktualizace, odhad mapování, převod hodnot vlastních polí, souhlas, přílohy, výběr vlastníka z uživatelů RAYNETu a odinstalaci. Výběr vlastníka v editoru Elementoru (JavaScript) testuje `tests/js/` přes Node.js, který `run.php` spustí také. Testy vyžadují PHP 8.0+ a Node.js; samotný plugin běží od PHP 7.4.
 
 ### Integrační sada
 
@@ -649,7 +649,7 @@ Stuby nesimulují jádro WordPressu, takže pořadí hooků, mapování oprávn�
 
 ```bash
 bin/wp-test-setup.sh   # jednou: stáhne WordPress, SQLite integraci a wp-cli do .wp-test/
-bin/wp-test.sh         # přes 280 kontrol
+bin/wp-test.sh         # přes 300 kontrol
 ```
 
 Ověřuje pořadí hooků, že `manage_options` zůstává funkční, položky menu, načtení skriptů builderu, vykreslení formuláře na veřejné stránce, skutečné odeslání přes `admin-ajax.php` až k payloadu pro RAYNET, a aktualizační transient. Odchozí HTTP i e-maily zachytává testovací dvojník, takže běh nikdy nesáhne na RAYNET ani na GitHub a nic neodešle.

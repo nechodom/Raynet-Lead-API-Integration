@@ -53,7 +53,7 @@ add_filter(
 		}
 
 		// The instance's users: two people, an account without a person and a
-		// deactivated one.
+		// row RAYNET marks INVALID.
 		if ( false !== strpos( $url, 'raynet' ) && false !== strpos( $url, '/userAccount/' ) ) {
 			// The API key may lack the right to list users.
 			if ( get_option( 'raynet_test_refuse_users' ) ) {

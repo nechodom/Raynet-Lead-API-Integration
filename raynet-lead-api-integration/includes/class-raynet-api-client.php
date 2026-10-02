@@ -167,7 +167,9 @@ class Raynet_Lead_Api_Client {
 			$offset += count( $response['data'] );
 			$total   = isset( $response['totalCount'] ) ? (int) $response['totalCount'] : 0;
 
-			if ( count( $response['data'] ) < 1000 || $offset >= $total ) {
+			// A full page means there may be more, also when RAYNET leaves the
+			// total out.
+			if ( count( $response['data'] ) < 1000 || ( $total > 0 && $offset >= $total ) ) {
 				break;
 			}
 		}

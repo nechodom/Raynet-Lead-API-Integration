@@ -192,13 +192,29 @@ class Raynet_Lead_Admin {
 		$users   = Raynet_Lead_Users::refresh( $client );
 		$warning = '';
 
-		if ( is_wp_error( $users ) ) {
+		if ( is_wp_error( $users ) && Raynet_Lead_Users::all() ) {
+			/* translators: %s: error message. */
+			$warning = sprintf( __( 'Seznam uživatelů z RAYNETu se nepodařilo obnovit, výběr vlastníka nabízí ten načtený dřív: %s', 'raynet-lead-api-integration' ), $users->get_error_message() );
+		} elseif ( is_wp_error( $users ) ) {
 			/* translators: %s: error message. */
 			$warning = sprintf( __( 'Uživatele z RAYNETu se nepodařilo načíst, vlastníka proto zadáte jen číslem: %s', 'raynet-lead-api-integration' ), $users->get_error_message() );
 		} elseif ( 0 === $users ) {
 			$warning = __( 'RAYNET nevrátil žádného uživatele s kontaktní osobou, vlastníka proto zadáte jen číslem.', 'raynet-lead-api-integration' );
-		} else {
-			$lists[ __( 'Uživatelé — vlastník leadu (owner)', 'raynet-lead-api-integration' ) ] = Raynet_Lead_Users::all();
+		}
+
+		$owners = array();
+
+		// A list of pairs, not an id-keyed object: JavaScript would put the
+		// ids in numeric order, and people are easier to find by name.
+		foreach ( Raynet_Lead_Users::all() as $owner_id => $owner_label ) {
+			$owners[] = array(
+				'id'    => (string) $owner_id,
+				'label' => $owner_label,
+			);
+		}
+
+		if ( $owners ) {
+			$lists[ __( 'Uživatelé — vlastník leadu (owner)', 'raynet-lead-api-integration' ) ] = $owners;
 		}
 
 		delete_option( 'raynet_lead_last_error' );
@@ -248,7 +264,10 @@ class Raynet_Lead_Admin {
 			return;
 		}
 
+		// The page an administrator lands on after changing the connection:
+		// both lists belong to it and are fetched for the new one here.
 		Raynet_Lead_Users::maybe_refresh();
+		Raynet_Lead_Fields::maybe_refresh();
 
 		$settings   = Raynet_Lead_Settings::all();
 		$updates    = ( new Raynet_Lead_Updater() )->status();
