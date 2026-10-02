@@ -44,7 +44,8 @@ WordPress plugin, který posílá poptávky z webových formulářů přímo do 
 - **Jedno pole pro celé jméno** — „Jan Novák" se do RAYNETu rozdělí na jméno a příjmení.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
 - **Podpora všech čtyř regionů RAYNETu** (`.cz`, `.sk`, `.com`, `eu.`) i vlastní adresy.
-- **Test spojení** přímo v administraci — ověří údaje proti `GET /security/info` a rovnou vypíše ID číselníků (kategorie, stav leadu, zdroj kontaktu, šablony a formy GDPR souhlasu).
+- **Vlastník leadu podle jména** — plugin načte uživatele z RAYNETu a vlastníka vyberete ze seznamu, v nastavení, šabloně, builderu i v Elementoru.
+- **Test spojení** přímo v administraci — ověří údaje proti `GET /security/info` a rovnou vypíše ID číselníků (kategorie, stav leadu, zdroj kontaktu, šablony a formy GDPR souhlasu) i uživatele.
 - **Ochrana proti spamu**: honeypot, časová past a omezení frekvence na IP adresu.
 - **Záložní e-mail** — když RAYNET lead nepřijme, poptávka dorazí na zadanou adresu a neztratí se.
 - **Skutečná kontrola chyb** — plugin rozlišuje HTTP 201, 401, 429 i výpadek spojení a chybu zapíše do logu.
@@ -114,7 +115,15 @@ Nastavení uložte a klikněte na **Otestovat spojení**. Test běží proti ulo
 
 Priorita (`MINOR` / `DEFAULT` / `CRITICAL`), přepínač *Fyzická osoba* (`leadPerson`), výchozí předmět, poznámka vkládaná před zprávu návštěvníka, štítky, notifikační e-maily a ID z číselníků RAYNETu — kategorie, stav leadu, zdroj kontaktu, vlastník, bezpečnostní úroveň. Hodnota `0` znamená „tento atribut neposílat“ a RAYNET si doplní výchozí.
 
-**ID kategorie, stavu leadu a zdroje kontaktu nemusíte hledat ručně** — tlačítko *Otestovat spojení* je po úspěšném přihlášení vypíše. ID vlastníka (kontaktní osoby, která je zároveň uživatelem) a bezpečnostní úrovně najdete v RAYNETu.
+**ID kategorie, stavu leadu a zdroje kontaktu nemusíte hledat ručně** — tlačítko *Otestovat spojení* je po úspěšném přihlášení vypíše. ID bezpečnostní úrovně najdete v RAYNETu.
+
+**Vlastníka leadu vyberete podle jména.** Plugin načte uživatele RAYNETu (`GET /userAccount/`, i víc než 1000 po stránkách) a místo čísla nabídne seznam „Jméno Příjmení (login)". Seznam se načte při *Otestovat spojení*, sám se obnovuje jednou za 12 hodin při návštěvě nastavení, šablon nebo builderu, a odkazem **Načíst znovu** hned. Účty bez kontaktní osoby se nenabízejí. RAYNET jako vlastníka chce ID **kontaktní osoby** uživatele, ne ID jeho účtu — plugin posílá to správné.
+
+Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci RAYNET CRM v Elementoru. Editor Elementoru otevírají i autoři a redaktoři, proto tam výběr ukazuje jen jména; login (e-mail) přidá jen u dvou lidí se stejným jménem.
+
+- Dokud seznam načtený není, zůstává pole pro ID. Když se načíst nepodaří — třeba proto, že API klíč nesmí vypisovat uživatele —, u pole je důvod a test spojení na to upozorní.
+- Vlastník nastavený dřív zůstane vybraný, i když mezi načtenými uživateli není (zobrazí se jako „ID 14 (není mezi načtenými uživateli)").
+- Seznam patří k jednomu připojení. Po změně instance nebo účtu se starý nenabízí a načte se znovu, aby se nevybral člověk z jiné instance. Totéž platí pro vlastní pole.
 
 ### GDPR souhlas v RAYNETu
 
@@ -590,6 +599,7 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **Souhlas je v poznámce bez znění** | Zapsal ho přepínač *Zapsat udělení souhlasu*, ne namapované pole. V **Namapovat pole** přepněte zaškrtávátko souhlasu na **Souhlas se zpracováním údajů (GDPR)**. |
 | **GDPR záznam u leadu nevzniká** | V nastavení chybí šablona právního titulu, nebo zaškrtávátko není namapované na Souhlas se zpracováním údajů (samotný přepínač GDPR záznam nezakládá). Když ho RAYNET odmítl, důvod je nahoře na stránce nastavení. |
 | **Přílohy u leadu chybí** | Nahrávací pole je v **Namapovat pole** nastavené na Neodesílat, soubor je větší než 20 MB nebo s ostatními přesáhl 50 MB na lead, server ho nemohl zkopírovat do dočasného adresáře (v těchto případech to říká poznámka leadu u souboru), nebo ho RAYNET odmítl — důvod je nahoře na stránce nastavení. |
+| **Ve výběru vlastníka chybí uživatel** | Seznam je starý — v nastavení klikněte na **Načíst znovu** u vlastníka. Účty bez kontaktní osoby se nenabízejí. Když místo výběru zůstává pole pro ID, popisek pod ním říká proč (nejčastěji API klíč bez práva vypisovat uživatele). |
 | **Formulář hlásí chybu, ale lead v RAYNETu je** | Selhala jiná akce formuláře, typicky e-mailová notifikace Elementoru (nefunkční odesílání pošty na webu). Přihlášený správce vidí u chyby, která akce to byla. |
 
 Chyby API se zapisují do PHP logu s prefixem `[Raynet Lead API Integration]`. Poslední chyba se navíc zobrazuje nahoře na stránce nastavení. Pro zapnutí logu WordPressu:

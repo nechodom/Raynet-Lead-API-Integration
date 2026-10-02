@@ -122,6 +122,67 @@ class Raynet_Lead_Api_Client {
 	}
 
 	/**
+	 * Lists the instance's users who can own a lead.
+	 *
+	 * A lead's owner is not the user account but the contact person behind it
+	 * ("ID kontaktní osoby, která je zároveň uživatelem"), so the list is keyed
+	 * by that person's id. Accounts without a person cannot own anything and
+	 * are left out, as are rows RAYNET marks invalid.
+	 *
+	 * RAYNET returns at most 1000 rows a request; larger instances are read
+	 * page by page, up to ten pages.
+	 *
+	 * @return array<int,array{name:string,login:string}>|WP_Error Person id => name and login, sorted by name.
+	 */
+	public function get_users() {
+		$users  = array();
+		$offset = 0;
+
+		for ( $page = 0; $page < 10; $page++ ) {
+			$response = $this->request( 'GET', add_query_arg( array( 'limit' => 1000, 'offset' => $offset ), 'userAccount/' ) );
+
+			if ( is_wp_error( $response ) ) {
+				return $response;
+			}
+
+			if ( ! isset( $response['data'] ) || ! is_array( $response['data'] ) ) {
+				return new WP_Error( 'raynet_bad_response', __( 'RAYNET vrátil neočekávanou odpověď bez dat. Zkontrolujte adresu API.', 'raynet-lead-api-integration' ) );
+			}
+
+			foreach ( $response['data'] as $row ) {
+				if ( ! is_array( $row ) || empty( $row['person']['id'] ) ) {
+					continue;
+				}
+
+				if ( isset( $row['rowInfo.rowAccess'] ) && 'INVALID' === $row['rowInfo.rowAccess'] ) {
+					continue;
+				}
+
+				$users[ (int) $row['person']['id'] ] = array(
+					'name'  => isset( $row['person']['fullName'] ) ? trim( wp_strip_all_tags( (string) $row['person']['fullName'] ) ) : '',
+					'login' => isset( $row['username'] ) ? trim( wp_strip_all_tags( (string) $row['username'] ) ) : '',
+				);
+			}
+
+			$offset += count( $response['data'] );
+			$total   = isset( $response['totalCount'] ) ? (int) $response['totalCount'] : 0;
+
+			if ( count( $response['data'] ) < 1000 || $offset >= $total ) {
+				break;
+			}
+		}
+
+		uasort(
+			$users,
+			static function ( $a, $b ) {
+				return strcasecmp( remove_accents( $a['name'] . ' ' . $a['login'] ), remove_accents( $b['name'] . ' ' . $b['login'] ) );
+			}
+		);
+
+		return $users;
+	}
+
+	/**
 	 * Uploads a file to RAYNET's storage.
 	 *
 	 * The first of two steps: RAYNET takes the file as multipart/form-data

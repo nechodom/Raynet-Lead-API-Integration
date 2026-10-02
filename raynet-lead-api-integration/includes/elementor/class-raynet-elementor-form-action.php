@@ -262,6 +262,26 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 			)
 		);
 
+		// The owner is picked by name once the users have been fetched; before
+		// that, and for sites that never fetch them, it stays an id box.
+		if ( ! empty( Raynet_Lead_Users::all() ) ) {
+			$widget->add_control(
+				'raynet_crm_owner',
+				array(
+					'label'       => esc_html__( 'Vlastník leadu', 'raynet-lead-api-integration' ),
+					'type'        => Controls_Manager::SELECT,
+					'default'     => '',
+					// Names only: the editor is open to everyone who can edit the
+					// page. The order and a previously set owner missing from
+					// the list are put right by raynet-elementor-editor.js.
+					'options'     => array_map( 'esc_html', Raynet_Lead_Users::options( $inherit, 0, true ) ),
+					'description' => esc_html__( 'Uživatel RAYNETu, kterému lead patří. Seznam se načítá v nastavení pluginu.', 'raynet-lead-api-integration' ),
+					'render_type' => 'none',
+					'condition'   => $condition,
+				)
+			);
+		}
+
 		$numeric = array(
 			'raynet_crm_category'       => esc_html__( 'Kategorie (ID)', 'raynet-lead-api-integration' ),
 			'raynet_crm_lead_phase'     => esc_html__( 'Stav leadu (ID)', 'raynet-lead-api-integration' ),
@@ -269,6 +289,10 @@ class Raynet_Elementor_Form_Action extends Action_Base {
 			'raynet_crm_owner'          => esc_html__( 'Vlastník (ID)', 'raynet-lead-api-integration' ),
 			'raynet_crm_security_level' => esc_html__( 'Bezpečnostní úroveň (ID)', 'raynet-lead-api-integration' ),
 		);
+
+		if ( ! empty( Raynet_Lead_Users::all() ) ) {
+			unset( $numeric['raynet_crm_owner'] );
+		}
 
 		foreach ( $numeric as $control => $label ) {
 			$widget->add_control(

@@ -27,6 +27,7 @@ class Raynet_Lead_Admin {
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'wp_ajax_raynet_lead_test_connection', array( $this, 'handle_test_connection' ) );
+		add_action( 'admin_post_raynet_lead_refresh_users', array( $this, 'handle_refresh_users' ) );
 		add_filter(
 			'plugin_action_links_' . plugin_basename( RAYNET_LEAD_FILE ),
 			array( $this, 'add_settings_link' )
@@ -186,6 +187,20 @@ class Raynet_Lead_Admin {
 			}
 		}
 
+		// A working connection is the moment to fetch the owners: the owner
+		// pickers on every screen read this list.
+		$users   = Raynet_Lead_Users::refresh( $client );
+		$warning = '';
+
+		if ( is_wp_error( $users ) ) {
+			/* translators: %s: error message. */
+			$warning = sprintf( __( 'Uživatele z RAYNETu se nepodařilo načíst, vlastníka proto zadáte jen číslem: %s', 'raynet-lead-api-integration' ), $users->get_error_message() );
+		} elseif ( 0 === $users ) {
+			$warning = __( 'RAYNET nevrátil žádného uživatele s kontaktní osobou, vlastníka proto zadáte jen číslem.', 'raynet-lead-api-integration' );
+		} else {
+			$lists[ __( 'Uživatelé — vlastník leadu (owner)', 'raynet-lead-api-integration' ) ] = Raynet_Lead_Users::all();
+		}
+
 		delete_option( 'raynet_lead_last_error' );
 
 		wp_send_json_success(
@@ -197,8 +212,30 @@ class Raynet_Lead_Admin {
 					isset( $info['X-Instance-Name'] ) ? $info['X-Instance-Name'] : '?'
 				),
 				'codeLists' => $lists,
+				'warning'   => $warning,
 			)
 		);
+	}
+
+	/**
+	 * Fetches the RAYNET users again, on request.
+	 *
+	 * @return void
+	 */
+	public function handle_refresh_users() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Nemáte oprávnění.', 'raynet-lead-api-integration' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( 'raynet_lead_refresh_users' );
+
+		$result = Raynet_Lead_Users::refresh();
+
+		set_transient( 'raynet_lead_users_flash_' . get_current_user_id(), is_wp_error( $result ) ? 'error' : 'ok', MINUTE_IN_SECONDS );
+
+		wp_safe_redirect( add_query_arg( array( 'page' => self::PAGE ), admin_url( 'admin.php' ) ) );
+
+		exit;
 	}
 
 	/**
@@ -211,8 +248,16 @@ class Raynet_Lead_Admin {
 			return;
 		}
 
+		Raynet_Lead_Users::maybe_refresh();
+
 		$settings   = Raynet_Lead_Settings::all();
 		$updates    = ( new Raynet_Lead_Updater() )->status();
+		$users      = Raynet_Lead_Users::state();
+		// Kept on the server, not in the URL: options.php sends the settings
+		// form back to its own address, and a result carried there would show
+		// again after every save.
+		$users_done = (string) get_transient( 'raynet_lead_users_flash_' . get_current_user_id() );
+		delete_transient( 'raynet_lead_users_flash_' . get_current_user_id() );
 		$option     = Raynet_Lead_Settings::OPTION;
 		$last_error = get_option( 'raynet_lead_last_error' );
 		?>
@@ -222,6 +267,22 @@ class Raynet_Lead_Admin {
 			<?php if ( ! Raynet_Lead_Settings::is_configured() ) : ?>
 				<div class="notice notice-warning">
 					<p><?php esc_html_e( 'Připojení zatím není kompletní. Vyplňte e-mail, API klíč a název instance.', 'raynet-lead-api-integration' ); ?></p>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( 'ok' === $users_done ) : ?>
+				<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Uživatelé z RAYNETu načteni.', 'raynet-lead-api-integration' ); ?></p></div>
+			<?php elseif ( 'error' === $users_done ) : ?>
+				<div class="notice notice-error">
+					<p>
+						<?php
+						printf(
+							/* translators: %s: error message. */
+							esc_html__( 'Uživatele z RAYNETu se nepodařilo načíst: %s', 'raynet-lead-api-integration' ),
+							esc_html( $users['error'] )
+						);
+						?>
+					</p>
 				</div>
 			<?php endif; ?>
 
@@ -367,10 +428,28 @@ class Raynet_Lead_Admin {
 					foreach ( $numeric_fields as $key => $meta ) :
 						?>
 						<tr>
-							<th scope="row"><label for="raynet-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $meta[0] ); ?></label></th>
+							<th scope="row"><label for="raynet-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( 'owner' === $key ? __( 'Vlastník leadu', 'raynet-lead-api-integration' ) : $meta[0] ); ?></label></th>
 							<td>
-								<input type="number" min="0" id="raynet-<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( $option ); ?>[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( (string) $settings[ $key ] ); ?>" />
-								<p class="description"><?php echo esc_html( $meta[1] ); ?></p>
+								<?php if ( 'owner' === $key ) : ?>
+									<?php Raynet_Lead_Users::field( $option . '[owner]', 'raynet-owner', (int) $settings['owner'], __( '— neposílat, RAYNET určí sám —', 'raynet-lead-api-integration' ) ); ?>
+									<p class="description">
+										<?php if ( ! empty( $users['users'] ) ) : ?>
+											<?php
+											printf(
+												/* translators: %s: date and time. */
+												esc_html__( 'Uživatelé z RAYNETu, načteno %s.', 'raynet-lead-api-integration' ),
+												esc_html( wp_date( 'j. n. Y H:i', $users['fetched_at'] ) )
+											);
+											?>
+										<?php endif; ?>
+										<?php if ( Raynet_Lead_Settings::is_configured() ) : ?>
+											<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=raynet_lead_refresh_users' ), 'raynet_lead_refresh_users' ) ); ?>"><?php echo esc_html( empty( $users['users'] ) ? __( 'Načíst uživatele z RAYNETu', 'raynet-lead-api-integration' ) : __( 'Načíst znovu', 'raynet-lead-api-integration' ) ); ?></a>
+										<?php endif; ?>
+									</p>
+								<?php else : ?>
+									<input type="number" min="0" id="raynet-<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( $option ); ?>[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( (string) $settings[ $key ] ); ?>" />
+									<p class="description"><?php echo esc_html( $meta[1] ); ?></p>
+								<?php endif; ?>
 							</td>
 						</tr>
 					<?php endforeach; ?>

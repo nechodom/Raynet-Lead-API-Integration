@@ -67,7 +67,9 @@
 				.then( function ( payload ) {
 					if ( payload && payload.success ) {
 						output.className = 'raynet-test-result is-success';
-						output.innerHTML = '<p>' + escapeHtml( payload.data.message ) + '</p>' + renderLists( payload.data.codeLists );
+						output.innerHTML = '<p>' + escapeHtml( payload.data.message ) + '</p>'
+							+ ( payload.data.warning ? '<p><strong>' + escapeHtml( payload.data.warning ) + '</strong></p>' : '' )
+							+ renderLists( payload.data.codeLists );
 						return;
 					}
 

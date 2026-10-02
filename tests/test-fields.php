@@ -36,6 +36,10 @@ function client() {
 }
 
 // ---------- Custom field configuration from RAYNET ----------
+// The connection is set first: what is fetched is stored for it.
+update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array(
+	'region' => 'cz', 'username' => 'u@e.cz', 'api_key' => 'K', 'instance_name' => 'inst',
+) ) );
 $GLOBALS['wp_next_response'] = array( 'code' => 200, 'body' => json_encode( array(
 	'success' => true,
 	'data'    => array(
@@ -84,9 +88,6 @@ check( 'selhání si pamatuje čas', Raynet_Lead_Fields::state()['failed_at'] > 
 
 // maybe_refresh() must not retry straight after a failure: 20 bad logins lock
 // the site's IP out of RAYNET for an hour.
-update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array(
-	'region' => 'cz', 'username' => 'u@e.cz', 'api_key' => 'K', 'instance_name' => 'inst',
-) ) );
 $before = count( $GLOBALS['wp_requests'] );
 Raynet_Lead_Fields::maybe_refresh();
 check( 'po selhání se hned nezkouší znovu', count( $GLOBALS['wp_requests'] ), $before );

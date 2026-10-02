@@ -67,8 +67,10 @@ class Raynet_Elementor_Forms_Admin {
 			return;
 		}
 
-		// Before the scan, so a first visit already offers the custom fields.
+		// Before the scan, so a first visit already offers the custom fields
+		// and the owners.
 		Raynet_Lead_Fields::maybe_refresh();
+		Raynet_Lead_Users::maybe_refresh();
 
 		if ( isset( $_GET['mapovat'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only selection.
 			$this->render_mapping( sanitize_text_field( wp_unslash( $_GET['mapovat'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only selection.
@@ -489,8 +491,14 @@ class Raynet_Elementor_Forms_Admin {
 			) as $key => $label ) :
 				?>
 				<tr>
-					<th scope="row"><label for="raynet-tpl-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></label></th>
-					<td><input type="number" min="0" id="raynet-tpl-<?php echo esc_attr( $key ); ?>" name="lead[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( (string) $lead[ $key ] ); ?>" /></td>
+					<th scope="row"><label for="raynet-tpl-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( 'owner' === $key ? __( 'Vlastník leadu', 'raynet-lead-api-integration' ) : $label ); ?></label></th>
+					<td>
+						<?php if ( 'owner' === $key ) : ?>
+							<?php Raynet_Lead_Users::field( 'lead[owner]', 'raynet-tpl-owner', (int) $lead['owner'], $inherit ); ?>
+						<?php else : ?>
+							<input type="number" min="0" id="raynet-tpl-<?php echo esc_attr( $key ); ?>" name="lead[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( (string) $lead[ $key ] ); ?>" />
+						<?php endif; ?>
+					</td>
 				</tr>
 			<?php endforeach; ?>
 			<tr>

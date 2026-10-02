@@ -2,14 +2,14 @@
 # This file is distributed under the MIT.
 msgid ""
 msgstr ""
-"Project-Id-Version: Raynet Lead API Integration 2.8.0\n"
+"Project-Id-Version: Raynet Lead API Integration 2.9.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/raynet-lead-api-integration\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-25T09:03:13+00:00\n"
+"POT-Creation-Date: 2026-10-02T08:43:22+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: raynet-lead-api-integration\n"
@@ -39,479 +39,530 @@ msgstr ""
 msgid "https://github.com/nechodom"
 msgstr ""
 
-#: includes/class-raynet-admin.php:43
-#: includes/class-raynet-admin.php:61
+#: includes/class-raynet-admin.php:44
+#: includes/class-raynet-admin.php:62
 msgid "RAYNET Lead API"
 msgstr ""
 
-#: includes/class-raynet-admin.php:44
+#: includes/class-raynet-admin.php:45
 #: includes/elementor/class-raynet-elementor-form-action.php:45
 #: includes/elementor/class-raynet-elementor-form-action.php:141
 msgid "RAYNET CRM"
 msgstr ""
 
-#: includes/class-raynet-admin.php:62
-#: includes/class-raynet-admin.php:80
+#: includes/class-raynet-admin.php:63
+#: includes/class-raynet-admin.php:81
 msgid "Nastavení"
 msgstr ""
 
-#: includes/class-raynet-admin.php:144
+#: includes/class-raynet-admin.php:145
 msgid "Testuji spojení…"
 msgstr ""
 
-#: includes/class-raynet-admin.php:145
+#: includes/class-raynet-admin.php:146
 msgid "Test spojení se nezdařil."
 msgstr ""
 
-#: includes/class-raynet-admin.php:147
+#: includes/class-raynet-admin.php:148
 msgid "Zjišťuji…"
 msgstr ""
 
-#: includes/class-raynet-admin.php:148
+#: includes/class-raynet-admin.php:149
 msgid "Kontrolu se nepodařilo provést."
 msgstr ""
 
-#: includes/class-raynet-admin.php:149
+#: includes/class-raynet-admin.php:150
 msgid "Přejít na Pluginy"
 msgstr ""
 
-#: includes/class-raynet-admin.php:161
-#: includes/class-raynet-form-builder-admin.php:371
+#: includes/class-raynet-admin.php:162
+#: includes/class-raynet-admin.php:227
+#: includes/class-raynet-form-builder-admin.php:378
 #: includes/class-raynet-updater.php:321
-#: includes/elementor/class-raynet-elementor-forms-admin.php:1071
+#: includes/elementor/class-raynet-elementor-forms-admin.php:1079
 msgid "Nemáte oprávnění."
 msgstr ""
 
-#: includes/class-raynet-admin.php:176
+#: includes/class-raynet-admin.php:177
 msgid "Kategorie leadu (category)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:177
+#: includes/class-raynet-admin.php:178
 msgid "Stav leadu (leadPhase)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:178
+#: includes/class-raynet-admin.php:179
 msgid "Zdroj kontaktu (contactSource)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:179
+#: includes/class-raynet-admin.php:180
 msgid "Šablona právního titulu GDPR (gdprTemplate)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:180
+#: includes/class-raynet-admin.php:181
 msgid "Forma udělení souhlasu (gdprFormAgreement)"
 msgstr ""
 
+#. translators: %s: error message.
+#: includes/class-raynet-admin.php:197
+#, php-format
+msgid "Uživatele z RAYNETu se nepodařilo načíst, vlastníka proto zadáte jen číslem: %s"
+msgstr ""
+
+#: includes/class-raynet-admin.php:199
+msgid "RAYNET nevrátil žádného uživatele s kontaktní osobou, vlastníka proto zadáte jen číslem."
+msgstr ""
+
+#: includes/class-raynet-admin.php:201
+msgid "Uživatelé — vlastník leadu (owner)"
+msgstr ""
+
 #. translators: 1: user name, 2: instance name.
-#: includes/class-raynet-admin.php:195
+#: includes/class-raynet-admin.php:210
 #, php-format
 msgid "Spojení funguje. Přihlášen jako %1$s, instance %2$s."
 msgstr ""
 
-#: includes/class-raynet-admin.php:220
+#: includes/class-raynet-admin.php:265
 msgid "RAYNET Lead API Integration"
 msgstr ""
 
-#: includes/class-raynet-admin.php:224
+#: includes/class-raynet-admin.php:269
 msgid "Připojení zatím není kompletní. Vyplňte e-mail, API klíč a název instance."
 msgstr ""
 
-#: includes/class-raynet-admin.php:231
+#: includes/class-raynet-admin.php:274
+msgid "Uživatelé z RAYNETu načteni."
+msgstr ""
+
+#. translators: %s: error message.
+#: includes/class-raynet-admin.php:281
+#, php-format
+msgid "Uživatele z RAYNETu se nepodařilo načíst: %s"
+msgstr ""
+
+#: includes/class-raynet-admin.php:292
 msgid "Poslední chyba API:"
 msgstr ""
 
 #. translators: %s: shortcode.
-#: includes/class-raynet-admin.php:244
+#: includes/class-raynet-admin.php:305
 #, php-format
 msgid "Formulář vložíte do stránky zkratkou %s."
 msgstr ""
 
-#: includes/class-raynet-admin.php:253
+#: includes/class-raynet-admin.php:314
 msgid "Připojení k RAYNET CRM"
 msgstr ""
 
-#: includes/class-raynet-admin.php:256
+#: includes/class-raynet-admin.php:317
 msgid "Region API"
 msgstr ""
 
-#: includes/class-raynet-admin.php:265
+#: includes/class-raynet-admin.php:326
 msgid "Vlastní adresa…"
 msgstr ""
 
-#: includes/class-raynet-admin.php:268
+#: includes/class-raynet-admin.php:329
 msgid "Vyberte doménu, na které běží vaše instance RAYNET CRM."
 msgstr ""
 
-#: includes/class-raynet-admin.php:272
+#: includes/class-raynet-admin.php:333
 msgid "Vlastní adresa API"
 msgstr ""
 
-#: includes/class-raynet-admin.php:275
+#: includes/class-raynet-admin.php:336
 msgid "Použije se jen při volbě „Vlastní adresa“. Zadejte základ API včetně /api/v2/."
 msgstr ""
 
-#: includes/class-raynet-admin.php:279
+#: includes/class-raynet-admin.php:340
 msgid "Uživatelské jméno"
 msgstr ""
 
-#: includes/class-raynet-admin.php:282
+#: includes/class-raynet-admin.php:343
 msgid "E-mail uživatele, na kterého je API klíč vydaný."
 msgstr ""
 
-#: includes/class-raynet-admin.php:286
+#: includes/class-raynet-admin.php:347
 msgid "API klíč"
 msgstr ""
 
-#: includes/class-raynet-admin.php:288
+#: includes/class-raynet-admin.php:349
 msgid "Uložen — ponechte prázdné pro zachování"
 msgstr ""
 
-#: includes/class-raynet-admin.php:289
+#: includes/class-raynet-admin.php:350
 msgid "Klíč se nikdy nezobrazuje zpět. Prázdné pole znamená „ponechat stávající“."
 msgstr ""
 
-#: includes/class-raynet-admin.php:293
+#: includes/class-raynet-admin.php:354
 msgid "Název instance"
 msgstr ""
 
-#: includes/class-raynet-admin.php:296
+#: includes/class-raynet-admin.php:357
 msgid "Z adresy https://app.raynet.cz/mujraynet/ je to část „mujraynet“. Posílá se v hlavičce X-Instance-Name."
 msgstr ""
 
-#: includes/class-raynet-admin.php:300
+#: includes/class-raynet-admin.php:361
 msgid "ID instance"
 msgstr ""
 
-#: includes/class-raynet-admin.php:303
+#: includes/class-raynet-admin.php:364
 msgid "Volitelné. Má přednost před názvem instance a posílá se jako X-Instance-Id."
 msgstr ""
 
-#: includes/class-raynet-admin.php:307
+#: includes/class-raynet-admin.php:368
 msgid "Timeout (s)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:313
+#: includes/class-raynet-admin.php:374
 msgid "Test spojení"
 msgstr ""
 
-#: includes/class-raynet-admin.php:315
+#: includes/class-raynet-admin.php:376
 msgid "Otestovat spojení"
 msgstr ""
 
-#: includes/class-raynet-admin.php:317
+#: includes/class-raynet-admin.php:378
 msgid "Test se provádí proti uloženému nastavení — nejdřív změny uložte. Po úspěchu vypíše i ID číselníků."
 msgstr ""
 
-#: includes/class-raynet-admin.php:322
+#: includes/class-raynet-admin.php:383
 msgid "Výchozí hodnoty leadu"
 msgstr ""
 
-#: includes/class-raynet-admin.php:325
-#: includes/class-raynet-form-builder-admin.php:243
+#: includes/class-raynet-admin.php:386
+#: includes/class-raynet-form-builder-admin.php:246
 #: includes/elementor/class-raynet-elementor-form-action.php:190
-#: includes/elementor/class-raynet-elementor-forms-admin.php:452
+#: includes/elementor/class-raynet-elementor-forms-admin.php:454
 msgid "Priorita"
 msgstr ""
 
-#: includes/class-raynet-admin.php:335
+#: includes/class-raynet-admin.php:396
 msgid "Výchozí předmět"
 msgstr ""
 
-#: includes/class-raynet-admin.php:338
+#: includes/class-raynet-admin.php:399
 msgid "Použije se, když formulář nemá pole „Předmět“ ani atribut topic."
 msgstr ""
 
-#: includes/class-raynet-admin.php:342
+#: includes/class-raynet-admin.php:403
 msgid "Poznámka k leadu"
 msgstr ""
 
-#: includes/class-raynet-admin.php:345
+#: includes/class-raynet-admin.php:406
 msgid "Text se vloží před zprávu od návštěvníka, např. „Přidáno z webu example.cz“."
 msgstr ""
 
-#: includes/class-raynet-admin.php:349
-#: includes/class-raynet-form-builder-admin.php:264
+#: includes/class-raynet-admin.php:410
+#: includes/class-raynet-form-builder-admin.php:267
 #: includes/elementor/class-raynet-elementor-form-action.php:212
-#: includes/elementor/class-raynet-elementor-forms-admin.php:473
+#: includes/elementor/class-raynet-elementor-forms-admin.php:475
 msgid "Fyzická osoba"
 msgstr ""
 
-#: includes/class-raynet-admin.php:353
+#: includes/class-raynet-admin.php:414
 msgid "Zakládat leady jako fyzickou osobu (leadPerson)."
 msgstr ""
 
-#: includes/class-raynet-admin.php:355
+#: includes/class-raynet-admin.php:416
 msgid "Když návštěvník vyplní pole Společnost, lead se založí jako firma bez ohledu na tuto volbu."
 msgstr ""
 
-#: includes/class-raynet-admin.php:360
-#: includes/class-raynet-form-builder-admin.php:279
-#: includes/elementor/class-raynet-elementor-form-action.php:266
-#: includes/elementor/class-raynet-elementor-forms-admin.php:484
+#: includes/class-raynet-admin.php:421
+#: includes/class-raynet-form-builder-admin.php:282
+#: includes/elementor/class-raynet-elementor-form-action.php:286
+#: includes/elementor/class-raynet-elementor-forms-admin.php:486
 msgid "Kategorie (ID)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:360
+#: includes/class-raynet-admin.php:421
 msgid "ID z číselníku LeadCategory. 0 = neposílat."
 msgstr ""
 
-#: includes/class-raynet-admin.php:361
-#: includes/class-raynet-form-builder-admin.php:280
-#: includes/elementor/class-raynet-elementor-form-action.php:267
-#: includes/elementor/class-raynet-elementor-forms-admin.php:485
+#: includes/class-raynet-admin.php:422
+#: includes/class-raynet-form-builder-admin.php:283
+#: includes/elementor/class-raynet-elementor-form-action.php:287
+#: includes/elementor/class-raynet-elementor-forms-admin.php:487
 msgid "Stav leadu (ID)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:361
+#: includes/class-raynet-admin.php:422
 msgid "ID z číselníku LeadPhase. 0 = neposílat."
 msgstr ""
 
-#: includes/class-raynet-admin.php:362
-#: includes/class-raynet-form-builder-admin.php:281
-#: includes/elementor/class-raynet-elementor-form-action.php:268
-#: includes/elementor/class-raynet-elementor-forms-admin.php:486
+#: includes/class-raynet-admin.php:423
+#: includes/class-raynet-form-builder-admin.php:284
+#: includes/elementor/class-raynet-elementor-form-action.php:288
+#: includes/elementor/class-raynet-elementor-forms-admin.php:488
 msgid "Zdroj kontaktu (ID)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:362
+#: includes/class-raynet-admin.php:423
 msgid "ID z číselníku ContactSource. 0 = neposílat."
 msgstr ""
 
-#: includes/class-raynet-admin.php:363
-#: includes/class-raynet-form-builder-admin.php:282
-#: includes/elementor/class-raynet-elementor-form-action.php:269
-#: includes/elementor/class-raynet-elementor-forms-admin.php:487
+#: includes/class-raynet-admin.php:424
+#: includes/class-raynet-form-builder-admin.php:285
+#: includes/elementor/class-raynet-elementor-form-action.php:289
+#: includes/elementor/class-raynet-elementor-forms-admin.php:489
 msgid "Vlastník (ID)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:363
+#: includes/class-raynet-admin.php:424
 msgid "ID kontaktní osoby, která je zároveň uživatelem. 0 = neposílat."
 msgstr ""
 
-#: includes/class-raynet-admin.php:364
-#: includes/class-raynet-form-builder-admin.php:283
-#: includes/elementor/class-raynet-elementor-form-action.php:270
-#: includes/elementor/class-raynet-elementor-forms-admin.php:488
+#: includes/class-raynet-admin.php:425
+#: includes/class-raynet-form-builder-admin.php:286
+#: includes/elementor/class-raynet-elementor-form-action.php:290
+#: includes/elementor/class-raynet-elementor-forms-admin.php:490
 msgid "Bezpečnostní úroveň (ID)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:364
+#: includes/class-raynet-admin.php:425
 msgid "0 = použije se výchozí úroveň instance."
 msgstr ""
 
-#: includes/class-raynet-admin.php:378
-#: includes/class-raynet-form-builder-admin.php:295
-#: includes/elementor/class-raynet-elementor-form-action.php:291
-#: includes/elementor/class-raynet-elementor-forms-admin.php:497
+#: includes/class-raynet-admin.php:431
+#: includes/class-raynet-form-builder-admin.php:292
+#: includes/elementor/class-raynet-elementor-form-action.php:271
+#: includes/elementor/class-raynet-elementor-forms-admin.php:494
+msgid "Vlastník leadu"
+msgstr ""
+
+#: includes/class-raynet-admin.php:434
+msgid "— neposílat, RAYNET určí sám —"
+msgstr ""
+
+#. translators: %s: date and time.
+#: includes/class-raynet-admin.php:440
+#, php-format
+msgid "Uživatelé z RAYNETu, načteno %s."
+msgstr ""
+
+#: includes/class-raynet-admin.php:446
+msgid "Načíst uživatele z RAYNETu"
+msgstr ""
+
+#: includes/class-raynet-admin.php:446
+msgid "Načíst znovu"
+msgstr ""
+
+#: includes/class-raynet-admin.php:457
+#: includes/class-raynet-form-builder-admin.php:302
+#: includes/elementor/class-raynet-elementor-form-action.php:315
+#: includes/elementor/class-raynet-elementor-forms-admin.php:505
 msgid "Štítky"
 msgstr ""
 
-#: includes/class-raynet-admin.php:381
+#: includes/class-raynet-admin.php:460
 msgid "Seznam štítků oddělených čárkou."
 msgstr ""
 
-#: includes/class-raynet-admin.php:385
+#: includes/class-raynet-admin.php:464
 msgid "Notifikace z RAYNETu"
 msgstr ""
 
-#: includes/class-raynet-admin.php:388
+#: includes/class-raynet-admin.php:467
 msgid "E-maily oddělené čárkou. RAYNET jim pošle upozornění na nový lead."
 msgstr ""
 
-#: includes/class-raynet-admin.php:393
+#: includes/class-raynet-admin.php:472
 msgid "GDPR souhlas v RAYNETu"
 msgstr ""
 
-#: includes/class-raynet-admin.php:395
+#: includes/class-raynet-admin.php:474
 msgid "Souhlas se zapíše, když ho návštěvník opravdu zaškrtne: v builderu jako pole Souhlas, v Elementoru jako zaškrtávátko namapované na „Souhlas se zpracováním údajů (GDPR)“ (Elementor formuláře → Namapovat pole). Do poznámky leadu jde vždy s datem, časem a zněním. Vyberete-li šablonu právního titulu, založí se k leadu navíc GDPR záznam přímo v RAYNETu. ID šablon a forem souhlasu vypíše tlačítko Otestovat spojení."
 msgstr ""
 
-#: includes/class-raynet-admin.php:400
+#: includes/class-raynet-admin.php:479
 msgid "Šablona právního titulu (ID)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:400
+#: includes/class-raynet-admin.php:479
 msgid "Šablona z RAYNETu, obvykle typu Souhlas. 0 = GDPR záznam nezakládat, jen poznámka."
 msgstr ""
 
-#: includes/class-raynet-admin.php:401
+#: includes/class-raynet-admin.php:480
 msgid "Forma udělení souhlasu (ID)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:401
+#: includes/class-raynet-admin.php:480
 msgid "Třeba „elektronicky“. Jen pro šablony typu Souhlas. 0 = neuvádět."
 msgstr ""
 
-#: includes/class-raynet-admin.php:402
+#: includes/class-raynet-admin.php:481
 msgid "Platnost souhlasu (měsíce)"
 msgstr ""
 
-#: includes/class-raynet-admin.php:402
+#: includes/class-raynet-admin.php:481
 msgid "Od data odeslání. 0 = datum konce neposílat a nechat na RAYNETu."
 msgstr ""
 
-#: includes/class-raynet-admin.php:417
+#: includes/class-raynet-admin.php:496
 msgid "Chování formuláře"
 msgstr ""
 
-#: includes/class-raynet-admin.php:420
-#: includes/class-raynet-form-builder-admin.php:307
+#: includes/class-raynet-admin.php:499
+#: includes/class-raynet-form-builder-admin.php:314
 msgid "Hláška po odeslání"
 msgstr ""
 
-#: includes/class-raynet-admin.php:424
+#: includes/class-raynet-admin.php:503
 msgid "Hláška při chybě"
 msgstr ""
 
-#: includes/class-raynet-admin.php:427
+#: includes/class-raynet-admin.php:506
 msgid "Návštěvníkovi se nikdy nezobrazí technický detail chyby — ten jde do logu."
 msgstr ""
 
-#: includes/class-raynet-admin.php:431
-#: includes/class-raynet-form-builder-admin.php:312
+#: includes/class-raynet-admin.php:510
+#: includes/class-raynet-form-builder-admin.php:319
 msgid "Přesměrovat po odeslání"
 msgstr ""
 
-#: includes/class-raynet-admin.php:435
+#: includes/class-raynet-admin.php:514
 msgid "Souhlas se zpracováním"
 msgstr ""
 
 #. translators: %s: link to the forms list.
-#: includes/class-raynet-admin.php:441
+#: includes/class-raynet-admin.php:520
 #, php-format
 msgid "Souhlas se od verze 2.1 nastavuje na každém formuláři zvlášť, jako pole. Najdete ho v %s."
 msgstr ""
 
-#: includes/class-raynet-admin.php:443
+#: includes/class-raynet-admin.php:522
 msgid "Formulářích"
 msgstr ""
 
-#: includes/class-raynet-admin.php:450
+#: includes/class-raynet-admin.php:529
 msgid "Ochrana proti spamu"
 msgstr ""
 
-#: includes/class-raynet-admin.php:454
+#: includes/class-raynet-admin.php:533
 msgid "Skryté pole (honeypot)."
 msgstr ""
 
-#: includes/class-raynet-admin.php:457
+#: includes/class-raynet-admin.php:536
 msgid "Minimální doba vyplňování (s):"
 msgstr ""
 
-#: includes/class-raynet-admin.php:461
+#: includes/class-raynet-admin.php:540
 msgid "Pauza mezi odesláními z jedné IP (s):"
 msgstr ""
 
-#: includes/class-raynet-admin.php:467
+#: includes/class-raynet-admin.php:546
 msgid "Záložní e-mail"
 msgstr ""
 
-#: includes/class-raynet-admin.php:470
+#: includes/class-raynet-admin.php:549
 msgid "Když RAYNET lead nepřijme, pošle se obsah formuláře na tuto adresu, aby se poptávka neztratila."
 msgstr ""
 
-#: includes/class-raynet-admin.php:474
+#: includes/class-raynet-admin.php:553
 msgid "Aktualizace"
 msgstr ""
 
-#: includes/class-raynet-admin.php:478
+#: includes/class-raynet-admin.php:557
 msgid "Nabízet aktualizace pluginu z GitHubu."
 msgstr ""
 
 #. translators: %s: version number.
-#: includes/class-raynet-admin.php:485
+#: includes/class-raynet-admin.php:564
 #, php-format
 msgid "Nainstalovaná verze: %s"
 msgstr ""
 
 #. translators: %s: version number.
-#: includes/class-raynet-admin.php:494
+#: includes/class-raynet-admin.php:573
 #, php-format
 msgid "Poslední vydaná: %s"
 msgstr ""
 
-#: includes/class-raynet-admin.php:502
+#: includes/class-raynet-admin.php:581
 msgid "Zkontrolovat aktualizace"
 msgstr ""
 
-#: includes/class-raynet-admin.php:507
+#: includes/class-raynet-admin.php:586
 msgid "Aktualizace se stahují z vydaných verzí na GitHubu. Samotnou instalaci spustíte na stránce Pluginy, kde lze zapnout i automatickou aktualizaci."
 msgstr ""
 
-#: includes/class-raynet-admin.php:512
+#: includes/class-raynet-admin.php:591
 msgid "Údržba"
 msgstr ""
 
-#: includes/class-raynet-admin.php:516
+#: includes/class-raynet-admin.php:595
 msgid "Zapisovat chyby API do PHP logu."
 msgstr ""
 
-#: includes/class-raynet-admin.php:521
+#: includes/class-raynet-admin.php:600
 msgid "Smazat všechna data pluginu při odinstalaci."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:140
-msgid "Soubor se nepodařilo přečíst."
-msgstr ""
-
-#: includes/class-raynet-api-client.php:171
-msgid "RAYNET po nahrání souboru nevrátil jeho identifikátor."
-msgstr ""
-
-#: includes/class-raynet-api-client.php:224
+#: includes/class-raynet-api-client.php:149
+#: includes/class-raynet-api-client.php:285
 msgid "RAYNET vrátil neočekávanou odpověď bez dat. Zkontrolujte adresu API."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:280
+#: includes/class-raynet-api-client.php:201
+msgid "Soubor se nepodařilo přečíst."
+msgstr ""
+
+#: includes/class-raynet-api-client.php:232
+msgid "RAYNET po nahrání souboru nevrátil jeho identifikátor."
+msgstr ""
+
+#: includes/class-raynet-api-client.php:341
 msgid "Není nastavena adresa RAYNET API."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:287
+#: includes/class-raynet-api-client.php:348
 msgid "Chybí uživatelské jméno nebo API klíč."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:294
+#: includes/class-raynet-api-client.php:355
 msgid "Chybí název instance (X-Instance-Name) ani její ID."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:329
+#: includes/class-raynet-api-client.php:390
 msgid "Data se nepodařilo zakódovat do JSON."
 msgstr ""
 
 #. translators: %s: transport error message.
-#: includes/class-raynet-api-client.php:342
+#: includes/class-raynet-api-client.php:403
 #, php-format
 msgid "Spojení s RAYNET API selhalo: %s"
 msgstr ""
 
-#: includes/class-raynet-api-client.php:381
+#: includes/class-raynet-api-client.php:442
 msgid "RAYNET odmítl přihlášení (401). Zkontrolujte e-mail, API klíč a název instance. Po 20 neúspěšných pokusech RAYNET blokuje IP adresu na 60 minut."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:384
+#: includes/class-raynet-api-client.php:445
 msgid "Uživatel nemá oprávnění zakládat leady (403)."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:387
+#: includes/class-raynet-api-client.php:448
 msgid "Endpoint nebyl nalezen (404). Zkontrolujte zvolený region RAYNET API."
 msgstr ""
 
-#: includes/class-raynet-api-client.php:390
+#: includes/class-raynet-api-client.php:451
 msgid "Byl překročen limit RAYNET API (429). Zkuste to prosím za chvíli."
 msgstr ""
 
 #. translators: 1: HTTP status code, 2: error detail from the API.
-#: includes/class-raynet-api-client.php:407
+#: includes/class-raynet-api-client.php:468
 #, php-format
 msgid "RAYNET API vrátilo chybu %1$d: %2$s"
 msgstr ""
 
-#: includes/class-raynet-api-client.php:409
+#: includes/class-raynet-api-client.php:470
 msgid "bez dalších údajů."
 msgstr ""
 
 #: includes/class-raynet-form-builder-admin.php:48
-#: includes/elementor/class-raynet-elementor-forms-admin.php:851
+#: includes/elementor/class-raynet-elementor-forms-admin.php:859
 msgid "Pole formuláře"
 msgstr ""
 
@@ -659,119 +710,126 @@ msgstr ""
 msgid "Výchozí formulář obslouží zkratku [raynet_lead_form] bez atributu id."
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:235
+#: includes/class-raynet-form-builder-admin.php:238
 msgid "Zdědit z nastavení"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:238
+#: includes/class-raynet-form-builder-admin.php:241
 #: includes/elementor/class-raynet-elementor-form-action.php:178
-#: includes/elementor/class-raynet-elementor-forms-admin.php:448
+#: includes/elementor/class-raynet-elementor-forms-admin.php:450
 msgid "Předmět leadu"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:248
+#: includes/class-raynet-form-builder-admin.php:251
 #: includes/elementor/class-raynet-elementor-form-action.php:195
-#: includes/elementor/class-raynet-elementor-forms-admin.php:458
+#: includes/elementor/class-raynet-elementor-forms-admin.php:460
 msgid "Nízká"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:249
+#: includes/class-raynet-form-builder-admin.php:252
 #: includes/elementor/class-raynet-elementor-form-action.php:196
-#: includes/elementor/class-raynet-elementor-forms-admin.php:459
+#: includes/elementor/class-raynet-elementor-forms-admin.php:461
 msgid "Běžná"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:250
+#: includes/class-raynet-form-builder-admin.php:253
 #: includes/elementor/class-raynet-elementor-form-action.php:197
-#: includes/elementor/class-raynet-elementor-forms-admin.php:460
+#: includes/elementor/class-raynet-elementor-forms-admin.php:462
 msgid "Kritická"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:261
+#: includes/class-raynet-form-builder-admin.php:264
 #: includes/elementor/class-raynet-elementor-form-action.php:207
-#: includes/elementor/class-raynet-elementor-forms-admin.php:469
+#: includes/elementor/class-raynet-elementor-forms-admin.php:471
 msgid "Typ leadu"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:265
+#: includes/class-raynet-form-builder-admin.php:268
 #: includes/elementor/class-raynet-elementor-form-action.php:213
-#: includes/elementor/class-raynet-elementor-forms-admin.php:474
+#: includes/elementor/class-raynet-elementor-forms-admin.php:476
 msgid "Firma"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:270
+#: includes/class-raynet-form-builder-admin.php:273
 #: includes/elementor/class-raynet-elementor-form-action.php:223
-#: includes/elementor/class-raynet-elementor-forms-admin.php:479
+#: includes/elementor/class-raynet-elementor-forms-admin.php:481
 msgid "Předpona poznámky"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:275
+#: includes/class-raynet-form-builder-admin.php:278
 msgid "Číselníky RAYNET. Nula znamená zdědit z nastavení pluginu."
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:300
-#: includes/elementor/class-raynet-elementor-form-action.php:303
-#: includes/elementor/class-raynet-elementor-forms-admin.php:501
+#: includes/class-raynet-form-builder-admin.php:294
+#: includes/elementor/class-raynet-elementor-form-action.php:136
+#: includes/elementor/class-raynet-elementor-forms-admin.php:446
+#: raynet-lead-api-integration.php:134
+msgid "Zdědit z nastavení pluginu"
+msgstr ""
+
+#: includes/class-raynet-form-builder-admin.php:307
+#: includes/elementor/class-raynet-elementor-form-action.php:327
+#: includes/elementor/class-raynet-elementor-forms-admin.php:509
 msgid "Notifikační e-maily"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:402
+#: includes/class-raynet-form-builder-admin.php:409
 msgid "Zkratka"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:403
+#: includes/class-raynet-form-builder-admin.php:410
 msgid "Polí"
 msgstr ""
 
-#: includes/class-raynet-form-builder-admin.php:425
+#: includes/class-raynet-form-builder-admin.php:432
 msgid "Výchozí"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:62
+#: includes/class-raynet-form-definition.php:81
 msgid "Jméno a příjmení"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:63
+#: includes/class-raynet-form-definition.php:82
 msgid "Jméno"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:64
+#: includes/class-raynet-form-definition.php:83
 msgid "Příjmení"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:65
+#: includes/class-raynet-form-definition.php:84
 msgid "Společnost"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:66
+#: includes/class-raynet-form-definition.php:85
 msgid "E-mail"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:67
+#: includes/class-raynet-form-definition.php:86
 msgid "Telefon"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:68
+#: includes/class-raynet-form-definition.php:87
 msgid "Předmět"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:69
+#: includes/class-raynet-form-definition.php:88
 msgid "Zpráva"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:70
+#: includes/class-raynet-form-definition.php:89
 msgid "Ulice"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:71
+#: includes/class-raynet-form-definition.php:90
 msgid "Město"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:72
+#: includes/class-raynet-form-definition.php:91
 msgid "PSČ"
 msgstr ""
 
-#: includes/class-raynet-form-definition.php:73
+#: includes/class-raynet-form-definition.php:92
 msgid "Souhlasím se zpracováním osobních údajů za účelem vyřízení mé poptávky."
 msgstr ""
 
@@ -781,7 +839,7 @@ msgid "Formuláře"
 msgstr ""
 
 #: includes/class-raynet-form-post-type.php:49
-#: includes/elementor/class-raynet-elementor-forms-admin.php:162
+#: includes/elementor/class-raynet-elementor-forms-admin.php:164
 msgid "Formulář"
 msgstr ""
 
@@ -875,7 +933,7 @@ msgid "Země"
 msgstr ""
 
 #. translators: %s: custom field label in RAYNET.
-#: includes/class-raynet-lead-fields.php:310
+#: includes/class-raynet-lead-fields.php:320
 #, php-format
 msgid "%s (vlastní pole)"
 msgstr ""
@@ -919,7 +977,7 @@ msgid "Vyplňte prosím e-mail nebo telefon."
 msgstr ""
 
 #: includes/class-raynet-lead-form.php:443
-#: includes/elementor/class-raynet-elementor-form-action.php:338
+#: includes/elementor/class-raynet-elementor-form-action.php:362
 msgid "Zadaná e-mailová adresa není platná."
 msgstr ""
 
@@ -1018,6 +1076,26 @@ msgstr ""
 msgid "Odeslání formuláře se nezdařilo. Zkuste to prosím znovu později."
 msgstr ""
 
+#. translators: %d: contact person id.
+#: includes/class-raynet-lead-users.php:225
+#, php-format
+msgid "ID %d (není mezi načtenými uživateli)"
+msgstr ""
+
+#. translators: %s: error message.
+#: includes/class-raynet-lead-users.php:260
+#, php-format
+msgid "ID kontaktní osoby, která je zároveň uživatelem. Seznam uživatelů z RAYNETu se nepodařilo načíst: %s"
+msgstr ""
+
+#: includes/class-raynet-lead-users.php:262
+msgid "ID kontaktní osoby, která je zároveň uživatelem. RAYNET nevrátil žádného uživatele s kontaktní osobou."
+msgstr ""
+
+#: includes/class-raynet-lead-users.php:264
+msgid "ID kontaktní osoby, která je zároveň uživatelem. Seznam uživatelů z RAYNETu zatím není načtený — po úspěšném testu spojení se tu objeví výběr podle jména."
+msgstr ""
+
 #: includes/class-raynet-updater.php:163
 msgid "Builder formulářů, který odesílá poptávky do RAYNET CRM jako Leady přes REST API v2."
 msgstr ""
@@ -1056,11 +1134,6 @@ msgstr ""
 msgid "Přiřaďte pole formuláře k atributům leadu. Nenamapovaná pole se neodesílají."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-form-action.php:136
-#: includes/elementor/class-raynet-elementor-forms-admin.php:444
-msgid "Zdědit z nastavení pluginu"
-msgstr ""
-
 #: includes/elementor/class-raynet-elementor-form-action.php:153
 #: includes/elementor/class-raynet-elementor-forms.php:1287
 msgid "Zapsat do poznámky"
@@ -1090,305 +1163,309 @@ msgstr ""
 msgid "Číselníky RAYNET"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-form-action.php:281
+#: includes/elementor/class-raynet-elementor-form-action.php:278
+msgid "Uživatel RAYNETu, kterému lead patří. Seznam se načítá v nastavení pluginu."
+msgstr ""
+
+#: includes/elementor/class-raynet-elementor-form-action.php:305
 msgid "Prázdné = zdědit z nastavení pluginu."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-form-action.php:334
+#: includes/elementor/class-raynet-elementor-form-action.php:358
 msgid "Lead neobsahuje e-mail ani telefon."
 msgstr ""
 
 #. translators: 1: lead id, 2: list of failures.
-#: includes/elementor/class-raynet-elementor-form-action.php:388
+#: includes/elementor/class-raynet-elementor-form-action.php:412
 #, php-format
 msgid "Lead %1$d byl založen, ale některé přílohy se k němu nepodařilo nahrát: %2$s"
 msgstr ""
 
 #: includes/elementor/class-raynet-elementor-forms-admin.php:52
 #: includes/elementor/class-raynet-elementor-forms-admin.php:53
-#: includes/elementor/class-raynet-elementor-forms-admin.php:85
+#: includes/elementor/class-raynet-elementor-forms-admin.php:87
 msgid "Elementor formuláře"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:91
+#: includes/elementor/class-raynet-elementor-forms-admin.php:93
 msgid "Elementor Pro není aktivní. Widget Formulář je jen v Pro verzi, takže zde zatím nebude co nastavovat."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:96
+#: includes/elementor/class-raynet-elementor-forms-admin.php:98
 msgid "Šablona nese nastavení leadu. Při nasazení se zapne akce RAYNET CRM a nenamapovaná pole se doplní odhadem podle popisku a typu; co už je namapované, zůstane. Předchozí stav stránky se zálohuje a jde vrátit."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:103
+#: includes/elementor/class-raynet-elementor-forms-admin.php:105
 msgid "Šablony"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:113
+#: includes/elementor/class-raynet-elementor-forms-admin.php:115
 msgid "upravujete"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:119
+#: includes/elementor/class-raynet-elementor-forms-admin.php:121
 msgid "Zatím nemáte žádnou šablonu."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:126
+#: includes/elementor/class-raynet-elementor-forms-admin.php:128
 msgid "Upravit šablonu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:126
+#: includes/elementor/class-raynet-elementor-forms-admin.php:128
 msgid "Nová šablona"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:129
+#: includes/elementor/class-raynet-elementor-forms-admin.php:131
 msgid "Název šablony"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:136
+#: includes/elementor/class-raynet-elementor-forms-admin.php:138
 msgid "Uložit šablonu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:139
+#: includes/elementor/class-raynet-elementor-forms-admin.php:141
 msgid "Smazat"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:147
+#: includes/elementor/class-raynet-elementor-forms-admin.php:149
 msgid "Nalezené formuláře"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:150
+#: includes/elementor/class-raynet-elementor-forms-admin.php:152
 msgid "Na webu není žádný formulář Elementoru."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:160
+#: includes/elementor/class-raynet-elementor-forms-admin.php:162
 msgid "Umístění"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:161
+#: includes/elementor/class-raynet-elementor-forms-admin.php:163
 msgid "Stránka"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:163
-#: includes/elementor/class-raynet-elementor-forms-admin.php:386
+#: includes/elementor/class-raynet-elementor-forms-admin.php:165
+#: includes/elementor/class-raynet-elementor-forms-admin.php:388
 msgid "Pole"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:164
+#: includes/elementor/class-raynet-elementor-forms-admin.php:166
 msgid "RAYNET"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:179
-#: includes/elementor/class-raynet-elementor-forms-admin.php:814
+#: includes/elementor/class-raynet-elementor-forms-admin.php:181
+#: includes/elementor/class-raynet-elementor-forms-admin.php:822
 msgid "bez názvu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:193
+#: includes/elementor/class-raynet-elementor-forms-admin.php:195
 msgid "atomový formulář Elementoru 4 — zatím nepodporovaný, RAYNET v něm nejde zapnout"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:195
+#: includes/elementor/class-raynet-elementor-forms-admin.php:197
 msgid "nevykresluje se — stránka je přepnutá do editoru WordPressu"
 msgstr ""
 
 #. translators: %d: number of mapped attributes.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:201
+#: includes/elementor/class-raynet-elementor-forms-admin.php:203
 #, php-format
 msgid "zapnuto, namapováno: %d"
 msgstr ""
 
 #. translators: %d: number of form fields.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:211
+#: includes/elementor/class-raynet-elementor-forms-admin.php:213
 #, php-format
 msgid "do poznámky: %d"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:218
+#: includes/elementor/class-raynet-elementor-forms-admin.php:220
 msgid "chybí e-mail i telefon — RAYNET lead nepřijme"
 msgstr ""
 
 #. translators: %d: number of form fields.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:226
+#: includes/elementor/class-raynet-elementor-forms-admin.php:228
 #, php-format
 msgid "polí bez určení: %d — namapovat"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:233
+#: includes/elementor/class-raynet-elementor-forms-admin.php:235
 msgid "vypnuto"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:238
+#: includes/elementor/class-raynet-elementor-forms-admin.php:240
 msgid "Namapovat pole"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:241
-#: includes/elementor/class-raynet-elementor-forms-admin.php:822
+#: includes/elementor/class-raynet-elementor-forms-admin.php:243
+#: includes/elementor/class-raynet-elementor-forms-admin.php:830
 msgid "Otevřít v Elementoru"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:247
+#: includes/elementor/class-raynet-elementor-forms-admin.php:249
 msgid "Stránka byla od nasazení upravena v Elementoru. Vrácení o tyto úpravy připraví a vrátí i ostatní formuláře na stránce. Pokračovat?"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:248
+#: includes/elementor/class-raynet-elementor-forms-admin.php:250
 msgid "Vrátit celou stránku do podoby před nasazením šablony? Týká se všech formulářů na ní."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:265
+#: includes/elementor/class-raynet-elementor-forms-admin.php:267
 msgid "Vrátit stránku zpět"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:267
+#: includes/elementor/class-raynet-elementor-forms-admin.php:269
 msgid "Stránka byla mezitím upravena"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:278
+#: includes/elementor/class-raynet-elementor-forms-admin.php:280
 msgid "Nasadit šablonu:"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:280
+#: includes/elementor/class-raynet-elementor-forms-admin.php:282
 msgid "— vyberte —"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:288
+#: includes/elementor/class-raynet-elementor-forms-admin.php:290
 msgid "Doplnit mapování odhadem"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:293
+#: includes/elementor/class-raynet-elementor-forms-admin.php:295
 msgid "Pole bez protějšku v RAYNETu zapsat do poznámky"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:297
+#: includes/elementor/class-raynet-elementor-forms-admin.php:299
 msgid "Nasadit na vybrané"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:302
+#: includes/elementor/class-raynet-elementor-forms-admin.php:304
 msgid "Nasazení přepíše nastavení leadu u vybraných formulářů. Mapování, které už formulář má, zůstane. Předchozí podoba stránky se uloží a jde vrátit tlačítkem v tabulce."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:337
+#: includes/elementor/class-raynet-elementor-forms-admin.php:339
 msgid "text"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:338
+#: includes/elementor/class-raynet-elementor-forms-admin.php:340
 msgid "dlouhý text"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:339
+#: includes/elementor/class-raynet-elementor-forms-admin.php:341
 msgid "odkaz"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:340
+#: includes/elementor/class-raynet-elementor-forms-admin.php:342
 msgid "číslo"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:341
+#: includes/elementor/class-raynet-elementor-forms-admin.php:343
 msgid "částka"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:342
+#: includes/elementor/class-raynet-elementor-forms-admin.php:344
 msgid "procenta"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:343
+#: includes/elementor/class-raynet-elementor-forms-admin.php:345
 msgid "ano/ne"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:344
+#: includes/elementor/class-raynet-elementor-forms-admin.php:346
 msgid "datum"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:345
+#: includes/elementor/class-raynet-elementor-forms-admin.php:347
 msgid "datum a čas"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:346
+#: includes/elementor/class-raynet-elementor-forms-admin.php:348
 msgid "čas"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:347
+#: includes/elementor/class-raynet-elementor-forms-admin.php:349
 msgid "výběr z číselníku"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:352
+#: includes/elementor/class-raynet-elementor-forms-admin.php:354
 msgid "Pole z RAYNETu"
 msgstr ""
 
 #. translators: 1: number of standard attributes, 2: number of custom fields.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:357
+#: includes/elementor/class-raynet-elementor-forms-admin.php:359
 #, php-format
 msgid "k mapování: standardní atributy %1$d, vlastní pole %2$d"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:365
+#: includes/elementor/class-raynet-elementor-forms-admin.php:367
 msgid "Vlastní pole leadu se načítají z vaší instance RAYNETu. V Elementoru je najdete v sekci RAYNET CRM → Mapování polí, označená „(vlastní pole)“. Hodnotu, kterou pole nepřijme — nečitelné datum, položku mimo číselník — plugin místo odmítnutí leadu zapíše do poznámky."
 msgstr ""
 
 #. translators: %s: error message.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:374
+#: includes/elementor/class-raynet-elementor-forms-admin.php:376
 #, php-format
 msgid "Poslední načtení selhalo: %s"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:387
-#: includes/elementor/class-raynet-elementor-forms-admin.php:852
+#: includes/elementor/class-raynet-elementor-forms-admin.php:389
+#: includes/elementor/class-raynet-elementor-forms-admin.php:860
 msgid "Typ"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:388
+#: includes/elementor/class-raynet-elementor-forms-admin.php:390
 msgid "Kód v API"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:412
+#: includes/elementor/class-raynet-elementor-forms-admin.php:414
 msgid "Vaše instance RAYNETu nemá u leadů žádná vlastní pole, která by šla vyplnit z formuláře."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:419
+#: includes/elementor/class-raynet-elementor-forms-admin.php:421
 msgid "Načíst pole z RAYNETu znovu"
 msgstr ""
 
 #. translators: %s: date and time.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:425
+#: includes/elementor/class-raynet-elementor-forms-admin.php:427
 #, php-format
 msgid "Naposledy načteno %s."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:526
+#: includes/elementor/class-raynet-elementor-forms-admin.php:534
 msgid "Šablona musí mít název."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:527
+#: includes/elementor/class-raynet-elementor-forms-admin.php:535
 msgid "Vyberte prosím šablonu."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:528
+#: includes/elementor/class-raynet-elementor-forms-admin.php:536
 msgid "Nevybral jste žádný formulář."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:529
+#: includes/elementor/class-raynet-elementor-forms-admin.php:537
 #: includes/elementor/class-raynet-elementor-forms.php:1457
 msgid "Pro tuto stránku není uložená záloha."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:530
+#: includes/elementor/class-raynet-elementor-forms-admin.php:538
 msgid "Stránka byla od nasazení upravena v Elementoru, proto se nic nevrátilo."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:531
+#: includes/elementor/class-raynet-elementor-forms-admin.php:539
 msgid "Stránka má v Elementoru neuložený koncept, proto se nic nevrátilo. Otevřete ji v Elementoru, koncept publikujte nebo zahoďte a vrácení zopakujte."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:532
+#: includes/elementor/class-raynet-elementor-forms-admin.php:540
 msgid "Vrácení se nezdařilo."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:533
+#: includes/elementor/class-raynet-elementor-forms-admin.php:541
 msgid "Pole z RAYNETu se nepodařilo načíst. Podrobnosti jsou v panelu Pole z RAYNETu."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:534
+#: includes/elementor/class-raynet-elementor-forms-admin.php:542
 msgid "Mapování se nepodařilo uložit."
 msgstr ""
 
 #. translators: %d: number of forms.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:559
+#: includes/elementor/class-raynet-elementor-forms-admin.php:567
 #, php-format
 msgid "Šablona nasazena na %d formulář."
 msgid_plural "Šablona nasazena na %d formulářů."
@@ -1396,7 +1473,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of forms.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:571
+#: includes/elementor/class-raynet-elementor-forms-admin.php:579
 #, php-format
 msgid "%d formulář se nastavit nepodařilo. Zkontrolujte, jestli stránka pořád obsahuje ten formulář a jestli ji Elementor vykresluje."
 msgid_plural "%d formulářů se nastavit nepodařilo. Zkontrolujte, jestli stránky pořád obsahují ty formuláře a jestli je Elementor vykresluje."
@@ -1404,124 +1481,124 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of forms.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:584
+#: includes/elementor/class-raynet-elementor-forms-admin.php:592
 #, php-format
 msgid "%d nastavený formulář nemá namapovaný e-mail ani telefon, takže z něj lead nevznikne. Namapujte pole v Elementoru (sekce RAYNET CRM); formulář je v tabulce označený."
 msgid_plural "%d nastavených formulářů nemá namapovaný e-mail ani telefon, takže z nich leady nevzniknou. Namapujte pole v Elementoru (sekce RAYNET CRM); formuláře jsou v tabulce označené."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:593
+#: includes/elementor/class-raynet-elementor-forms-admin.php:601
 msgid "Mapování uloženo. Předchozí podoba stránky je zálohovaná."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:594
+#: includes/elementor/class-raynet-elementor-forms-admin.php:602
 msgid "Pole z RAYNETu načtena."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:595
+#: includes/elementor/class-raynet-elementor-forms-admin.php:603
 msgid "Předchozí podoba stránky byla obnovena."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:596
+#: includes/elementor/class-raynet-elementor-forms-admin.php:604
 msgid "Šablona uložena."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:597
+#: includes/elementor/class-raynet-elementor-forms-admin.php:605
 msgid "Šablona smazána."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:754
+#: includes/elementor/class-raynet-elementor-forms-admin.php:762
 msgid "Mapování polí formuláře"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:755
+#: includes/elementor/class-raynet-elementor-forms-admin.php:763
 msgid "Zpět na přehled formulářů"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:760
+#: includes/elementor/class-raynet-elementor-forms-admin.php:768
 msgid "Formulář se nenašel. Stránka ho možná už neobsahuje."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:787
+#: includes/elementor/class-raynet-elementor-forms-admin.php:795
 msgid "Základní atributy"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:788
+#: includes/elementor/class-raynet-elementor-forms-admin.php:796
 msgid "Další standardní atributy"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:789
+#: includes/elementor/class-raynet-elementor-forms-admin.php:797
 msgid "Vlastní pole z RAYNETu"
 msgstr ""
 
 #. translators: %s: custom field code.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:810
+#: includes/elementor/class-raynet-elementor-forms-admin.php:818
 #, php-format
 msgid "%s (není v načteném seznamu)"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:827
+#: includes/elementor/class-raynet-elementor-forms-admin.php:835
 msgid "Stránka má v Elementoru neuložený koncept. Tady vidíte publikovanou verzi. Co tu změníte, zapíše se do stránky i do konceptu; pole, která má jen koncept, tu nejsou a jejich nastavení zůstane, jak je."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:832
+#: includes/elementor/class-raynet-elementor-forms-admin.php:840
 msgid "Tohle jsou pole, která formulář teď má. U každého vyberte, kam v RAYNETu patří. Pro pole, které v RAYNETu protějšek nemá, zvolte Zapsat do poznámky — jeho hodnota se připíše do poznámky leadu pod popiskem pole. Soubory z polí pro nahrání se k leadu přiloží jako přílohy. Řádky označené jako návrh plugin odhadl; uloží se až tlačítkem."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:836
+#: includes/elementor/class-raynet-elementor-forms-admin.php:844
 msgid "Formulář nemá žádné pole, které by šlo odeslat."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:853
+#: includes/elementor/class-raynet-elementor-forms-admin.php:861
 msgid "Kam v RAYNETu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:872
+#: includes/elementor/class-raynet-elementor-forms-admin.php:880
 msgid "Přiložit k leadu jako přílohu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:873
-#: includes/elementor/class-raynet-elementor-forms-admin.php:883
+#: includes/elementor/class-raynet-elementor-forms-admin.php:881
+#: includes/elementor/class-raynet-elementor-forms-admin.php:891
 msgid "— Neodesílat —"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:884
+#: includes/elementor/class-raynet-elementor-forms-admin.php:892
 msgid "Zapsat do poznámky leadu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:896
+#: includes/elementor/class-raynet-elementor-forms-admin.php:904
 msgid "návrh"
 msgstr ""
 
 #. translators: %s: RAYNET attribute.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:908
+#: includes/elementor/class-raynet-elementor-forms-admin.php:916
 #, php-format
 msgid "Vypadá to na souhlas — zvolte „%s“, aby se zapsal do RAYNETu."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:927
+#: includes/elementor/class-raynet-elementor-forms-admin.php:935
 msgid "Žádné pole teď nemíří na E-mail ani Telefon. RAYNET lead bez jednoho z nich nepřijme."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:931
+#: includes/elementor/class-raynet-elementor-forms-admin.php:939
 msgid "Odesílání do RAYNETu je u formuláře zapnuté. Vypnout ho jde v Elementoru, v Actions After Submit."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:936
+#: includes/elementor/class-raynet-elementor-forms-admin.php:944
 msgid "Zapnout odesílání do RAYNETu (akce RAYNET CRM po odeslání)"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:942
+#: includes/elementor/class-raynet-elementor-forms-admin.php:950
 msgid "Uložit mapování"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-forms-admin.php:946
+#: includes/elementor/class-raynet-elementor-forms-admin.php:954
 msgid "Uložení zapíše do stránky, stejně jako nasazení šablony: předchozí podoba se zálohuje a má-li stránka neuložený koncept, zapíše se i do něj. Nastavení leadu (priorita, kategorie…) tím nezměníte — to dělá šablona nebo sekce RAYNET CRM v Elementoru."
 msgstr ""
 
 #. translators: %s: list of RAYNET attributes.
-#: includes/elementor/class-raynet-elementor-forms-admin.php:975
+#: includes/elementor/class-raynet-elementor-forms-admin.php:983
 #, php-format
 msgid "Pole plní také: %s. Zůstane to tak, dokud tu výběr nezměníte."
 msgstr ""
@@ -1616,6 +1693,12 @@ msgstr ""
 msgid "Data Elementoru se nepodařilo zakódovat."
 msgstr ""
 
-#: raynet-lead-api-integration.php:142
+#. translators: %s: contact person id.
+#: raynet-lead-api-integration.php:136
+#, php-format
+msgid "ID %s (není mezi načtenými uživateli)"
+msgstr ""
+
+#: raynet-lead-api-integration.php:159
 msgid "RAYNET: integrace s Elementor Pro Forms není aktivní — tato verze Elementor Pro neposkytuje očekávané API. Leady z formulářů Elementoru se neodesílají."
 msgstr ""

@@ -52,6 +52,40 @@ add_filter(
 			);
 		}
 
+		// The instance's users: two people, an account without a person and a
+		// deactivated one.
+		if ( false !== strpos( $url, 'raynet' ) && false !== strpos( $url, '/userAccount/' ) ) {
+			// The API key may lack the right to list users.
+			if ( get_option( 'raynet_test_refuse_users' ) ) {
+				return array(
+					'headers'  => array(),
+					'body'     => wp_json_encode( array( 'message' => 'Nemáte dostatečná oprávnění' ) ),
+					'response' => array( 'code' => 500, 'message' => 'Internal Server Error' ),
+					'cookies'  => array(),
+					'filename' => null,
+				);
+			}
+
+			return array(
+				'headers'  => array(),
+				'body'     => wp_json_encode(
+					array(
+						'success'    => true,
+						'totalCount' => 4,
+						'data'       => array(
+							array( 'id' => 8, 'username' => 'petr@firma.cz', 'person' => array( 'id' => 9, 'fullName' => 'Petr Svoboda' ), 'userRole' => 'USER' ),
+							array( 'id' => 10, 'username' => 'jana@firma.cz', 'person' => array( 'id' => 11, 'fullName' => 'Jana Nováková' ), 'userRole' => 'ADMIN' ),
+							array( 'id' => 12, 'username' => 'api@firma.cz', 'person' => null ),
+							array( 'id' => 13, 'username' => 'byvaly@firma.cz', 'person' => array( 'id' => 14, 'fullName' => 'Bývalý Kolega' ), 'rowInfo.rowAccess' => 'INVALID' ),
+						),
+					)
+				),
+				'response' => array( 'code' => 200, 'message' => 'OK' ),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		}
+
 		// A RAYNET outage, switched on by the suite for the fallback tests.
 		if ( false !== strpos( $url, 'raynet' ) && false !== strpos( $url, '/lead/' ) && get_option( 'raynet_test_refuse_leads' ) ) {
 			return array(
@@ -110,6 +144,15 @@ add_filter(
 				'cookies'  => array(),
 				'filename' => null,
 			);
+		}
+
+		// Nothing else leaves the machine. WordPress checks wordpress.org for
+		// updates after a quiet spell, and a slow answer used to stall the
+		// single-threaded test server past its time limit.
+		$host = (string) wp_parse_url( $url, PHP_URL_HOST );
+
+		if ( ! in_array( $host, array( 'localhost', '127.0.0.1', '::1' ), true ) ) {
+			return new WP_Error( 'raynet_test_offline', 'Testovací prostředí nepouští požadavky ven: ' . $host );
 		}
 
 		return $preempt;

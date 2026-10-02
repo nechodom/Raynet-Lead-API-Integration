@@ -230,6 +230,9 @@ class Raynet_Lead_Form_Builder_Admin {
 	 */
 	public function render_lead( $post ) {
 		$lead = Raynet_Lead_Form_Post_Type::get_lead_settings( $post->ID );
+		// The owner picker below reads the list of RAYNET users.
+		Raynet_Lead_Users::maybe_refresh();
+
 		$name = 'raynet_form_lead';
 
 		$inherit = __( 'Zdědit z nastavení', 'raynet-lead-api-integration' );
@@ -286,8 +289,12 @@ class Raynet_Lead_Form_Builder_Admin {
 		foreach ( $numeric as $key => $text ) :
 			?>
 			<p>
-				<label for="raynet-lead-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $text ); ?></label>
-				<input type="number" min="0" class="widefat" id="raynet-lead-<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( $name ); ?>[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( (string) $lead[ $key ] ); ?>" />
+				<label for="raynet-lead-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( 'owner' === $key ? __( 'Vlastník leadu', 'raynet-lead-api-integration' ) : $text ); ?></label>
+				<?php if ( 'owner' === $key ) : ?>
+					<?php Raynet_Lead_Users::field( $name . '[owner]', 'raynet-lead-owner', (int) $lead['owner'], __( 'Zdědit z nastavení pluginu', 'raynet-lead-api-integration' ), 'widefat' ); ?>
+				<?php else : ?>
+					<input type="number" min="0" class="widefat" id="raynet-lead-<?php echo esc_attr( $key ); ?>" name="<?php echo esc_attr( $name ); ?>[<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( (string) $lead[ $key ] ); ?>" />
+				<?php endif; ?>
 			</p>
 		<?php endforeach; ?>
 

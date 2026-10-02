@@ -18,6 +18,7 @@
 	var SECTION = 'section_raynet_crm';
 	var CONTROL = 'raynet_crm_fields_map';
 	var NOTICE_CONTROL = 'raynet_crm_notice_fields';
+	var OWNER_CONTROL = 'raynet_crm_owner';
 	var CUSTOM_PREFIX = 'cf:';
 	var UNSENDABLE = [ 'upload', 'password', 'recaptcha', 'recaptcha_v3', 'honeypot', 'html', 'step' ];
 
@@ -106,11 +107,60 @@
 		view.render();
 	}
 
+	/*
+	 * The owner picker. Elementor iterates its options as an object, which
+	 * puts numeric keys in ascending order and the "inherit" choice last; and
+	 * an owner saved earlier that is not among the fetched users has no option,
+	 * so the select would look empty while leads keep going to that owner.
+	 * The options are rebuilt here in the intended order, the saved owner
+	 * included. New Option() sets text, never markup.
+	 */
+	function fixOwner( editor ) {
+		var model = editor.collection.findWhere( { name: OWNER_CONTROL } );
+		var view = model ? editor.children.findByModelCid( model.cid ) : null;
+		var element = editor.getOption( 'editedElementView' );
+
+		if ( ! view || ! element || 'select' !== model.get( 'type' ) ) {
+			return;
+		}
+
+		var $select = view.$el.find( 'select' ).first();
+		var current = String( element.getEditModel().get( 'settings' ).get( OWNER_CONTROL ) || '' );
+		var owners = raynetElementorEditor.owners || [];
+		var known = false;
+
+		if ( ! $select.length ) {
+			return;
+		}
+
+		if ( '0' === current ) {
+			current = '';
+		}
+
+		$select.empty();
+		$select.append( new Option( raynetElementorEditor.ownerInherit || '', '' ) );
+
+		owners.forEach( function ( owner ) {
+			$select.append( new Option( owner.label, owner.id ) );
+
+			if ( owner.id === current ) {
+				known = true;
+			}
+		} );
+
+		if ( '' !== current && ! known ) {
+			$select.append( new Option( String( raynetElementorEditor.ownerUnknown || '%s' ).replace( '%s', current ), current ) );
+		}
+
+		$select.val( current );
+	}
+
 	$( window ).on( 'elementor:init', function () {
 		elementor.channels.editor.on( 'section:activated', function ( sectionName, editor ) {
 			if ( SECTION === sectionName && editor && editor.collection && editor.children ) {
 				sync( editor );
 				fillNoticeOptions( editor );
+				fixOwner( editor );
 			}
 		} );
 	} );

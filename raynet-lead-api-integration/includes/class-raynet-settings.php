@@ -152,6 +152,19 @@ class Raynet_Lead_Settings {
 	}
 
 	/**
+	 * Identifies the RAYNET instance and account the plugin talks to.
+	 *
+	 * Anything fetched from RAYNET — users, custom fields — belongs to one
+	 * instance; stored with this, it can tell when the connection has since
+	 * changed and its ids would mean something else, or nothing.
+	 *
+	 * @return string Fingerprint.
+	 */
+	public static function connection_fingerprint() {
+		return md5( implode( '|', array( self::api_base_url(), (string) self::get( 'instance_id' ), (string) self::get( 'instance_name' ), (string) self::get( 'username' ) ) ) );
+	}
+
+	/**
 	 * Tells whether the connection is configured well enough to be attempted.
 	 *
 	 * @return bool True when credentials and an instance identifier are present.

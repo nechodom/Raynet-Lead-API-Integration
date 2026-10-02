@@ -151,6 +151,14 @@ class Raynet_Lead_Fields {
 		$stored = get_option( self::OPTION, array() );
 		$stored = is_array( $stored ) ? $stored : array();
 
+		// Fields fetched from another instance or account have names this one
+		// does not know; sending them would get the lead refused. A list stored
+		// before the fingerprint existed is trusted, so live forms keep their
+		// field types across the update.
+		if ( isset( $stored['connection'] ) && Raynet_Lead_Settings::connection_fingerprint() !== $stored['connection'] ) {
+			$stored = array();
+		}
+
 		return array(
 			'fields'     => isset( $stored['fields'] ) && is_array( $stored['fields'] ) ? $stored['fields'] : array(),
 			'fetched_at' => isset( $stored['fetched_at'] ) ? (int) $stored['fetched_at'] : 0,
@@ -183,8 +191,9 @@ class Raynet_Lead_Fields {
 		$config = $client->get_custom_field_config();
 
 		if ( is_wp_error( $config ) ) {
-			$state['failed_at'] = time();
-			$state['error']     = $config->get_error_message();
+			$state['failed_at']  = time();
+			$state['error']      = $config->get_error_message();
+			$state['connection'] = Raynet_Lead_Settings::connection_fingerprint();
 			update_option( self::OPTION, $state, false );
 
 			return $config;
@@ -236,6 +245,7 @@ class Raynet_Lead_Fields {
 		update_option(
 			self::OPTION,
 			array(
+				'connection' => Raynet_Lead_Settings::connection_fingerprint(),
 				'fields'     => $fields,
 				'fetched_at' => time(),
 				'failed_at'  => 0,

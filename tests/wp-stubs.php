@@ -90,6 +90,16 @@ function wp_remote_get( $url, $args = array() ) {
 	return null === $next ? array( 'code' => 200, 'body' => '{}' ) : $next;
 }
 
+if ( ! function_exists( 'get_current_user_id' ) ) {
+	function get_current_user_id() { return 1; }
+}
+if ( ! function_exists( 'delete_transient' ) ) {
+	function delete_transient( $key ) { unset( $GLOBALS['wp_transients'][ $key ] ); return true; }
+}
+defined( 'MINUTE_IN_SECONDS' ) || define( 'MINUTE_IN_SECONDS', 60 );
+if ( ! function_exists( 'wp_nonce_url' ) ) {
+	function wp_nonce_url( $url, $action = -1 ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . '_wpnonce=' . md5( (string) $action ); }
+}
 function get_transient( $key ) { return isset( $GLOBALS['wp_transients'][ $key ] ) ? $GLOBALS['wp_transients'][ $key ] : false; }
 function set_transient( $key, $value, $ttl = 0 ) { $GLOBALS['wp_transients'][ $key ] = $value; return true; }
 
@@ -134,6 +144,9 @@ function wp_kses( $string, $allowed_html = array(), $allowed_protocols = array()
 	);
 }
 function is_email( $email ) { return (bool) filter_var( (string) $email, FILTER_VALIDATE_EMAIL ); }
+if ( ! function_exists( 'selected' ) ) {
+	function selected( $a, $b = true, $echo = true ) { $r = (string) $a === (string) $b ? " selected='selected'" : ''; if ( $echo ) { echo $r; } return $r; }
+}
 function wp_check_invalid_utf8( $s ) { return mb_check_encoding( (string) $s, 'UTF-8' ) ? (string) $s : ''; }
 function wp_strip_all_tags( $s ) { return trim( strip_tags( (string) $s ) ); }
 function wp_parse_url( $url, $component = -1 ) { return parse_url( $url, $component ); }
@@ -179,12 +192,22 @@ function wp_mail( $to, $subject, $body ) { $GLOBALS['wp_mails'][] = compact( 'to
 function wp_unique_id( $prefix = '' ) { static $i = 0; return $prefix . ( ++$i ); }
 function wp_nonce_field( ...$a ) { echo '<input type="hidden" name="raynet_nonce" value="x" />'; }
 
-function add_query_arg( $key, $value, $url ) {
+function add_query_arg( $key, $value = null, $url = null ) {
+	if ( is_array( $key ) ) {
+		$url = (string) $value;
+		foreach ( $key as $k => $v ) {
+			$url .= ( false === strpos( $url, '?' ) ? '?' : '&' ) . rawurlencode( $k ) . '=' . rawurlencode( (string) $v );
+		}
+		return $url;
+	}
 	return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . rawurlencode( $key ) . '=' . rawurlencode( (string) $value );
 }
 
 function wp_remote_request( $url, $args ) {
 	$GLOBALS['wp_requests'][] = array( 'url' => $url, 'args' => $args );
+	if ( ! empty( $GLOBALS['wp_request_queue'] ) ) {
+		return array_shift( $GLOBALS['wp_request_queue'] );
+	}
 	$next = $GLOBALS['wp_next_response'];
 	$GLOBALS['wp_next_response'] = null;
 	return null === $next ? array( 'code' => 200, 'body' => '{}' ) : $next;
@@ -202,5 +225,6 @@ require_once $raynet_includes . 'class-raynet-updater.php';
 require_once $raynet_includes . 'elementor/class-raynet-elementor-forms.php';
 require_once $raynet_includes . 'class-raynet-api-client.php';
 require_once $raynet_includes . 'class-raynet-lead-fields.php';
+require_once $raynet_includes . 'class-raynet-lead-users.php';
 require_once $raynet_includes . 'elementor/class-raynet-elementor-attachments.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';

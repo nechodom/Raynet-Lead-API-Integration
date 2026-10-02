@@ -21,6 +21,8 @@ $raynet_options = array(
 	'raynet_lead_migrated_forms',
 	'raynet_lead_default_form',
 	'raynet_lead_elementor_templates',
+	'raynet_lead_custom_fields',
+	'raynet_lead_users',
 	// Legacy 1.x options.
 	'raynet_username',
 	'raynet_api_key',

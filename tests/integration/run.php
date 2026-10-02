@@ -1446,6 +1446,86 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'nastavení má sekci GDPR', false !== strpos( $settings_view['body'], 'GDPR souhlas v RAYNETu' ), true );
 		check( 'nastavení má šablonu právního titulu', false !== strpos( $settings_view['body'], '[gdpr_template]' ), true );
 
+		// --- Owner chosen from the RAYNET users -------------------------------
+		delete_option( Raynet_Lead_Users::OPTION );
+		check( 'uživatelé načteni', Raynet_Lead_Users::refresh(), 2 );
+		check( 'vlastník je kontaktní osoba', array_keys( Raynet_Lead_Users::all() ), array( 11, 9 ) );
+
+		$owner_before = get_option( Raynet_Lead_Settings::OPTION );
+		update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array_merge( (array) $owner_before, array( 'owner' => '9' ) ) ) );
+
+		$owner_view = req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
+		check( 'nastavení nabízí vlastníka výběrem', false !== strpos( $owner_view['body'], 'name="raynet_lead_settings[owner]"' ) && false !== strpos( $owner_view['body'], '<select id="raynet-owner"' ), true );
+		check( 'nastavení ukazuje jména', false !== strpos( $owner_view['body'], 'Jana Nováková (jana@firma.cz)' ), true );
+		check( 'uložený vlastník je vybraný', (bool) preg_match( '/value="9" selected/', $owner_view['body'] ), true );
+		check( 'neaktivní uživatel se nenabízí', false !== strpos( $owner_view['body'], 'Bývalý Kolega' ), false );
+
+		preg_match( '/href="([^"]*action=raynet_lead_refresh_users[^"]*)"/', $owner_view['body'], $refresh_link );
+		check( 'odkaz na nové načtení', isset( $refresh_link[1] ), true );
+		$refreshed_users = req( html_entity_decode( isset( $refresh_link[1] ) ? $refresh_link[1] : '/wp-admin/admin-post.php?action=raynet_lead_refresh_users' ), null, true );
+		check( 'nové načtení přesměruje', $refreshed_users['status'], 302 );
+		check( 'výsledek není v adrese', false !== strpos( (string) $refreshed_users['body'] . implode( '', (array) $refreshed_users ), 'raynet_users=' ), false );
+		$after_refresh = req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
+		check( 'po načtení jedna hláška', false !== strpos( $after_refresh['body'], 'Uživatelé z RAYNETu načteni.' ), true );
+		$after_save = req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
+		check( 'hláška se po dalším načtení stránky neopakuje', false !== strpos( $after_save['body'], 'Uživatelé z RAYNETu načteni.' ), false );
+		$forged_refresh = req( '/wp-admin/admin-post.php?action=raynet_lead_refresh_users', null, true );
+		check( 'načtení bez nonce odmítnuto', 302 === $forged_refresh['status'], false );
+
+		$tpl_view = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true );
+		check( 'šablona nabízí vlastníka výběrem', false !== strpos( $tpl_view['body'], '<select id="raynet-tpl-owner" name="lead[owner]"' ), true );
+
+		$builder_view = req( '/wp-admin/post.php?post=' . $default . '&action=edit', null, true );
+		check( 'builder nabízí vlastníka výběrem', false !== strpos( $builder_view['body'], 'name="raynet_form_lead[owner]"' ) && false !== strpos( $builder_view['body'], '<select id="raynet-lead-owner"' ), true );
+
+		// The Elementor control, registered against a recording stand-in.
+		$recorder = new class {
+			public $controls = array();
+			public function start_controls_section( $id, $args ) {}
+			public function end_controls_section() {}
+			public function add_control( $id, $args ) {
+				$this->controls[ $id ] = $args;
+			}
+		};
+		if ( class_exists( 'Raynet_Elementor_Form_Action' ) ) {
+			( new Raynet_Elementor_Form_Action() )->register_settings_section( $recorder );
+			$owner_control = isset( $recorder->controls['raynet_crm_owner'] ) ? $recorder->controls['raynet_crm_owner'] : array();
+			check( 'Elementor nabízí vlastníka výběrem', isset( $owner_control['type'] ) ? $owner_control['type'] : '', 'select' );
+			check( 'Elementor má jména a ID osob', isset( $owner_control['options']['11'] ) ? $owner_control['options']['11'] : '', 'Jana Nováková' );
+			check( 'Elementor nevidí e-maily kolegů', false !== strpos( wp_json_encode( $owner_control['options'] ), '@firma.cz' ), false );
+		}
+
+		// A template's owner reaches the form and the lead as the person id.
+		$owner_slug = Raynet_Elementor_Forms::save_template( 'Pro Janu', array( 'owner' => '11' ) );
+		check( 'šablona uloží vlastníka', Raynet_Elementor_Forms::templates()[ $owner_slug ]['lead']['owner'], 11 );
+		check( 'nastavení formuláře nese ID osoby', Raynet_Elementor_Forms::configure( array(), Raynet_Elementor_Forms::templates()[ $owner_slug ]['lead'], false )['raynet_crm_owner'], '11' );
+		Raynet_Elementor_Forms::delete_template( $owner_slug );
+
+		// The key may not be allowed to list users: say so, and keep the id box.
+		update_option( 'raynet_test_refuse_users', 1 );
+		delete_option( Raynet_Lead_Users::OPTION );
+		check( 'odmítnuté načtení je chyba', is_wp_error( Raynet_Lead_Users::refresh() ), true );
+		$refused_view = req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
+		check( 'bez seznamu číselné pole s hodnotou', (bool) preg_match( '/<input type="number" min="0" id="raynet-owner" name="raynet_lead_settings\[owner\]" value="9"/', $refused_view['body'] ), true );
+		check( 'chyba načtení je u vlastníka vidět', false !== strpos( $refused_view['body'], 'Seznam uživatelů z RAYNETu se nepodařilo načíst' ), true );
+		check( 'odkaz pro načtení je i bez seznamu', false !== strpos( $refused_view['body'], 'Načíst uživatele z RAYNETu' ), true );
+
+		preg_match( '/raynetLeadAdmin = \{[^;]*?"nonce":"([^"]+)"/', $refused_view['body'], $test_nonce );
+		$connection_test = req(
+			'/wp-admin/admin-ajax.php',
+			array(
+				'action' => 'raynet_lead_test_connection',
+				'nonce'  => isset( $test_nonce[1] ) ? $test_nonce[1] : '',
+			),
+			true
+		);
+		$connection_json = json_decode( $connection_test['body'], true );
+		check( 'test spojení varuje, že uživatelé chybí', isset( $connection_json['data']['warning'] ) && false !== strpos( $connection_json['data']['warning'], 'Uživatele z RAYNETu se nepodařilo načíst' ), true );
+		delete_option( 'raynet_test_refuse_users' );
+		Raynet_Lead_Users::refresh();
+
+		update_option( Raynet_Lead_Settings::OPTION, $owner_before );
+
 		// --- Attachments and the message label, through Elementor's own handler
 		$files_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Poptávka s přílohou', 'post_status' => 'publish' ) );
 		update_post_meta( $files_page, '_elementor_edit_mode', 'builder' );

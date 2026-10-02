@@ -2,7 +2,24 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
-## [2.8.1] — 2026-09-25
+## [2.9.0] — 2026-10-02
+
+### Přidáno
+
+- **Vlastník leadu podle jména.** Plugin načte uživatele z RAYNETu (`GET /userAccount/`, po stránkách i nad 1000) a místo čísla „Vlastník (ID)“ nabídne výběr „Jméno Příjmení (login)“ — v nastavení pluginu, v šablonách pro Elementor, v builderu u každého formuláře i v sekci RAYNET CRM v editoru Elementoru. Do leadu jde ID kontaktní osoby uživatele, jak ho RAYNET pro vlastníka chce, ne ID uživatelského účtu. Účty bez kontaktní osoby se nenabízejí.
+- V editoru Elementoru, který otevírají i autoři a redaktoři, výběr ukazuje jen jména; login (e-mail) jen u shodných jmen.
+- Seznam se načte při **Otestovat spojení** (a vypíše se v jeho výsledku), obnovuje se sám jednou za 12 hodin při návštěvě nastavení, šablon nebo builderu, a hned odkazem v nastavení. Po chybě se o načtení sám nepokusí dřív než za hodinu, aby špatné přihlašovací údaje nevedly k zablokování IP. Chyba se ukáže u pole i ve výsledku testu spojení.
+- Dokud seznam načtený není, zůstává pole pro ID. Vlastník nastavený dřív zůstane vybraný, i když mezi načtenými uživateli není — i v Elementoru.
+
+### Změněno
+
+- Seznam uživatelů i vlastních polí patří k jednomu připojení (adresa API, instance, účet). Po jeho změně se starý seznam nepoužije a načte se znovu, aby se do leadu nedostalo ID z jiné instance. Seznam vlastních polí uložený starší verzí zůstává platný, aby formuláře po aktualizaci fungovaly dál.
+- Odinstalace s mazáním dat maže i uložené seznamy uživatelů a vlastních polí.
+- Testovací prostředí nepouští žádné požadavky mimo počítač; čekání na wordpress.org ho shazovalo.
+
+### Před vydáním
+
+Adversariální review potvrdilo 13 nálezů se 6 příčinami, všechny jsou opravené a pokryté testy: vlastník mimo seznam se v Elementoru zobrazil prázdný, i když na něj leady dál chodily, a výběr se tam řadil podle čísla; seznam nebyl svázaný s instancí; chyba při načítání uživatelů nebyla nikde vidět; hláška o načtení se opakovala po každém uložení nastavení; chybělo stránkování nad 1000 uživatelů; odinstalace seznamy nemazala; loginy všech kolegů viděl v Elementoru každý editor.
 
 ### Opraveno
 
