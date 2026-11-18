@@ -82,9 +82,11 @@ check( 'heslo zůstane heslem', $fields['f_pass']['type'], 'password' );
 check( 'pole hodnot spojené', $fields['f_tags']['value'], 'web, eshop' );
 
 // Fields of the tree the request did not carry are left out, so a mapping
-// that names them is skipped rather than filled with nothing.
+// that names them is skipped rather than filled with nothing. A checkbox is
+// the exception: one that was not posted was not ticked.
 $partial = Raynet_Atomic_Form_Integration::submitted_fields( $form_fields, array( 'f_mail' => 'a@example.cz' ) );
-check( 'jen odeslaná pole', array_keys( $partial ), array( 'f_mail' ) );
+check( 'jen odeslaná pole a zaškrtávátka', array_keys( $partial ), array( 'f_mail', 'f_gdpr', 'f_news' ) );
+check( 'neodeslané zaškrtávátko je prázdné', $partial['f_gdpr']['value'], '' );
 
 // A single upload URL, a server path and an empty upload.
 $odd = Raynet_Atomic_Form_Integration::submitted_fields(
@@ -134,6 +136,35 @@ check( 'názvy souborů do poznámky', Raynet_Atomic_Form_Integration::upload_li
 check( 'vynechané nahrávání se nezapíše', Raynet_Atomic_Form_Integration::upload_lines( $fields, array( 'raynet_crm_ignored_fields' => array( 'f_file' ) ) ), array() );
 check( 'prázdné nahrávání se nezapíše', Raynet_Atomic_Form_Integration::upload_lines( $odd, array() ), array( 'A' => 'cv.pdf', 'B' => 'tajne.pdf' ) );
 check( 'builder nahrávání do poznámky sám nedá', Raynet_Elementor_Lead_Builder::noted_values( $fields, array( 'raynet_crm_notice_fields' => array( 'f_file', 'f_svc' ) ) ), array( 'Služba' => 'web' ) );
+
+// --- radio groups, omitted checkboxes, mapped uploads ---------------------------
+$group_rows = array(
+	array( 'custom_id' => 'r1', 'field_type' => 'radio', 'field_label' => 'Typ' ),
+	array( 'custom_id' => 'r4', 'field_type' => 'radio', 'field_label' => 'Sám' ),
+	array( 'custom_id' => 'c1', 'field_type' => 'acceptance', 'field_label' => 'Souhlas', 'acceptance_text' => 'Souhlas' ),
+	array( 'custom_id' => 't1', 'field_type' => 'text', 'field_label' => 'Text' ),
+);
+$groups = array( 'r1' => 'r1', 'r2' => 'r1', 'r3' => 'r1' );
+
+$grouped = Raynet_Atomic_Form_Integration::submitted_fields( $group_rows, array( 'r2' => 'fo' ), $groups );
+check( 'hodnota druhého člena patří skupině', isset( $grouped['r1'] ) ? $grouped['r1']['value'] : null, 'fo' );
+check( 'člen sám pole nemá', array_key_exists( 'r2', $grouped ), false );
+check( 'nevyplněný text se nepřidá', array_key_exists( 't1', $grouped ), false );
+check( 'chybějící zaškrtávátko je nezaškrtnuté', isset( $grouped['c1'] ) ? $grouped['c1']['value'] : null, '' );
+
+$untouched_group = Raynet_Atomic_Form_Integration::submitted_fields( $group_rows, array( 'r1' => '' ), $groups );
+check( 'nevybraná skupina je prázdné pole', isset( $untouched_group['r1'] ) ? $untouched_group['r1']['value'] : null, '' );
+
+$both = Raynet_Atomic_Form_Integration::submitted_fields( $group_rows, array( 'r1' => '', 'r3' => 'jine' ), $groups );
+check( 'prázdná hodnota nepřebije vybranou', $both['r1']['value'], 'jine' );
+
+check( 'chybějící souhlas přepínači souhlas nedá', Raynet_Elementor_Lead_Builder::switch_consent( $grouped, array( 'raynet_crm_consent_note' => 'yes' ) ), false );
+
+check(
+	'namapované nahrávání není v poznámce',
+	Raynet_Atomic_Form_Integration::upload_lines( $fields, array( 'form_fields' => $form_fields, 'raynet_crm_fields_map' => array( array( 'remote_id' => 'cf:Priloha_l0', 'local_id' => 'f_file' ) ) ) ),
+	array()
+);
 
 // --- action log label -------------------------------------------------------
 check( 'popisek v logu akcí', Raynet_Atomic_Form_Integration::log_label( 'Raynet Crm', 'raynet_crm' ), 'RAYNET CRM' );

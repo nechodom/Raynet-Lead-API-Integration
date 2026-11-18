@@ -108,30 +108,54 @@ class Raynet_Atomic_Form_Integration {
 	 * each field's type and label, so neither is trusted: both come from the
 	 * stored tree, and a posted id the tree does not have is dropped.
 	 *
-	 * A field the request did not carry is left out rather than sent empty.
-	 * A radio group posts one entry, under the id of the checked button, so
-	 * the other buttons of the group are missing and a mapping that names one
-	 * of them is skipped instead of being filled with nothing.
+	 * A radio group posts one entry, under the id of the checked button (of
+	 * the first one when nobody chose); it is filed under the group's field.
 	 *
-	 * @param array<int,mixed>    $form_fields Rows of Raynet_Elementor_Atomic_Forms::fields().
-	 * @param array<string,mixed> $form_data   Posted values, keyed by field id.
+	 * A field the request did not carry is left out rather than sent empty,
+	 * except a checkbox: one that is missing was not ticked, and leaving it
+	 * out would let the per-form consent switch claim consent for a form
+	 * whose box nobody ticked.
+	 *
+	 * @param array<int,mixed>     $form_fields Rows of Raynet_Elementor_Atomic_Forms::fields().
+	 * @param array<string,mixed>  $form_data   Posted values, keyed by field id.
+	 * @param array<string,string> $groups      Result of Raynet_Elementor_Atomic_Forms::radio_groups().
 	 * @return array<string,array<string,string>> Field id => id, type, title, value, raw_value.
 	 */
-	public static function submitted_fields( array $form_fields, array $form_data ) {
+	public static function submitted_fields( array $form_fields, array $form_data, array $groups = array() ) {
 		$fields = array();
+
+		foreach ( $groups as $member => $group ) {
+			$member = (string) $member;
+			$group  = (string) $group;
+
+			if ( $member === $group || ! array_key_exists( $member, $form_data ) ) {
+				continue;
+			}
+
+			// An empty value (the group nobody chose) never hides a chosen one.
+			if ( ! array_key_exists( $group, $form_data ) || '' === self::join( $form_data[ $group ] ) ) {
+				$form_data[ $group ] = $form_data[ $member ];
+			}
+
+			unset( $form_data[ $member ] );
+		}
 
 		foreach ( $form_fields as $row ) {
 			if ( ! is_array( $row ) || empty( $row['custom_id'] ) ) {
 				continue;
 			}
 
-			$id = (string) $row['custom_id'];
+			$id   = (string) $row['custom_id'];
+			$type = isset( $row['field_type'] ) ? (string) $row['field_type'] : 'text';
 
 			if ( ! array_key_exists( $id, $form_data ) ) {
-				continue;
+				if ( 'acceptance' !== $type ) {
+					continue;
+				}
+
+				$form_data[ $id ] = '';
 			}
 
-			$type  = isset( $row['field_type'] ) ? (string) $row['field_type'] : 'text';
 			$value = 'upload' === $type
 				? self::file_names( $form_data[ $id ] )
 				: self::join( $form_data[ $id ] );
@@ -156,14 +180,17 @@ class Raynet_Atomic_Form_Integration {
 	 *
 	 * Files are not sent to RAYNET from an atomic form. Their names go to the
 	 * note, as the classic widget lists its attachments there, unless the
-	 * field was left out on purpose.
+	 * field was left out on purpose or the mapping already sends it.
 	 *
 	 * @param array<string,array<string,string>> $fields        Result of submitted_fields().
 	 * @param array<string,mixed>                $form_settings Form settings.
 	 * @return array<string,string> Field label => file names.
 	 */
 	public static function upload_lines( array $fields, array $form_settings ) {
-		$ignored = Raynet_Elementor_Forms::id_list( $form_settings, Raynet_Elementor_Forms::IGNORED_KEY );
+		$ignored = array_merge(
+			Raynet_Elementor_Forms::id_list( $form_settings, Raynet_Elementor_Forms::IGNORED_KEY ),
+			array_map( 'strval', array_values( Raynet_Elementor_Forms::current_map( $form_settings ) ) )
+		);
 		$lines   = array();
 
 		foreach ( $fields as $id => $field ) {

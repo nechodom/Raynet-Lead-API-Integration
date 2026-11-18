@@ -88,13 +88,43 @@ class Raynet_Elementor_Atomic_Forms {
 
 		self::collect( isset( $element['elements'] ) && is_array( $element['elements'] ) ? $element['elements'] : array(), $widgets, $labels );
 
+		$groups       = self::group_map( $widgets );
+		$group_labels = array();
+
+		// A group is labelled by the first label, in tree order, that points
+		// at any of its buttons.
+		foreach ( $widgets as $widget ) {
+			$id = isset( $widget['id'] ) ? (string) $widget['id'] : '';
+
+			if ( ! isset( $groups[ $id ] ) || isset( $group_labels[ $groups[ $id ] ] ) ) {
+				continue;
+			}
+
+			$cssid = self::string( isset( $widget['settings'] ) && is_array( $widget['settings'] ) ? $widget['settings'] : array(), '_cssid' );
+
+			if ( '' !== $cssid && isset( $labels[ $cssid ] ) ) {
+				$group_labels[ $groups[ $id ] ] = $labels[ $cssid ];
+			}
+		}
+
 		$rows = array();
 
 		foreach ( $widgets as $widget ) {
+			$id = isset( $widget['id'] ) ? (string) $widget['id'] : '';
+
+			// The other buttons of a group are folded into its first one.
+			if ( isset( $groups[ $id ] ) && $groups[ $id ] !== $id ) {
+				continue;
+			}
+
 			$settings = isset( $widget['settings'] ) && is_array( $widget['settings'] ) ? $widget['settings'] : array();
 			$type     = self::field_type( self::element_type( $widget ), $settings );
 			$cssid    = self::string( $settings, '_cssid' );
 			$label    = '' !== $cssid && isset( $labels[ $cssid ] ) ? $labels[ $cssid ] : '';
+
+			if ( isset( $group_labels[ $id ] ) ) {
+				$label = $group_labels[ $id ];
+			}
 
 			if ( '' === $label ) {
 				$label = self::plain( self::string( $settings, 'placeholder' ) );
@@ -110,7 +140,7 @@ class Raynet_Elementor_Atomic_Forms {
 			}
 
 			$row = array(
-				'custom_id'   => isset( $widget['id'] ) ? (string) $widget['id'] : '',
+				'custom_id'   => $id,
 				'field_type'  => $type,
 				'field_label' => $label,
 			);
@@ -124,6 +154,27 @@ class Raynet_Elementor_Atomic_Forms {
 		}
 
 		return $rows;
+	}
+
+	/**
+	 * Radio buttons that form a group, and the field each belongs to.
+	 *
+	 * The browser posts a radio group as one entry, under the id of the
+	 * checked button (of the first one when none is checked). Buttons that
+	 * share a stored group name (the `name` prop) are therefore one field,
+	 * keyed by the first button in tree order. Without a stored name each
+	 * button has a name of its own on the page and is a field by itself.
+	 *
+	 * @param array<string,mixed> $element The `e-form` element.
+	 * @return array<string,string> Button element id => group field id.
+	 */
+	public static function radio_groups( array $element ) {
+		$widgets = array();
+		$labels  = array();
+
+		self::collect( isset( $element['elements'] ) && is_array( $element['elements'] ) ? $element['elements'] : array(), $widgets, $labels );
+
+		return self::group_map( $widgets );
 	}
 
 	/**
@@ -333,6 +384,37 @@ class Raynet_Elementor_Atomic_Forms {
 				self::collect( $element['elements'], $widgets, $labels );
 			}
 		}
+	}
+
+	/**
+	 * Maps grouped radio buttons to the first button of their group.
+	 *
+	 * @param array<int,array<string,mixed>> $widgets Field widgets in tree order.
+	 * @return array<string,string> Button element id => group field id.
+	 */
+	private static function group_map( array $widgets ) {
+		$first = array();
+		$map   = array();
+
+		foreach ( $widgets as $widget ) {
+			if ( 'e-form-radio-button' !== self::element_type( $widget ) || empty( $widget['id'] ) ) {
+				continue;
+			}
+
+			$name = self::string( isset( $widget['settings'] ) && is_array( $widget['settings'] ) ? $widget['settings'] : array(), 'name' );
+
+			if ( '' === $name ) {
+				continue;
+			}
+
+			if ( ! isset( $first[ $name ] ) ) {
+				$first[ $name ] = (string) $widget['id'];
+			}
+
+			$map[ (string) $widget['id'] ] = $first[ $name ];
+		}
+
+		return $map;
 	}
 
 	/**

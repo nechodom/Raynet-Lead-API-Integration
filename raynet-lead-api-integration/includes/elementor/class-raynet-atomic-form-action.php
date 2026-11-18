@@ -101,7 +101,7 @@ class Raynet_Atomic_Form_Action extends Action_Base {
 		}
 
 		$form_settings = Raynet_Elementor_Atomic_Forms::settings( $post_id, $element );
-		$fields        = Raynet_Atomic_Form_Integration::submitted_fields( $form_settings['form_fields'], $form_data );
+		$fields        = Raynet_Atomic_Form_Integration::submitted_fields( $form_settings['form_fields'], $form_data, Raynet_Elementor_Atomic_Forms::radio_groups( $element ) );
 
 		$mapped           = Raynet_Elementor_Lead_Builder::mapped_values( $fields, $form_settings );
 		$mapped['extras'] = Raynet_Elementor_Lead_Builder::merge_lines( Raynet_Elementor_Lead_Builder::noted_values( $fields, $form_settings ), $mapped['extras'] );
@@ -168,7 +168,10 @@ class Raynet_Atomic_Form_Action extends Action_Base {
 	 * @return string URL, or an empty string.
 	 */
 	private function source_url( array $form_settings, $post_id, array $context ) {
-		if ( ! isset( $form_settings['raynet_crm_source_url'] ) || 'yes' !== (string) $form_settings['raynet_crm_source_url'] ) {
+		// On unless switched off, as in the classic widget: its control
+		// defaults to yes, and the plugin never stores the switch for an
+		// atomic form it enables.
+		if ( isset( $form_settings['raynet_crm_source_url'] ) && 'yes' !== (string) $form_settings['raynet_crm_source_url'] ) {
 			return '';
 		}
 

@@ -2872,9 +2872,13 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'popisek v logu akcí', apply_filters( 'elementor_pro/atomic_forms/action_log_label', 'Raynet Crm', 'raynet_crm' ), 'RAYNET CRM' );
 		check( 'cizí popisek v logu beze změny', apply_filters( 'elementor_pro/atomic_forms/action_log_label', 'Webhook', 'webhook' ), 'Webhook' );
 
-		// A runner name that is not the registry does nothing and does not fail.
+		// A runner name that is not the registry does nothing and does not fail;
+		// the registry itself gets a fresh instance.
+		$registered = $runner_class::create_action( 'raynet_crm' );
 		Raynet_Atomic_Form_Integration::register_action( 'stdClass' );
-		check( 'cizí registr nic nezaregistruje', $runner_class::has_action( 'raynet_crm' ), true );
+		check( 'cizí registr nic nezaregistruje', $runner_class::create_action( 'raynet_crm' ) === $registered, true );
+		Raynet_Atomic_Form_Integration::register_action( ltrim( $runner_class, '\\' ) );
+		check( 'registr dostane novou instanci', $runner_class::create_action( 'raynet_crm' ) !== $registered && $runner_class::create_action( 'raynet_crm' ) instanceof Raynet_Atomic_Form_Action, true );
 
 		$at   = function ( $type, $value ) {
 			return array( '$$type' => $type, 'value' => $value );
@@ -2917,6 +2921,10 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 					$al2( 'xl6', 'Příloha', 'file' ),
 					$aw2( 'xf6', 'e-form-file-upload', array( '_cssid' => $as( 'file' ) ) ),
 					$aw2( 'xf7', 'e-form-input', array( 'type' => $as( 'password' ), 'placeholder' => $as( 'Heslo' ) ) ),
+					// A radio group: the browser posts it under the checked button.
+					$al2( 'xl8', 'Typ zákazníka', 'typ1' ),
+					$aw2( 'xr1', 'e-form-radio-button', array( 'name' => $as( 'typ' ), 'value' => $as( 'firma' ), '_cssid' => $as( 'typ1' ) ) ),
+					$aw2( 'xr2', 'e-form-radio-button', array( 'name' => $as( 'typ' ), 'value' => $as( 'fo' ), '_cssid' => $as( 'typ2' ) ) ),
 					$aw2( 'xsb', 'e-form-submit-button' ),
 				),
 			);
@@ -2935,9 +2943,10 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 				// An old mapping of the password field: it must not leave the site.
 				array( 'remote_id' => 'lastName', 'local_id' => 'xf7' ),
 			),
-			'raynet_crm_notice_fields' => array( 'xf5' ),
+			'raynet_crm_notice_fields' => array( 'xf5', 'xr1' ),
 			'raynet_crm_topic'         => 'Z atomového formuláře',
-			'raynet_crm_source_url'    => 'yes',
+			// No raynet_crm_source_url: the plugin never stores it, and the
+			// classic widget's switch defaults to on.
 		);
 		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform2', $aform_map );
 		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform3', $aform_map );
@@ -2956,6 +2965,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 			'xf5'    => 'web',
 			'xf6'    => array( content_url( 'uploads/elementor/forms/nabidka.pdf' ) ),
 			'xf7'    => 'tajneheslo',
+			'xr2'    => 'fo',
 			'podvrh' => 'podvržená hodnota',
 		);
 		$aform_context = function ( $form_id ) use ( $aform_page ) {
@@ -2999,6 +3009,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'heslo neodešlo', false !== strpos( (string) wp_json_encode( $aform_lead ), 'tajneheslo' ) || isset( $aform_lead['lastName'] ), false );
 		check( 'podvržené pole neodešlo', false !== strpos( (string) wp_json_encode( $aform_lead, JSON_UNESCAPED_UNICODE ), 'podvržená' ), false );
 		check( 'zdroj je stránka, ne podvržený odkaz', isset( $aform_lead['notice'] ) && false !== strpos( $aform_notice, get_permalink( $aform_page ) ) && false === strpos( $aform_notice, 'utocnik.example' ), true );
+		check( 'skupina přepínačů je jedno pole', array_column( Raynet_Elementor_Forms::readable_fields( Raynet_Elementor_Forms::form_settings( $aform_page, 'aform2' ) ), 'id' ), array( 'xf1', 'xf2', 'xf3', 'xf4', 'xf5', 'xf6', 'xf7', 'xr1' ) );
+		check( 'vybraný přepínač skupiny v poznámce', false !== strpos( $aform_notice, 'Typ zákazníka: fo' ), true );
 		check( 'zaškrtnutý souhlas: GDPR záznam', isset( $aform_sent['gdpr']['lead'] ) ? $aform_sent['gdpr']['lead'] : 0, 4242 );
 
 		// Unticked: no GDPR record.
@@ -3006,12 +3018,27 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$runner_class::execute_actions( array( 'raynet_crm' ), array_merge( $aform_data, array( 'xf4' => '' ) ), array(), $aform_context( 'aform2' ) );
 		check( 'nezaškrtnuto: žádný GDPR záznam', $aform_calls()['gdpr'], null );
 
-		// The runner calls only the actions the form lists.
+		// The source URL switched off; the per-form consent switch on, and a
+		// request that leaves the consent box out altogether.
+		$aform_switch = $aform_map;
+		$aform_switch['raynet_crm_source_url']   = '';
+		$aform_switch['raynet_crm_consent_note'] = 'yes';
+		$aform_switch['raynet_crm_fields_map']   = array( array( 'remote_id' => 'email', 'local_id' => 'xf1' ) );
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform2', $aform_switch );
 		update_option( 'raynet_test_http_calls', array() );
-		update_option( 'raynet_test_mails', array() );
-		$aform_off = Raynet_Atomic_Form_Integration::form_element( $aform_page, 'aform3' );
-		$runner_class::execute_actions( Raynet_Elementor_Atomic_Forms::actions( $aform_off ), $aform_data, array(), $aform_context( 'aform3' ) );
-		check( 'formulář bez RAYNETu RAYNET nevolá', $aform_calls()['count'], 0 );
+		$aform_no_box = $aform_data;
+		unset( $aform_no_box['xf4'] );
+		$runner_class::execute_actions( array( 'raynet_crm' ), $aform_no_box, array(), $aform_context( 'aform2' ) );
+		$aform_switched = $aform_calls()['lead'];
+		$aform_switched = isset( $aform_switched['notice'] ) ? (string) $aform_switched['notice'] : '';
+		check( 'vypnutý zdroj: bez adresy stránky', '' !== $aform_switched && false === strpos( $aform_switched, 'Odesláno ze stránky' ), true );
+		check( 'vynechané zaškrtávátko: přepínač souhlas netvrdí', '' !== $aform_switched && false === strpos( $aform_switched, 'Souhlas se zpracováním údajů udělen' ), true );
+		$aform_no_box['xf4'] = 'on';
+		update_option( 'raynet_test_http_calls', array() );
+		$runner_class::execute_actions( array( 'raynet_crm' ), $aform_no_box, array(), $aform_context( 'aform2' ) );
+		$aform_switched = $aform_calls()['lead'];
+		check( 'zaškrtnuto: přepínač souhlas uvede', false !== strpos( isset( $aform_switched['notice'] ) ? (string) $aform_switched['notice'] : '', 'Souhlas se zpracováním údajů udělen' ), true );
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform2', $aform_map );
 
 		// A form id the page does not hold.
 		update_option( 'raynet_test_http_calls', array() );
@@ -3054,7 +3081,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'bez kontaktu: návštěvník důvod nevidí', false !== strpos( (string) wp_json_encode( $aform_nocontact, JSON_UNESCAPED_UNICODE ), 'telefon' ), false );
 
 		// The real request, as the browser sends it: admin-ajax.php, anonymous.
-		$aform_post = function () use ( $aform_page ) {
+		$aform_post = function ( $form_id = 'aform2' ) use ( $aform_page ) {
 			wp_set_current_user( 0 );
 			$fields = array(
 				array( 'id' => 'xf1', 'type' => 'email', 'label' => 'E-mail', 'value' => 'eva@example.cz' ),
@@ -3062,12 +3089,14 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 				array( 'id' => 'xf2', 'type' => 'email', 'label' => 'Podvrh', 'value' => 'Eva' ),
 				array( 'id' => 'xf3', 'type' => 'textarea', 'label' => 'Zpráva', 'value' => 'Přes admin-ajax.' ),
 				array( 'id' => 'xf4', 'type' => 'checkbox', 'label' => 'Souhlas', 'value' => 'on' ),
+				// A field that goes to the note, under a label the browser made up.
+				array( 'id' => 'xf5', 'type' => 'select', 'label' => 'Podvrh', 'value' => 'web' ),
 			);
 			return array(
 				'action'      => 'elementor_pro_atomic_forms_send_form',
 				'_nonce'      => wp_create_nonce( 'elementor_pro_atomic_forms_send_form' ),
 				'post_id'     => $aform_page,
-				'form_id'     => 'aform2',
+				'form_id'     => $form_id,
 				'form_name'   => 'Atomová poptávka',
 				'form_fields' => $fields,
 			);
@@ -3078,7 +3107,16 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$aform_sent = $aform_calls();
 		check( 'admin-ajax: odesláno', isset( $aform_http['success'] ) ? $aform_http['success'] : null, true );
 		check( 'admin-ajax: lead založen', isset( $aform_sent['lead']['firstName'] ) ? $aform_sent['lead']['firstName'] : '', 'Eva' );
-		check( 'admin-ajax: typ a popisek ze stromu', false !== strpos( isset( $aform_sent['lead']['notice'] ) ? (string) $aform_sent['lead']['notice'] : '', 'Podvrh' ), false );
+		$aform_http_notice = isset( $aform_sent['lead']['notice'] ) ? (string) $aform_sent['lead']['notice'] : '';
+		check( 'admin-ajax: popisek ze stromu, ne z požadavku', array( false !== strpos( $aform_http_notice, 'Služba: web' ), false !== strpos( $aform_http_notice, 'Podvrh' ) ), array( true, false ) );
+
+		// A form whose actions do not list RAYNET: Elementor Pro's controller
+		// never calls the action.
+		update_option( 'raynet_test_http_calls', array() );
+		update_option( 'raynet_test_mails', array() );
+		$aform_http_off = json_decode( req( '/wp-admin/admin-ajax.php', $aform_post( 'aform3' ) )['body'], true );
+		check( 'admin-ajax: formulář bez RAYNETu odeslán', isset( $aform_http_off['data']['data']['actionResults'] ) ? array_column( $aform_http_off['data']['data']['actionResults'], 'type' ) : null, array( 'email' ) );
+		check( 'admin-ajax: formulář bez RAYNETu RAYNET nevolá', $aform_calls()['count'], 0 );
 
 		update_option( 'raynet_test_refuse_leads', 1 );
 		delete_option( 'raynet_lead_last_error' );
