@@ -299,5 +299,16 @@ check( 'bez importu: notifikace zůstává', $live['notificationEmailAddresses']
 check( 'bez importu: štítky z nastavení', $live['tags'], 'web' );
 check( 'bez importu: pauza nastavena',    count( $GLOBALS['wp_transients'] ), 1 );
 
+// The preview is exactly what is sent, and sending nothing on the way.
+foreach ( array( 'import' => $import_context, 'živé' => array() ) as $preview_label => $preview_context ) {
+	configure( $import_overrides );
+	$before  = array( $GLOBALS['wp_options'], $GLOBALS['wp_transients'], $GLOBALS['wp_mails'], $GLOBALS['wp_requests'] );
+	$preview = $form->preview_payload( $import_values, Raynet_Lead_Settings::all(), $preview_context );
+	check( 'náhled (' . $preview_label . '): nic neodeslal ani nezapsal', array( $GLOBALS['wp_options'], $GLOBALS['wp_transients'], $GLOBALS['wp_mails'], $GLOBALS['wp_requests'] ), $before );
+	$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":24}}' );
+	$form->submit_lead( $import_values, Raynet_Lead_Settings::all(), $preview_context );
+	check( 'náhled (' . $preview_label . ') = odeslaný payload', json_decode( wp_json_encode( $preview ), true ), json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true ) );
+}
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

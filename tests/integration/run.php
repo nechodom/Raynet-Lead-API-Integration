@@ -1785,6 +1785,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 						),
 						'raynet_crm_fields_map'    => $map,
 						'raynet_crm_notify_emails' => 'obchod@example.cz',
+						'raynet_crm_priority'      => 'CRITICAL',
+						'raynet_crm_owner'         => '11',
 					),
 					'elements'   => array(),
 				),
@@ -1873,10 +1875,22 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		update_post_meta( $empty_page, '_elementor_edit_mode', 'builder' );
 		update_post_meta( $empty_page, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'emptyform', 'Bez odeslání' ) ) ) );
 
+		// A form whose only submission is already in RAYNET.
+		$sent_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Vše odesláno', 'post_status' => 'publish' ) );
+		update_post_meta( $sent_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $sent_page, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'sentform', 'Vše odesláno' ) ) ) );
+		$sub_sent = $add_stored( $sent_page, 'Olga', 'olga@example.cz', 'Tahle poptávka už v RAYNETu je, odkaz má ukázat nulu.', '192.0.2.12', array( 'element_id' => 'sentform' ) );
+		$import_query->add_action_log( $sub_sent, $action, 'success', 'Lead 78' );
+
 		$forms_view = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true )['body'];
 		check( 'přehled: odkaz na import formuláře', (bool) preg_match( '~href="[^"]*import=' . preg_quote( $import_key, '~' ) . '"[^>]*>\s*Importovat starší odeslání \(~', $forms_view ), true );
 		check( 'přehled: počet čekajících v odkazu', false !== strpos( $forms_view, 'Importovat starší odeslání (5)' ), true );
 		check( 'přehled: formulář bez odeslání odkaz nemá', false !== strpos( $forms_view, 'import=' . $empty_page . ':emptyform' ), false );
+		check( 'přehled: vše odeslané má odkaz s nulou', (bool) preg_match( '~href="[^"]*import=' . $sent_page . ':sentform"[^>]*>\s*Importovat starší odeslání \(0\)~', $forms_view ), true );
+		$all_counts = Raynet_Elementor_Submissions::form_counts();
+		check( 'form_counts: vše odeslané', isset( $all_counts[ $sent_page . ':sentform' ] ) ? $all_counts[ $sent_page . ':sentform' ] : null, array( 'pending' => 0, 'total' => 1 ) );
+		check( 'form_counts: import', isset( $all_counts[ $import_key ] ) ? $all_counts[ $import_key ] : null, array( 'pending' => 5, 'total' => 6 ) );
+		check( 'pending_counts bez formuláře s nulou', isset( Raynet_Elementor_Submissions::pending_counts()[ $sent_page . ':sentform' ] ), false );
 
 		$review = req( $import_url, null, true );
 		$row_a  = $import_row( $review['body'], $sub_a );
@@ -1891,7 +1905,17 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'import: pole štítku s výchozí hodnotou', (bool) preg_match( '~id="raynet-import-tag"[^>]*value="import-web"~', $review['body'] ), true );
 		check( 'import: tlačítko odeslání', false !== strpos( $review['body'], 'id="raynet-import-send"' ), true );
 		check( 'import: skript načtený', false !== strpos( $review['body'], 'raynet-elementor-import.js' ), true );
-		check( 'import: detail s náhledem leadu', false !== strpos( $row_a . $review['body'], 'Importováno z uložených odeslání Elementoru. Původně odesláno: 12. 3. 2025 14:10' ), true );
+		// The preview is what preview_payload() gives for A, shown in A's own detail row.
+		$detail_a  = preg_match( '~<tr[^>]*\bdata-detail="' . (int) $sub_a . '"[^>]*>.*?</tr>~s', $review['body'], $detail_m ) ? $detail_m[0] : '';
+		$prepared_a = Raynet_Elementor_Submissions::prepare( Raynet_Elementor_Submissions::load( $import_page, 'impform', array( $sub_a ) )[ $sub_a ], Raynet_Elementor_Forms::form_settings( $import_page, 'impform' ), 'import-web' );
+		$payload_a = ( new Raynet_Lead_Form() )->preview_payload( $prepared_a['values'], $prepared_a['settings'], $prepared_a['context'] );
+		$owner_names = Raynet_Lead_Users::names();
+		check( 'detail A: předmět leadu', '' !== $detail_a && false !== strpos( $detail_a, esc_html( $payload_a['topic'] ) ), true );
+		check( 'detail A: priorita', false !== strpos( $detail_a, '<dt>Priorita</dt>' ) && false !== strpos( $detail_a, 'Kritická' ), true );
+		check( 'detail A: vlastník', false !== strpos( $detail_a, '<dt>Vlastník leadu</dt>' ) && false !== strpos( $detail_a, esc_html( isset( $owner_names[11] ) ? $owner_names[11] : '11' ) ), true );
+		check( 'detail A: typ leadu', false !== strpos( $detail_a, '<dt>Typ leadu</dt>' ), true );
+		check( 'detail A: poznámka přesně jako payload', false !== strpos( $detail_a, esc_html( $payload_a['notice'] ) ), true );
+		check( 'detail A: poznámka nese import', false !== strpos( $payload_a['notice'], 'Původně odesláno: 12. 3. 2025 14:10' ), true );
 
 		$spam_tab = req( $import_url . '&zalozka=spam', null, true )['body'];
 		$row_b    = $import_row( $spam_tab, $sub_b );
@@ -1928,6 +1952,33 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$missing = req( '/wp-admin/admin.php?page=raynet-elementor-forms&import=999999:nic', null, true );
 		check( 'neznámý formulář: 200', $missing['status'], 200 );
 		check( 'neznámý formulář: hláška', false !== strpos( $missing['body'], 'Formulář nebyl nalezen.' ), true );
+
+		// A crafted key is "not found", and never reaches the inline script.
+		$crafted = req( '/wp-admin/admin.php?page=raynet-elementor-forms&import=' . rawurlencode( $import_page . ':impform"};alert(1);//' ), null, true );
+		check( 'podvržený klíč: 200', $crafted['status'], 200 );
+		check( 'podvržený klíč: formulář nenalezen', false !== strpos( $crafted['body'], 'Formulář nebyl nalezen.' ), true );
+		check( 'podvržený klíč: skript se nenačte', false !== strpos( $crafted['body'], 'raynetElementorImport' ), false );
+		check( 'podvržený klíč: nic z něj na stránce', false !== strpos( $crafted['body'], 'alert(1);//' ), false );
+
+		// Paging links: first, last, two either side of the current page.
+		check( 'stránkování: začátek', Raynet_Elementor_Import_Admin::page_numbers( 1, 400 ), array( 1, 2, 3, null, 400 ) );
+		check( 'stránkování: uprostřed', Raynet_Elementor_Import_Admin::page_numbers( 200, 400 ), array( 1, null, 198, 199, 200, 201, 202, null, 400 ) );
+		check( 'stránkování: konec', Raynet_Elementor_Import_Admin::page_numbers( 400, 400 ), array( 1, null, 398, 399, 400 ) );
+		check( 'stránkování: bez mezery u kraje', Raynet_Elementor_Import_Admin::page_numbers( 4, 7 ), array( 1, 2, 3, 4, 5, 6, 7 ) );
+		check( 'stránkování: jedna stránka', Raynet_Elementor_Import_Admin::page_numbers( 1, 1 ), array( 1 ) );
+		check( 'stránkování: mimo rozsah', Raynet_Elementor_Import_Admin::page_numbers( 99, 1 ), array( 1 ) );
+
+		// A spam-score filter returning reasons in odd shapes does not break the screen.
+		update_option( 'raynet_test_odd_reasons', 1 );
+		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+		$odd = req( $import_url, null, true );
+		delete_option( 'raynet_test_odd_reasons' );
+		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+		$odd_a = $import_row( $odd['body'], $sub_a );
+		check( 'divné důvody: obrazovka se načte', $odd['status'], 200 );
+		check( 'divné důvody: řádek A je tu', '' !== $odd_a, true );
+		check( 'divné důvody: řetězec escapovaný', false !== strpos( $odd_a, 'vlastni_&lt;b&gt;signal&lt;/b&gt;' ), true );
+		check( 'divné důvody: neznámé ID ukázané', false !== strpos( $odd_a, 'cizi_id' ), true );
 
 		// Without a mapped contact the screen sends the admin to the mapping.
 		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( array( $import_map[0], $import_map[2] ) ) ) ) );
@@ -2030,7 +2081,9 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 
 		$import_query->delete_submission( $sub_xss );
 		$import_query->delete_submission( $sub_k );
+		$import_query->delete_submission( $sub_sent );
 		wp_delete_post( $empty_page, true );
+		wp_delete_post( $sent_page, true );
 		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
 
 		// The lock is read and written with raw SQL only, as the class does.

@@ -486,15 +486,7 @@ class Raynet_Lead_Form {
 			);
 		}
 
-		$payload = $this->build_payload( $values, $settings, $context );
-
-		/**
-		 * Filters the lead payload right before it is sent to RAYNET.
-		 *
-		 * @param array<string,mixed> $payload Lead payload.
-		 * @param array<string,string> $values Sanitized form values.
-		 */
-		$payload = apply_filters( 'raynet_lead_payload', $payload, $values );
+		$payload = $this->preview_payload( $values, $settings, $context );
 
 		if ( ! $import ) {
 			$this->mark_throttled();
@@ -553,6 +545,30 @@ class Raynet_Lead_Form {
 			'redirect' => (string) $settings['redirect_url'],
 			'lead_id'  => $lead_id,
 		);
+	}
+
+	/**
+	 * The payload submit_lead() would send for these arguments, without sending it.
+	 *
+	 * submit_lead() builds its payload here, so a preview cannot differ from
+	 * what is sent. No request, mail, throttle, option write or hook other than
+	 * the `raynet_lead_payload` filter.
+	 *
+	 * @param array<string,string> $values   Sanitized values, keyed by supported field.
+	 * @param array<string,mixed>  $settings Effective settings for this submission.
+	 * @param array<string,mixed>  $context  Context as submit_lead() takes it.
+	 * @return array<string,mixed> Lead payload.
+	 */
+	public function preview_payload( array $values, array $settings, array $context = array() ) {
+		$payload = $this->build_payload( $values, $settings, $context );
+
+		/**
+		 * Filters the lead payload right before it is sent to RAYNET.
+		 *
+		 * @param array<string,mixed> $payload Lead payload.
+		 * @param array<string,string> $values Sanitized form values.
+		 */
+		return apply_filters( 'raynet_lead_payload', $payload, $values );
 	}
 
 	/**

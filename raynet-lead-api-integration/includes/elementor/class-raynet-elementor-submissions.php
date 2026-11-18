@@ -84,13 +84,31 @@ class Raynet_Elementor_Submissions {
 	/**
 	 * Submissions not yet in RAYNET, per form, for the whole site.
 	 *
+	 * @return array<string,int> "post_id:element_id" => count, only forms with one or more.
+	 */
+	public static function pending_counts() {
+		return array_filter(
+			array_map(
+				static function ( $counts ) {
+					return $counts['pending'];
+				},
+				self::form_counts()
+			)
+		);
+	}
+
+	/**
+	 * Stored submissions per form, for the whole site, in one query.
+	 *
 	 * A submission counts under its `post_id` and, when that differs, under
 	 * the page it was sent from (`meta.edit_post_id`), because the scanner
 	 * finds a form either in the page or in the template it lives in.
+	 * Submissions in the trash do not count.
 	 *
-	 * @return array<string,int> "post_id:element_id" => count.
+	 * @return array<string,array{pending:int,total:int}> "post_id:element_id" =>
+	 *         submissions not yet in RAYNET, and all of them.
 	 */
-	public static function pending_counts() {
+	public static function form_counts() {
 		if ( ! self::available() ) {
 			return array();
 		}
@@ -103,13 +121,14 @@ class Raynet_Elementor_Submissions {
 		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery -- Table names come from $wpdb->prefix and constants.
 		$groups = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT s.post_id, s.element_id, s.meta, COUNT(*) AS n FROM {$submissions} s
+				"SELECT s.post_id, s.element_id, s.meta, COUNT(*) AS total,
+				SUM( CASE WHEN EXISTS ( SELECT 1 FROM {$log} l WHERE l.submission_id = s.id AND l.action_name = %s AND l.status = %s ) THEN 0 ELSE 1 END ) AS pending
+				FROM {$submissions} s
 				WHERE s.status <> %s
-				AND NOT EXISTS ( SELECT 1 FROM {$log} l WHERE l.submission_id = s.id AND l.action_name = %s AND l.status = %s )
 				GROUP BY s.post_id, s.element_id, s.meta",
-				'trash',
 				Raynet_Elementor_Forms::ACTION_NAME,
-				'success'
+				'success',
+				'trash'
 			),
 			ARRAY_A
 		);
@@ -122,8 +141,17 @@ class Raynet_Elementor_Submissions {
 			$posts   = array( (int) $group['post_id'], self::edit_post_id( (string) $group['meta'] ) );
 
 			foreach ( array_unique( array_filter( $posts ) ) as $post_id ) {
-				$key            = $post_id . ':' . $element;
-				$counts[ $key ] = ( isset( $counts[ $key ] ) ? $counts[ $key ] : 0 ) + (int) $group['n'];
+				$key = $post_id . ':' . $element;
+
+				if ( ! isset( $counts[ $key ] ) ) {
+					$counts[ $key ] = array(
+						'pending' => 0,
+						'total'   => 0,
+					);
+				}
+
+				$counts[ $key ]['pending'] += (int) $group['pending'];
+				$counts[ $key ]['total']   += (int) $group['total'];
 			}
 		}
 

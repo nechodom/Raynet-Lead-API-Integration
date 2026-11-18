@@ -63,6 +63,23 @@ class Raynet_Elementor_Import_Admin {
 	}
 
 	/**
+	 * Reads a form key, "<post_id>:<widget_id>".
+	 *
+	 * Elementor's widget ids are short alphanumeric strings. Anything else is
+	 * refused here, so a crafted key never reaches the page or its script.
+	 *
+	 * @param string $key Key from the request.
+	 * @return array{0:int,1:string}|null Post id and widget id, or null.
+	 */
+	public static function parse_key( $key ) {
+		if ( ! is_string( $key ) || ! preg_match( '/^(\d+):([A-Za-z0-9_-]+)$/', $key, $parts ) ) {
+			return null;
+		}
+
+		return array( (int) $parts[1], $parts[2] );
+	}
+
+	/**
 	 * Loads the screen's script on the import screen only.
 	 *
 	 * The stylesheet comes with the forms screen (Raynet_Lead_Admin).
@@ -75,7 +92,7 @@ class Raynet_Elementor_Import_Admin {
 		$key  = isset( $_GET['import'] ) ? sanitize_text_field( wp_unslash( $_GET['import'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-		if ( Raynet_Elementor_Forms_Admin::PAGE !== $page || '' === $key || ! current_user_can( 'manage_options' ) ) {
+		if ( Raynet_Elementor_Forms_Admin::PAGE !== $page || null === self::parse_key( $key ) || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
 
@@ -140,7 +157,9 @@ class Raynet_Elementor_Import_Admin {
 		$submission = isset( $_POST['submission'] ) ? absint( wp_unslash( $_POST['submission'] ) ) : 0;
 		$tag        = isset( $_POST['tag'] ) ? mb_substr( sanitize_text_field( wp_unslash( $_POST['tag'] ) ), 0, self::TAG_LENGTH ) : '';
 
-		if ( ! preg_match( '/^(\d+):(.+)$/', $key, $parts ) ) {
+		$parts = self::parse_key( $key );
+
+		if ( null === $parts ) {
 			wp_send_json_error(
 				array(
 					'code'    => 'raynet_import_no_form',
@@ -150,7 +169,7 @@ class Raynet_Elementor_Import_Admin {
 			);
 		}
 
-		$result = Raynet_Elementor_Submissions::import( (int) $parts[1], $parts[2], $submission, $tag );
+		$result = Raynet_Elementor_Submissions::import( $parts[0], $parts[1], $submission, $tag );
 
 		if ( is_wp_error( $result ) ) {
 			$data  = $result->get_error_data();
@@ -202,11 +221,12 @@ class Raynet_Elementor_Import_Admin {
 		}
 
 		$settings = null;
+		$parts    = self::parse_key( $key );
 
-		if ( preg_match( '/^(\d+):(.+)$/', $key, $parts ) ) {
-			$post_id   = (int) $parts[1];
-			$widget_id = $parts[2];
-			$settings  = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
+		if ( null !== $parts ) {
+			list( $post_id, $widget_id ) = $parts;
+
+			$settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
 		}
 
 		if ( null === $settings ) {
@@ -455,11 +475,15 @@ class Raynet_Elementor_Import_Admin {
 	 * @return void
 	 */
 	private static function row( array $row, array $item, array $settings, $pick ) {
-		$id     = (int) $row['id'];
-		$fields = Raynet_Elementor_Submissions::fields_for( $row, $settings );
-		$form   = new Raynet_Lead_Form();
-		$values = $form->collect_values( Raynet_Elementor_Lead_Builder::mapped_values( $fields, $settings )['basic'] );
-		$who    = array_filter(
+		$id       = (int) $row['id'];
+		$fields   = Raynet_Elementor_Submissions::fields_for( $row, $settings );
+		$form     = new Raynet_Lead_Form();
+		$prepared = Raynet_Elementor_Submissions::prepare( $row, $settings, Raynet_Elementor_Submissions::DEFAULT_TAG );
+		// A row RAYNET would refuse has no lead to preview; its values are
+		// still collected once for the summary.
+		$payload  = is_wp_error( $prepared ) ? null : $form->preview_payload( $prepared['values'], $prepared['settings'], $prepared['context'] );
+		$values   = is_wp_error( $prepared ) ? $form->collect_values( Raynet_Elementor_Lead_Builder::mapped_values( $fields, $settings )['basic'] ) : $prepared['values'];
+		$who      = array_filter(
 			array(
 				trim( $values['firstName'] . ' ' . $values['lastName'] ),
 				$values['companyName'],
@@ -468,9 +492,9 @@ class Raynet_Elementor_Import_Admin {
 			),
 			'strlen'
 		);
-		$text   = trim( preg_replace( '/\s+/u', ' ', $values['message'] ) );
-		$text   = mb_strlen( $text ) > 140 ? mb_substr( $text, 0, 140 ) . '…' : $text;
-		$box    = $pick && Raynet_Elementor_Submissions::STATE_SENT !== $item['state'];
+		$text     = trim( preg_replace( '/\s+/u', ' ', $values['message'] ) );
+		$text     = mb_strlen( $text ) > 140 ? mb_substr( $text, 0, 140 ) . '…' : $text;
+		$box      = $pick && Raynet_Elementor_Submissions::STATE_SENT !== $item['state'];
 		?>
 		<tr class="raynet-import__row raynet-import--<?php echo esc_attr( $item['verdict'] ); ?>" data-submission="<?php echo (int) $id; ?>">
 			<th scope="row" class="raynet-import__check">
@@ -506,7 +530,7 @@ class Raynet_Elementor_Import_Admin {
 		</tr>
 		<tr class="raynet-import__detail" id="raynet-import-detail-<?php echo (int) $id; ?>" data-detail="<?php echo (int) $id; ?>" hidden>
 			<td></td>
-			<td colspan="4"><?php self::detail( $row, $fields, $settings ); ?></td>
+			<td colspan="4"><?php self::detail( $row, $fields, is_wp_error( $prepared ) ? $prepared->get_error_message() : $payload ); ?></td>
 		</tr>
 		<?php
 	}
@@ -540,6 +564,8 @@ class Raynet_Elementor_Import_Admin {
 			$reasons[] = self::reason( $reason );
 		}
 
+		$reasons = array_filter( $reasons, 'strlen' );
+
 		echo '<span class="raynet-import__verdict">' . esc_html( $label ) . '</span>';
 
 		if ( ! empty( $reasons ) ) {
@@ -550,12 +576,23 @@ class Raynet_Elementor_Import_Admin {
 	/**
 	 * Words for one spam signal.
 	 *
-	 * @param array<string,mixed> $reason Reason from the spam score: id, strength, count.
-	 * @return string Text.
+	 * A raynet_import_spam_score filter may hand back reasons in any shape:
+	 * a plain string, or an id the screen does not know, is shown as it is.
+	 *
+	 * @param mixed $reason Reason from the spam score: id, strength, count.
+	 * @return string Text, unescaped.
 	 */
-	private static function reason( array $reason ) {
-		$id    = isset( $reason['id'] ) ? (string) $reason['id'] : '';
-		$count = isset( $reason['count'] ) ? (int) $reason['count'] : 0;
+	private static function reason( $reason ) {
+		if ( is_scalar( $reason ) ) {
+			return (string) $reason;
+		}
+
+		if ( ! is_array( $reason ) ) {
+			return '';
+		}
+
+		$id    = isset( $reason['id'] ) && is_scalar( $reason['id'] ) ? (string) $reason['id'] : '';
+		$count = isset( $reason['count'] ) && is_scalar( $reason['count'] ) ? (int) $reason['count'] : 0;
 
 		switch ( $id ) {
 			case 'link_short':
@@ -597,12 +634,12 @@ class Raynet_Elementor_Import_Admin {
 	/**
 	 * Everything stored with a submission, and the lead it would make.
 	 *
-	 * @param array<string,mixed>                $row      Stored submission.
-	 * @param array<string,array<string,string>> $fields   Fields from fields_for().
-	 * @param array<string,mixed>                $settings Form settings.
+	 * @param array<string,mixed>                $row     Stored submission.
+	 * @param array<string,array<string,string>> $fields  Fields from fields_for().
+	 * @param array<string,mixed>|string         $payload What preview_payload() returns, or why there is no lead.
 	 * @return void
 	 */
-	private static function detail( array $row, array $fields, array $settings ) {
+	private static function detail( array $row, array $fields, $payload ) {
 		?>
 		<div class="raynet-import__columns">
 			<div>
@@ -633,101 +670,142 @@ class Raynet_Elementor_Import_Admin {
 			</div>
 			<div>
 				<h4><?php esc_html_e( 'Náhled leadu', 'raynet-lead-api-integration' ); ?></h4>
-				<?php self::preview( $row, $settings ); ?>
+				<?php if ( is_array( $payload ) ) : ?>
+					<?php self::preview( $payload ); ?>
+				<?php else : ?>
+					<p class="raynet-elm__warn"><?php echo esc_html( (string) $payload ); ?></p>
+				<?php endif; ?>
 			</div>
 		</div>
 		<?php
 	}
 
 	/**
-	 * What would reach RAYNET: attributes and the note.
+	 * The lead exactly as import() would send it: attributes, then the note.
 	 *
-	 * Built from prepare(), which import() sends; the note is laid out in the
-	 * order Raynet_Lead_Form composes it.
-	 *
-	 * @param array<string,mixed> $row      Stored submission.
-	 * @param array<string,mixed> $settings Form settings.
+	 * @param array<string,mixed> $payload Result of Raynet_Lead_Form::preview_payload().
 	 * @return void
 	 */
-	private static function preview( array $row, array $settings ) {
-		$prepared = Raynet_Elementor_Submissions::prepare( $row, $settings, Raynet_Elementor_Submissions::DEFAULT_TAG );
+	private static function preview( array $payload ) {
+		$note = isset( $payload['notice'] ) ? (string) $payload['notice'] : '';
 
-		if ( is_wp_error( $prepared ) ) {
-			echo '<p class="raynet-elm__warn">' . esc_html( $prepared->get_error_message() ) . '</p>';
-			return;
-		}
-
-		$values     = $prepared['values'];
-		$lead       = $prepared['settings'];
-		$context    = $prepared['context'];
-		$catalogue  = Raynet_Lead_Form_Definition::catalogue();
-		$custom     = Raynet_Lead_Fields::custom();
-		$attributes = array();
-
-		foreach ( $values as $name => $value ) {
-			if ( 'message' !== $name && '' !== (string) $value ) {
-				$attributes[ isset( $catalogue[ $name ]['label'] ) ? $catalogue[ $name ]['label'] : $name ] = (string) $value;
-			}
-		}
-
-		foreach ( (array) $context['raynet_attributes'] as $path => $value ) {
-			$attributes[ html_entity_decode( Raynet_Elementor_Forms::target_label( (string) $path ), ENT_QUOTES, 'UTF-8' ) ] = is_scalar( $value ) ? (string) $value : wp_json_encode( $value );
-		}
-
-		foreach ( (array) $context['raynet_custom_fields'] as $name => $value ) {
-			$attributes[ isset( $custom[ $name ]['label'] ) ? $custom[ $name ]['label'] : $name ] = is_scalar( $value ) ? (string) $value : wp_json_encode( $value );
-		}
-
-		$attributes[ __( 'Datum leadu', 'raynet-lead-api-integration' ) ] = (string) $context['raynet_lead_date'];
-		$attributes[ __( 'Štítky', 'raynet-lead-api-integration' ) ]      = trim( (string) $lead['tags'] . ', ' . __( 'a štítek z pole nad tabulkou', 'raynet-lead-api-integration' ), ', ' );
-
-		$note = array();
-
-		if ( '' !== trim( (string) $lead['notice_prefix'] ) ) {
-			$note[] = trim( (string) $lead['notice_prefix'] );
-		}
-
-		$note[] = (string) $context['raynet_import_note'];
-
-		if ( '' !== $values['message'] ) {
-			$note[] = '' !== trim( (string) $context['raynet_message_label'] ) ? trim( (string) $context['raynet_message_label'] ) . ":\n" . $values['message'] : $values['message'];
-		}
-
-		if ( ! empty( $context['raynet_extras'] ) ) {
-			$lines = array();
-
-			foreach ( (array) $context['raynet_extras'] as $label => $value ) {
-				$lines[] = $label . ': ' . $value;
-			}
-
-			$note[] = implode( "\n", $lines );
-		}
-
-		if ( '' !== (string) $context['raynet_source_url'] ) {
-			/* translators: %s: page URL. */
-			$note[] = sprintf( __( 'Odesláno ze stránky: %s', 'raynet-lead-api-integration' ), $context['raynet_source_url'] );
-		}
-
-		if ( ! empty( $context['raynet_has_consent'] ) ) {
-			/* translators: %s: date and time of the consent. */
-			$line = sprintf( __( 'Souhlas se zpracováním údajů udělen: %s', 'raynet-lead-api-integration' ), $context['raynet_consent_time'] );
-
-			if ( '' !== trim( (string) $context['raynet_consent_text'] ) ) {
-				$line .= ' — „' . trim( (string) $context['raynet_consent_text'] ) . '“';
-			}
-
-			$note[] = $line;
-		}
+		unset( $payload['notice'] );
 		?>
 		<dl class="raynet-import__values">
-			<?php foreach ( $attributes as $label => $value ) : ?>
-				<dt><?php echo esc_html( $label ); ?></dt>
-				<dd><?php echo esc_html( $value ); ?></dd>
+			<?php foreach ( self::flatten( $payload ) as $path => $value ) : ?>
+				<dt><?php echo esc_html( self::attribute_label( $path ) ); ?></dt>
+				<dd><?php echo esc_html( self::attribute_value( $path, $value ) ); ?></dd>
 			<?php endforeach; ?>
 			<dt><?php esc_html_e( 'Poznámka', 'raynet-lead-api-integration' ); ?></dt>
-			<dd class="raynet-import__note"><?php echo esc_html( implode( "\n\n", $note ) ); ?></dd>
+			<dd class="raynet-import__note"><?php echo esc_html( $note ); ?></dd>
 		</dl>
+		<p class="description"><?php esc_html_e( 'Náhled počítá s výchozím štítkem importu; odešle se štítek, který bude v poli nad tabulkou.', 'raynet-lead-api-integration' ); ?></p>
 		<?php
+	}
+
+	/**
+	 * Nested payload keys as dotted paths: contactInfo.email, customFields.X.
+	 *
+	 * @param array<string,mixed> $data   Payload part.
+	 * @param string              $prefix Path so far.
+	 * @return array<string,mixed> Path => scalar value.
+	 */
+	private static function flatten( array $data, $prefix = '' ) {
+		$flat = array();
+
+		foreach ( $data as $key => $value ) {
+			$path = '' === $prefix ? (string) $key : $prefix . '.' . $key;
+
+			if ( is_array( $value ) && ! empty( $value ) && array_keys( $value ) !== range( 0, count( $value ) - 1 ) ) {
+				$flat = array_merge( $flat, self::flatten( $value, $path ) );
+			} else {
+				$flat[ $path ] = $value;
+			}
+		}
+
+		return $flat;
+	}
+
+	/**
+	 * Human label of one payload path.
+	 *
+	 * @param string $path Dotted path.
+	 * @return string Label, unescaped.
+	 */
+	private static function attribute_label( $path ) {
+		$labels = array(
+			'topic'               => __( 'Předmět', 'raynet-lead-api-integration' ),
+			'priority'            => __( 'Priorita', 'raynet-lead-api-integration' ),
+			'leadDate'            => __( 'Datum leadu', 'raynet-lead-api-integration' ),
+			'leadPerson'          => __( 'Typ leadu', 'raynet-lead-api-integration' ),
+			'firstName'           => __( 'Jméno', 'raynet-lead-api-integration' ),
+			'lastName'            => __( 'Příjmení', 'raynet-lead-api-integration' ),
+			'companyName'         => __( 'Společnost', 'raynet-lead-api-integration' ),
+			'contactInfo.email'   => __( 'E-mail', 'raynet-lead-api-integration' ),
+			'contactInfo.tel1'    => __( 'Telefon', 'raynet-lead-api-integration' ),
+			'address.street'      => __( 'Ulice', 'raynet-lead-api-integration' ),
+			'address.city'        => __( 'Město', 'raynet-lead-api-integration' ),
+			'address.zipCode'     => __( 'PSČ', 'raynet-lead-api-integration' ),
+			'category'            => __( 'Kategorie (ID)', 'raynet-lead-api-integration' ),
+			'leadPhase'           => __( 'Stav leadu (ID)', 'raynet-lead-api-integration' ),
+			'contactSource'       => __( 'Zdroj kontaktu (ID)', 'raynet-lead-api-integration' ),
+			'owner'               => __( 'Vlastník leadu', 'raynet-lead-api-integration' ),
+			'securityLevel'       => __( 'Bezpečnostní úroveň (ID)', 'raynet-lead-api-integration' ),
+			'tags'                => __( 'Štítky', 'raynet-lead-api-integration' ),
+			'notificationMessage' => __( 'Text notifikace', 'raynet-lead-api-integration' ),
+		);
+
+		if ( isset( $labels[ $path ] ) ) {
+			return $labels[ $path ];
+		}
+
+		if ( 0 === strpos( $path, 'customFields.' ) ) {
+			$name   = substr( $path, strlen( 'customFields.' ) );
+			$custom = Raynet_Lead_Fields::custom();
+
+			return isset( $custom[ $name ]['label'] ) ? $custom[ $name ]['label'] : $name;
+		}
+
+		return html_entity_decode( Raynet_Elementor_Forms::target_label( $path ), ENT_QUOTES, 'UTF-8' );
+	}
+
+	/**
+	 * Human form of one payload value.
+	 *
+	 * @param string $path  Dotted path.
+	 * @param mixed  $value Value.
+	 * @return string Text, unescaped.
+	 */
+	private static function attribute_value( $path, $value ) {
+		if ( 'leadPerson' === $path ) {
+			return $value ? __( 'Fyzická osoba', 'raynet-lead-api-integration' ) : __( 'Firma', 'raynet-lead-api-integration' );
+		}
+
+		if ( 'priority' === $path ) {
+			$priorities = array(
+				'MINOR'    => __( 'Nízká', 'raynet-lead-api-integration' ),
+				'DEFAULT'  => __( 'Běžná', 'raynet-lead-api-integration' ),
+				'CRITICAL' => __( 'Kritická', 'raynet-lead-api-integration' ),
+			);
+
+			return isset( $priorities[ $value ] ) ? $priorities[ $value ] : (string) $value;
+		}
+
+		if ( 'owner' === $path ) {
+			$names = Raynet_Lead_Users::names();
+
+			return isset( $names[ (int) $value ] ) ? $names[ (int) $value ] : (string) $value;
+		}
+
+		if ( is_bool( $value ) ) {
+			return $value ? __( 'ano', 'raynet-lead-api-integration' ) : __( 'ne', 'raynet-lead-api-integration' );
+		}
+
+		if ( is_array( $value ) ) {
+			return implode( ', ', array_map( 'strval', array_filter( $value, 'is_scalar' ) ) );
+		}
+
+		return is_scalar( $value ) ? (string) $value : '';
 	}
 
 	/**
@@ -748,13 +826,15 @@ class Raynet_Elementor_Import_Admin {
 					<?php if ( $page > 1 ) : ?>
 						<a href="<?php echo esc_url( add_query_arg( 'strana', min( $page - 1, $pages ), $base ) ); ?>" aria-label="<?php esc_attr_e( 'Předchozí stránka', 'raynet-lead-api-integration' ); ?>">&lsaquo;</a>
 					<?php endif; ?>
-					<?php for ( $number = 1; $number <= $pages; $number++ ) : ?>
-						<?php if ( $number === $page ) : ?>
+					<?php foreach ( self::page_numbers( $page, $pages ) as $number ) : ?>
+						<?php if ( null === $number ) : ?>
+							<span class="raynet-import__gap">&hellip;</span>
+						<?php elseif ( $number === $page ) : ?>
 							<strong aria-current="page"><?php echo (int) $number; ?></strong>
 						<?php else : ?>
 							<a href="<?php echo esc_url( add_query_arg( 'strana', $number, $base ) ); ?>"><?php echo (int) $number; ?></a>
 						<?php endif; ?>
-					<?php endfor; ?>
+					<?php endforeach; ?>
 					<?php if ( $page < $pages ) : ?>
 						<a href="<?php echo esc_url( add_query_arg( 'strana', $page + 1, $base ) ); ?>" aria-label="<?php esc_attr_e( 'Další stránka', 'raynet-lead-api-integration' ); ?>">&rsaquo;</a>
 					<?php endif; ?>
@@ -772,6 +852,40 @@ class Raynet_Elementor_Import_Admin {
 			</span>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Page numbers to link: the first, the last, and two either side of the
+	 * current one, with null where pages are left out.
+	 *
+	 * @param int $page  Current page.
+	 * @param int $pages Number of pages.
+	 * @return array<int,int|null> Numbers in order, null for a gap.
+	 */
+	public static function page_numbers( $page, $pages ) {
+		$wanted = array_unique( array_merge( array( 1, $pages ), range( max( 1, $page - 2 ), min( $pages, $page + 2 ) ) ) );
+		$wanted = array_filter(
+			$wanted,
+			static function ( $number ) use ( $pages ) {
+				return $number >= 1 && $number <= $pages;
+			}
+		);
+
+		sort( $wanted );
+
+		$numbers  = array();
+		$previous = 0;
+
+		foreach ( $wanted as $number ) {
+			if ( $number > $previous + 1 ) {
+				$numbers[] = null;
+			}
+
+			$numbers[] = $number;
+			$previous  = $number;
+		}
+
+		return $numbers;
 	}
 
 	/**

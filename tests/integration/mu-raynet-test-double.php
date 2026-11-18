@@ -184,3 +184,18 @@ add_filter(
 	10,
 	2
 );
+
+// A spam-score filter that hands back reasons in shapes the screen does not
+// expect: a bare string, an unknown id, a number, nothing.
+add_filter(
+	'raynet_import_spam_score',
+	function ( $result ) {
+		if ( ! get_option( 'raynet_test_odd_reasons' ) || ! is_array( $result ) || ! isset( $result['reasons'] ) ) {
+			return $result;
+		}
+
+		$result['reasons'] = array_merge( (array) $result['reasons'], array( 'vlastni_<b>signal</b>', array( 'id' => 'cizi_id' ), 5, null ) );
+
+		return $result;
+	}
+);
