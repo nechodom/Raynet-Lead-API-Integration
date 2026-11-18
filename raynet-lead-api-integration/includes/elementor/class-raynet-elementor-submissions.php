@@ -46,6 +46,16 @@ class Raynet_Elementor_Submissions {
 	const DEFAULT_TAG = 'import-web';
 
 	/**
+	 * Prefix of the option that locks one submission while it is imported.
+	 */
+	const LOCK_PREFIX = 'raynet_import_lock_';
+
+	/**
+	 * Age in seconds after which a lock counts as left behind.
+	 */
+	const LOCK_TTL = 300;
+
+	/**
 	 * Elementor's query class, which owns the action log.
 	 */
 	const QUERY_CLASS = '\\ElementorPro\\Modules\\Forms\\Submissions\\Database\\Query';
@@ -393,9 +403,17 @@ class Raynet_Elementor_Submissions {
 		 * @param array<string,mixed> $submission What was scored: mapped values, other texts, IP, user agent, flags.
 		 * @param array<string,mixed> $row        Stored submission.
 		 */
-		$result  = apply_filters( 'raynet_import_spam_score', $result, $submission, $row );
-		$verdict = is_array( $result ) && isset( $result['verdict'] ) ? (string) $result['verdict'] : Raynet_Submission_Spam_Score::VERDICT_OK;
-		$reasons = is_array( $result ) && isset( $result['reasons'] ) && is_array( $result['reasons'] ) ? array_values( $result['reasons'] ) : array();
+		$filtered = apply_filters( 'raynet_import_spam_score', $result, $submission, $row );
+
+		// A filter that breaks the result must not turn spam into "ok", which
+		// is preselected: anything malformed is ignored.
+		if ( is_array( $filtered ) && isset( $filtered['verdict'], $filtered['reasons'] ) && is_array( $filtered['reasons'] )
+			&& in_array( $filtered['verdict'], array( Raynet_Submission_Spam_Score::VERDICT_OK, Raynet_Submission_Spam_Score::VERDICT_SUSPECT, Raynet_Submission_Spam_Score::VERDICT_SPAM ), true ) ) {
+			$result = $filtered;
+		}
+
+		$verdict = (string) $result['verdict'];
+		$reasons = array_values( $result['reasons'] );
 
 		if ( self::STATE_SENT === $state ) {
 			$tab = self::TAB_SENT;
@@ -517,7 +535,12 @@ class Raynet_Elementor_Submissions {
 	 *
 	 * Everything is checked again against the database, not the cached index:
 	 * the form, that the submission belongs to it and is not in the trash, and
-	 * that it is not in RAYNET already — two open tabs must not send it twice.
+	 * that its action log has no successful RAYNET entry yet. A per-submission
+	 * lock, taken before that check and released on every way out, keeps two
+	 * concurrent requests (two open tabs, a double click) from both passing it.
+	 * A lock older than LOCK_TTL is taken as left behind by a crashed request
+	 * and taken over. Should the log row fail to save after the lead was
+	 * created, the error `raynet_import_unlogged` says so and carries the lead id.
 	 *
 	 * @param int    $post_id       Post the form lives in.
 	 * @param string $widget_id     Form widget id.
@@ -539,6 +562,28 @@ class Raynet_Elementor_Submissions {
 			return new WP_Error( 'raynet_import_no_form', __( 'Formulář nebyl nalezen nebo nemá namapovaný e-mail ani telefon.', 'raynet-lead-api-integration' ) );
 		}
 
+		if ( ! self::lock( $submission_id ) ) {
+			return new WP_Error( 'raynet_import_already_sent', __( 'Toto odeslání se právě importuje.', 'raynet-lead-api-integration' ) );
+		}
+
+		try {
+			return self::send( $post_id, $widget_id, $submission_id, $form_settings, $tag );
+		} finally {
+			delete_option( self::LOCK_PREFIX . $submission_id );
+		}
+	}
+
+	/**
+	 * The part of import() that runs under the submission's lock.
+	 *
+	 * @param int                 $post_id       Post the form lives in.
+	 * @param string              $widget_id     Form widget id.
+	 * @param int                 $submission_id Submission id.
+	 * @param array<string,mixed> $form_settings Form settings.
+	 * @param string              $tag           Extra tag for the lead.
+	 * @return array{lead_id:int}|WP_Error New lead id, or why nothing was sent.
+	 */
+	private static function send( $post_id, $widget_id, $submission_id, array $form_settings, $tag ) {
 		$rows = self::load( $post_id, $widget_id, array( $submission_id ) );
 
 		if ( ! isset( $rows[ $submission_id ] ) ) {
@@ -574,7 +619,7 @@ class Raynet_Elementor_Submissions {
 
 		// The action log is how a submission is known to be in RAYNET. The
 		// success counter stays: the action may not have been on the form then.
-		$query->add_action_log(
+		$logged = $query->add_action_log(
 			$submission_id,
 			self::action(),
 			constant( self::QUERY_CLASS . '::ACTIONS_LOG_STATUS_SUCCESS' ),
@@ -587,7 +632,47 @@ class Raynet_Elementor_Submissions {
 
 		self::mark_sent( $post_id, $widget_id, $submission_id );
 
+		// Without the log row a later index would offer the submission again.
+		if ( false === $logged ) {
+			return new WP_Error(
+				'raynet_import_unlogged',
+				sprintf(
+					/* translators: %d: lead id. */
+					__( 'Lead %d byl v RAYNETu založen, ale odeslání se nepodařilo označit jako odeslané. Než ho budete importovat znovu, ověřte v RAYNETu, že lead už existuje.', 'raynet-lead-api-integration' ),
+					$lead_id
+				),
+				array( 'lead_id' => $lead_id )
+			);
+		}
+
 		return array( 'lead_id' => $lead_id );
+	}
+
+	/**
+	 * Takes the import lock of one submission.
+	 *
+	 * add_option() is atomic: it fails when the option already exists.
+	 *
+	 * @param int $submission_id Submission id.
+	 * @return bool True when the lock is now held by this request.
+	 */
+	private static function lock( $submission_id ) {
+		$name = self::LOCK_PREFIX . $submission_id;
+
+		if ( add_option( $name, time(), '', 'no' ) ) {
+			return true;
+		}
+
+		$since = (int) get_option( $name, 0 );
+
+		if ( $since > time() - self::LOCK_TTL ) {
+			return false;
+		}
+
+		// Left behind by a request that died: take it over.
+		delete_option( $name );
+
+		return add_option( $name, time(), '', 'no' );
 	}
 
 	/**

@@ -59,14 +59,15 @@ foreach ( $raynet_forms as $raynet_form_id ) {
 	wp_delete_post( $raynet_form_id, true );
 }
 
-// Throttle transients are per IP and import indexes per form, so they have to
-// be matched by prefix.
+// Throttle transients are per IP, import indexes per form and import locks
+// per submission, so they have to be matched by prefix.
 $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off cleanup on uninstall.
 	$wpdb->prepare(
-		"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+		"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
 		$wpdb->esc_like( '_transient_raynet_lead_throttle_' ) . '%',
 		$wpdb->esc_like( '_transient_timeout_raynet_lead_throttle_' ) . '%',
 		$wpdb->esc_like( '_transient_raynet_import_idx_' ) . '%',
-		$wpdb->esc_like( '_transient_timeout_raynet_import_idx_' ) . '%'
+		$wpdb->esc_like( '_transient_timeout_raynet_import_idx_' ) . '%',
+		$wpdb->esc_like( 'raynet_import_lock_' ) . '%'
 	)
 );

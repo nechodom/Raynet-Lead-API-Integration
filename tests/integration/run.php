@@ -1933,6 +1933,80 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'odmítnutí nezapsalo do logu B', count( (array) $import_query->get_submissions_actions_log( $sub_b ) ), $log_b_before );
 		check( 'poslední chyba API beze změny po odmítnutí', get_option( 'raynet_lead_last_error' ), $last_error_mark );
 		check( 'odmítnutí neposlalo e-mail', get_option( 'raynet_test_mails', array() ), array() );
+		check( 'po odmítnutí zámek uvolněn', get_option( Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_b ), false );
+		check( 'po odmítnutí duplicity zámek uvolněn', get_option( Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_a ), false );
+
+		// A submission another request is importing right now is left alone.
+		$lock_d = Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_d;
+		add_option( $lock_d, time(), '', 'no' );
+		update_option( 'raynet_test_http_calls', array() );
+		$locked = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_d, 'import-web' );
+		wp_cache_flush();
+		check( 'zamčené odeslání odmítnuto', is_wp_error( $locked ) ? $locked->get_error_code() : null, 'raynet_import_already_sent' );
+		check( 'zamčené odeslání: hláška o běžícím importu', is_wp_error( $locked ) && false !== strpos( $locked->get_error_message(), 'právě importuje' ), true );
+		check( 'zamčené odeslání nic neposlalo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		check( 'cizí zámek zůstane', false !== get_option( $lock_d ), true );
+
+		// A lock left behind by a request that died is taken over.
+		update_option( $lock_d, time() - 600, false );
+		$stale = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_d, 'import-web' );
+		wp_cache_flush();
+		check( 'starý zámek převzat a D importováno', is_array( $stale ) ? $stale['lead_id'] : $stale->get_error_code(), 4242 );
+		check( 'po importu D zámek uvolněn', get_option( $lock_d ), false );
+
+		// A filter that breaks the verdict cannot make spam look clean.
+		$rows_b      = Raynet_Elementor_Submissions::load( $import_page, 'impform', array( $sub_b ) );
+		$row_b       = $rows_b[ $sub_b ];
+		$plain_stats = array( 'text_senders' => array(), 'ip_counts' => array(), 'first_of' => array() );
+		$config      = Raynet_Submission_Spam_Score::default_config();
+		$form_now    = Raynet_Elementor_Forms::form_settings( $import_page, 'impform' );
+		$broken      = array(
+			'null'        => function () {
+				return null;
+			},
+			'bez verdiktu' => function ( $result ) {
+				unset( $result['verdict'] );
+				return $result;
+			},
+			'cizí verdikt' => function ( $result ) {
+				$result['verdict'] = 'fine';
+				return $result;
+			},
+		);
+		foreach ( $broken as $label => $filter ) {
+			add_filter( 'raynet_import_spam_score', $filter );
+			$judged = Raynet_Elementor_Submissions::classify( $row_b, $form_now, $plain_stats, $config );
+			remove_filter( 'raynet_import_spam_score', $filter );
+			check( 'rozbitý filtr (' . $label . ') nechá spam spamem', array( $judged['tab'], $judged['preselect'] ), array( Raynet_Elementor_Submissions::TAB_SPAM, false ) );
+		}
+		$overrule = function ( $result ) {
+			return array( 'verdict' => Raynet_Submission_Spam_Score::VERDICT_SUSPECT, 'reasons' => array() );
+		};
+		add_filter( 'raynet_import_spam_score', $overrule );
+		$judged = Raynet_Elementor_Submissions::classify( $row_b, $form_now, $plain_stats, $config );
+		remove_filter( 'raynet_import_spam_score', $overrule );
+		check( 'platný filtr verdikt změní', array( $judged['verdict'], $judged['tab'] ), array( Raynet_Submission_Spam_Score::VERDICT_SUSPECT, Raynet_Elementor_Submissions::TAB_REVIEW ) );
+
+		// The lead is created but the log row cannot be written: the caller
+		// learns the lead id, and the index stops offering the submission.
+		Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		$log_table   = $wpdb->prefix . 'e_submissions_actions_log';
+		$break_log   = function ( $sql ) use ( $log_table ) {
+			return false !== stripos( $sql, 'INSERT' ) && false !== strpos( $sql, $log_table ) ? 'INSERT INTO raynet_no_such_table (x) VALUES (1)' : $sql;
+		};
+		$suppressed  = $wpdb->suppress_errors( true );
+		add_filter( 'query', $break_log );
+		$unlogged = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_b, 'import-web' );
+		remove_filter( 'query', $break_log );
+		$wpdb->suppress_errors( $suppressed );
+		wp_cache_flush();
+		$unlogged_data = is_wp_error( $unlogged ) ? $unlogged->get_error_data() : null;
+		check( 'nezapsaný log: chyba', is_wp_error( $unlogged ) ? $unlogged->get_error_code() : null, 'raynet_import_unlogged' );
+		check( 'nezapsaný log: chyba nese lead', is_array( $unlogged_data ) && isset( $unlogged_data['lead_id'] ) ? $unlogged_data['lead_id'] : null, 4242 );
+		check( 'nezapsaný log: hláška jmenuje lead', is_wp_error( $unlogged ) && false !== strpos( $unlogged->get_error_message(), '4242' ), true );
+		$index_unlogged = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		check( 'nezapsaný log: index ukazuje odesláno', isset( $index_unlogged[ $sub_b ] ) ? $index_unlogged[ $sub_b ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
+		check( 'nezapsaný log: zámek uvolněn', get_option( Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_b ), false );
 
 		// A form in a template is stored under the template's id, with the page
 		// it was sent from in meta, as a number or as a string.
