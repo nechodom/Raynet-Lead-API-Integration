@@ -31,7 +31,9 @@ class Raynet_Elementor_Submissions {
 	const TAB_BLOCKED = 'blocked';
 
 	/**
-	 * Prefix of the transient holding one form's index.
+	 * Prefix of the transients holding one form's index: a head named
+	 * CACHE_PREFIX . md5( "post_id:widget_id" ), and its chunks named the
+	 * same with "_0", "_1", ... appended.
 	 */
 	const CACHE_PREFIX = 'raynet_import_idx_';
 
@@ -39,6 +41,19 @@ class Raynet_Elementor_Submissions {
 	 * How long an index stays cached, in seconds.
 	 */
 	const CACHE_TTL = 600;
+
+	/**
+	 * Submissions per cached chunk of an index; the
+	 * `raynet_import_index_chunk_size` filter can lower it.
+	 */
+	const CACHE_CHUNK = 2000;
+
+	/**
+	 * Values of an index entry as the cache stores them: by position.
+	 */
+	const CACHE_TABS     = array( 'review', 'spam', 'sent', 'blocked' );
+	const CACHE_VERDICTS = array( 'ok', 'suspect', 'spam' );
+	const CACHE_STATES   = array( 'new', 'failed', 'sent' );
 
 	/**
 	 * Tag added to every imported lead unless the screen says otherwise.
@@ -512,7 +527,11 @@ class Raynet_Elementor_Submissions {
 	 *
 	 * Cached for a few minutes: judging needs two passes over all of them.
 	 * The cache is dropped when the form's settings or the number of its
-	 * submissions change.
+	 * submissions change, and by every import that changes a row's state
+	 * (see forget_index()). It is stored compactly, in chunks of
+	 * CACHE_CHUNK submissions, so that no single row grows past what a
+	 * database packet or an object cache item can hold. A cached reason keeps
+	 * only its id and count.
 	 *
 	 * @param int    $post_id   Post the form lives in.
 	 * @param string $widget_id Form widget id.
@@ -547,58 +566,203 @@ class Raynet_Elementor_Submissions {
 		$config      = (array) apply_filters( 'raynet_import_spam_config', Raynet_Submission_Spam_Score::default_config() );
 		$fingerprint = md5( wp_json_encode( array( $form_settings, $config, self::count_submissions( $post_id, $widget_id ) ) ) );
 		$cache_key   = self::cache_key( $post_id, $widget_id );
-		$cached      = get_transient( $cache_key );
+		$cached      = self::read_cache( $cache_key, $fingerprint );
 
-		if ( is_array( $cached ) && isset( $cached['fingerprint'], $cached['items'] ) && $fingerprint === $cached['fingerprint'] ) {
-			return (array) $cached['items'];
+		if ( null !== $cached ) {
+			return $cached;
 		}
 
-		$stats = self::stats( $post_id, $widget_id, $form_settings );
-		$items = array();
+		$stats  = self::stats( $post_id, $widget_id, $form_settings );
+		$packed = array();
 
 		self::each_batch(
 			$post_id,
 			$widget_id,
-			static function ( array $rows ) use ( $form_settings, $stats, $config, &$items ) {
+			static function ( array $rows ) use ( $form_settings, $stats, $config, &$packed ) {
 				foreach ( $rows as $id => $row ) {
-					$items[ (int) $id ] = self::classify( $row, $form_settings, $stats, $config );
+					$packed[ (int) $id ] = self::pack( self::classify( $row, $form_settings, $stats, $config ) );
 				}
 			}
 		);
 
-		set_transient(
-			$cache_key,
-			array(
-				'fingerprint' => $fingerprint,
-				'items'       => $items,
-			),
-			self::CACHE_TTL
-		);
+		self::write_cache( $cache_key, $fingerprint, $packed );
+
+		// What a cached read would give, so callers see one shape.
+		return array_map( array( __CLASS__, 'unpack' ), $packed );
+	}
+
+	/**
+	 * Drops the cached index of a form, head and chunks.
+	 *
+	 * The next index() recomputes it, so a row an import changed is judged
+	 * again together with the rest: a copy of a submission just sent becomes
+	 * its duplicate.
+	 *
+	 * @param int    $post_id   Post the form lives in.
+	 * @param string $widget_id Form widget id.
+	 * @return void
+	 */
+	public static function forget_index( $post_id, $widget_id ) {
+		$cache_key = self::cache_key( (int) $post_id, (string) $widget_id );
+		$head      = get_transient( $cache_key );
+
+		// The head first: without it no chunk is read.
+		delete_transient( $cache_key );
+
+		$chunks = is_array( $head ) && isset( $head['chunks'] ) ? (int) $head['chunks'] : 0;
+
+		for ( $i = 0; $i < $chunks; $i++ ) {
+			delete_transient( $cache_key . '_' . $i );
+		}
+	}
+
+	/**
+	 * Reads a cached index.
+	 *
+	 * @param string $cache_key   Name of the head transient.
+	 * @param string $fingerprint What the index must have been built from.
+	 * @return array<int,array<string,mixed>>|null Index, or null when any part
+	 *                                             is missing, stale or malformed.
+	 */
+	private static function read_cache( $cache_key, $fingerprint ) {
+		$head = get_transient( $cache_key );
+
+		if ( ! is_array( $head ) || ! isset( $head['fingerprint'], $head['chunks'] ) || $fingerprint !== $head['fingerprint'] ) {
+			return null;
+		}
+
+		$items = array();
+
+		for ( $i = 0; $i < (int) $head['chunks']; $i++ ) {
+			$chunk = get_transient( $cache_key . '_' . $i );
+
+			if ( ! is_array( $chunk ) || ! isset( $chunk['fingerprint'], $chunk['items'] ) || $fingerprint !== $chunk['fingerprint'] || ! is_array( $chunk['items'] ) ) {
+				return null;
+			}
+
+			foreach ( $chunk['items'] as $id => $packed ) {
+				$item = self::unpack( $packed );
+
+				if ( null === $item ) {
+					return null;
+				}
+
+				$items[ (int) $id ] = $item;
+			}
+		}
 
 		return $items;
 	}
 
 	/**
-	 * Marks one submission as sent in the cached index.
+	 * Caches an index: the chunks, then the head that makes them readable.
 	 *
-	 * @param int    $post_id       Post the form lives in.
-	 * @param string $widget_id     Form widget id.
-	 * @param int    $submission_id Submission id.
+	 * @param string                  $cache_key   Name of the head transient.
+	 * @param string                  $fingerprint What the index was built from.
+	 * @param array<int,array<mixed>> $packed      Submission id => pack() result, newest first.
 	 * @return void
 	 */
-	public static function mark_sent( $post_id, $widget_id, $submission_id ) {
-		$cache_key = self::cache_key( (int) $post_id, (string) $widget_id );
-		$cached    = get_transient( $cache_key );
+	private static function write_cache( $cache_key, $fingerprint, array $packed ) {
+		/**
+		 * Filters how many submissions one cached chunk of an import index holds.
+		 *
+		 * Lower it when the object cache limits the size of one item.
+		 *
+		 * @param int $size Submissions per chunk, CACHE_CHUNK by default.
+		 */
+		$size   = max( 1, (int) apply_filters( 'raynet_import_index_chunk_size', self::CACHE_CHUNK ) );
+		$chunks = array_chunk( $packed, $size, true );
 
-		if ( ! is_array( $cached ) || ! isset( $cached['items'][ (int) $submission_id ] ) ) {
-			return;
+		foreach ( $chunks as $i => $items ) {
+			set_transient(
+				$cache_key . '_' . $i,
+				array(
+					'fingerprint' => $fingerprint,
+					'items'       => $items,
+				),
+				self::CACHE_TTL
+			);
 		}
 
-		$cached['items'][ (int) $submission_id ]['state']     = self::STATE_SENT;
-		$cached['items'][ (int) $submission_id ]['tab']       = self::TAB_SENT;
-		$cached['items'][ (int) $submission_id ]['preselect'] = false;
+		set_transient(
+			$cache_key,
+			array(
+				'fingerprint' => $fingerprint,
+				'chunks'      => count( $chunks ),
+			),
+			self::CACHE_TTL
+		);
+	}
 
-		set_transient( $cache_key, $cached, self::CACHE_TTL );
+	/**
+	 * One classify() result as the cache stores it.
+	 *
+	 * @param array<string,mixed> $item classify() result.
+	 * @return array<int,mixed> Tab, verdict, preselect, state, block, reasons
+	 *                          (id and count, or a plain text), number warning.
+	 */
+	private static function pack( array $item ) {
+		$reasons = array();
+
+		foreach ( (array) $item['reasons'] as $reason ) {
+			if ( is_array( $reason ) ) {
+				$reasons[] = array(
+					isset( $reason['id'] ) && is_scalar( $reason['id'] ) ? (string) $reason['id'] : '',
+					isset( $reason['count'] ) && is_scalar( $reason['count'] ) ? (int) $reason['count'] : 0,
+				);
+			} elseif ( is_scalar( $reason ) ) {
+				// A raynet_import_spam_score filter may give plain texts.
+				$reasons[] = (string) $reason;
+			}
+		}
+
+		return array(
+			(int) array_search( $item['tab'], self::CACHE_TABS, true ),
+			(int) array_search( $item['verdict'], self::CACHE_VERDICTS, true ),
+			$item['preselect'] ? 1 : 0,
+			(int) array_search( $item['state'], self::CACHE_STATES, true ),
+			(string) $item['block'],
+			$reasons,
+			$item['number_warning'] ? 1 : 0,
+		);
+	}
+
+	/**
+	 * A cached entry back in the shape of classify()'s result.
+	 *
+	 * @param mixed $packed pack() result.
+	 * @return array<string,mixed>|null Entry, or null when malformed.
+	 */
+	private static function unpack( $packed ) {
+		$tabs     = self::CACHE_TABS;
+		$verdicts = self::CACHE_VERDICTS;
+		$states   = self::CACHE_STATES;
+
+		if ( ! is_array( $packed ) || array( 0, 1, 2, 3, 4, 5, 6 ) !== array_keys( $packed ) || ! is_int( $packed[0] ) || ! isset( $tabs[ $packed[0] ] )
+			|| ! is_int( $packed[1] ) || ! isset( $verdicts[ $packed[1] ] ) || ! is_int( $packed[3] ) || ! isset( $states[ $packed[3] ] ) || ! is_array( $packed[5] ) ) {
+			return null;
+		}
+
+		$reasons = array();
+
+		foreach ( $packed[5] as $reason ) {
+			$reasons[] = is_array( $reason ) && 2 === count( $reason )
+				? array(
+					'id'    => (string) $reason[0],
+					'count' => (int) $reason[1],
+				)
+				: (string) $reason;
+		}
+
+		return array(
+			'state'          => $states[ $packed[3] ],
+			'verdict'        => $verdicts[ $packed[1] ],
+			'reasons'        => $reasons,
+			'tab'            => $tabs[ $packed[0] ],
+			'preselect'      => (bool) $packed[2],
+			'block'          => (string) $packed[4],
+			'number_warning' => (bool) $packed[6],
+		);
 	}
 
 	/**
@@ -702,13 +866,14 @@ class Raynet_Elementor_Submissions {
 		}
 
 		// From here on a send may happen: say so before it does.
+		$previous = get_option( self::ATTEMPT_PREFIX . $submission_id, null );
 		self::record_attempt( $submission_id, self::ATTEMPT_PENDING );
 
 		$form   = new Raynet_Lead_Form();
 		$result = $form->submit_lead( $prepared['values'], $prepared['settings'], $prepared['context'] );
 
 		if ( is_wp_error( $result ) ) {
-			return self::failed( $post_id, $widget_id, $submission_id, $result );
+			return self::failed( $post_id, $widget_id, $submission_id, $result, is_array( $previous ) ? $previous : null );
 		}
 
 		$lead_id = isset( $result['lead_id'] ) ? (int) $result['lead_id'] : 0;
@@ -726,7 +891,7 @@ class Raynet_Elementor_Submissions {
 			$logged = $query->add_action_log( $submission_id, self::action(), $status, $entry );
 		}
 
-		self::mark_sent( $post_id, $widget_id, $submission_id );
+		self::forget_index( $post_id, $widget_id );
 
 		// Without the log row a later index would offer the submission again;
 		// the attempt row keeps it out of reach and remembers the lead.
@@ -757,13 +922,16 @@ class Raynet_Elementor_Submissions {
 	 * answered with a 5xx: the lead may exist, so the outcome is unknown. Any
 	 * other answer is a refusal, kept with its reason.
 	 *
-	 * @param int      $post_id       Post the form lives in.
-	 * @param string   $widget_id     Form widget id.
-	 * @param int      $submission_id Submission id.
-	 * @param WP_Error $error         Error from submit_lead().
+	 * @param int                      $post_id       Post the form lives in.
+	 * @param string                   $widget_id     Form widget id.
+	 * @param int                      $submission_id Submission id.
+	 * @param WP_Error                 $error         Error from submit_lead().
+	 * @param array<string,mixed>|null $previous      Attempt record from before this send, if any.
 	 * @return WP_Error `raynet_import_unknown` or `raynet_api_error`.
 	 */
-	private static function failed( $post_id, $widget_id, $submission_id, WP_Error $error ) {
+	private static function failed( $post_id, $widget_id, $submission_id, WP_Error $error, $previous ) {
+		self::forget_index( $post_id, $widget_id );
+
 		$data       = $error->get_error_data();
 		$diagnostic = is_array( $data ) && isset( $data['diagnostic'] ) ? (string) $data['diagnostic'] : $error->get_error_message();
 		$code       = is_array( $data ) && isset( $data['code'] ) ? (string) $data['code'] : '';
@@ -784,6 +952,9 @@ class Raynet_Elementor_Submissions {
 
 		if ( 0 === strpos( $code, 'raynet_http_' ) ) {
 			self::record_attempt( $submission_id, self::ATTEMPT_REFUSED, $diagnostic );
+		} elseif ( null !== $previous ) {
+			// Nothing was sent this time: what an earlier attempt left stands.
+			update_option( self::ATTEMPT_PREFIX . (int) $submission_id, $previous, false );
 		} else {
 			self::forget_attempt( $submission_id );
 		}

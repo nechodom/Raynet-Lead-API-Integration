@@ -394,8 +394,8 @@ class Raynet_Elementor_Import_Admin {
 							count(
 								array_filter(
 									$ids,
-									static function ( $id ) use ( $index ) {
-										return ! empty( $index[ $id ]['preselect'] );
+									static function ( $id ) use ( $index, $rows ) {
+										return isset( $rows[ $id ] ) && self::preselected( $rows[ $id ], $index[ $id ] );
 									}
 								)
 							)
@@ -467,7 +467,26 @@ class Raynet_Elementor_Import_Admin {
 	}
 
 	/**
+	 * Whether a row starts ticked.
+	 *
+	 * The verdict comes from the cached index; the state is read fresh, so a
+	 * row sent from another tab since the index was cached is never offered.
+	 *
+	 * @param array<string,mixed> $row  Stored submission from load().
+	 * @param array<string,mixed> $item Its entry in index().
+	 * @return bool True for a clean enquiry not yet tried.
+	 */
+	private static function preselected( array $row, array $item ) {
+		return Raynet_Elementor_Submissions::TAB_REVIEW === $item['tab']
+			&& Raynet_Submission_Spam_Score::VERDICT_OK === $item['verdict']
+			&& Raynet_Elementor_Submissions::STATE_NEW === $row['state'];
+	}
+
+	/**
 	 * One submission: the row and, hidden below it, its detail.
+	 *
+	 * Whether it can be ticked follows its state as load() read it now, not
+	 * the cached index.
 	 *
 	 * @param array<string,mixed> $row      Stored submission from load().
 	 * @param array<string,mixed> $item     Its entry in index().
@@ -495,12 +514,17 @@ class Raynet_Elementor_Import_Admin {
 		);
 		$text     = trim( preg_replace( '/\s+/u', ' ', $values['message'] ) );
 		$text     = mb_strlen( $text ) > 140 ? mb_substr( $text, 0, 140 ) . '…' : $text;
-		$box      = $pick && Raynet_Elementor_Submissions::STATE_SENT !== $item['state'];
+		$state    = (string) $row['state'];
+		$box      = $pick && Raynet_Elementor_Submissions::STATE_SENT !== $state;
+
+		if ( Raynet_Elementor_Submissions::STATE_SENT === $state ) {
+			$item['tab'] = Raynet_Elementor_Submissions::TAB_SENT;
+		}
 		?>
 		<tr class="raynet-import__row raynet-import--<?php echo esc_attr( $item['verdict'] ); ?>" data-submission="<?php echo (int) $id; ?>">
 			<th scope="row" class="raynet-import__check">
 				<?php if ( $box ) : ?>
-					<input type="checkbox" name="submissions[]" value="<?php echo (int) $id; ?>" aria-label="<?php echo esc_attr( sprintf( /* translators: %d: submission id. */ __( 'Vybrat odeslání %d', 'raynet-lead-api-integration' ), $id ) ); ?>" <?php checked( ! empty( $item['preselect'] ) ); ?> />
+					<input type="checkbox" name="submissions[]" value="<?php echo (int) $id; ?>" aria-label="<?php echo esc_attr( sprintf( /* translators: %d: submission id. */ __( 'Vybrat odeslání %d', 'raynet-lead-api-integration' ), $id ) ); ?>" <?php checked( self::preselected( $row, $item ) ); ?> />
 				<?php endif; ?>
 			</th>
 			<td class="raynet-import__date"><?php echo esc_html( self::date( $row['created_at'] ) ); ?></td>
@@ -525,7 +549,7 @@ class Raynet_Elementor_Import_Admin {
 						?>
 					</span>
 				<?php endif; ?>
-				<?php if ( Raynet_Elementor_Submissions::STATE_FAILED === $item['state'] ) : ?>
+				<?php if ( Raynet_Elementor_Submissions::STATE_FAILED === $state ) : ?>
 					<br /><span class="raynet-elm__warn">
 						<?php
 						echo esc_html(

@@ -2373,6 +2373,18 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'spojení spadlo: v Elementoru žádný řádek logu', count( (array) $import_query->get_submissions_actions_log( $sub_u ) ), 0 );
 		check( 'spojení spadlo: poslední chyba API beze změny', get_option( 'raynet_lead_last_error' ), $last_error_mark );
 
+		// Tried again with no credentials: nothing leaves the site, and the
+		// earlier unknown outcome is not forgotten.
+		$attempt_credentials = get_option( Raynet_Lead_Settings::OPTION );
+		update_option( Raynet_Lead_Settings::OPTION, array_merge( (array) $attempt_credentials, array( 'api_key' => '' ) ) );
+		update_option( 'raynet_test_http_calls', array() );
+		$unsent_u = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_u, 'import-web' );
+		update_option( Raynet_Lead_Settings::OPTION, $attempt_credentials );
+		wp_cache_flush();
+		check( 'bez nastavení: chyba API', is_wp_error( $unsent_u ) ? $unsent_u->get_error_code() : null, 'raynet_api_error' );
+		check( 'bez nastavení: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		check( 'bez nastavení: dřívější neznámý výsledek zůstane', is_array( $attempt_row( $sub_u ) ) ? $attempt_row( $sub_u ) : null, $transport_attempt );
+
 		// RAYNET refuses the lead itself (4xx): the reason is kept.
 		$refuse_lead = function ( $preempt, $args, $url ) {
 			return false !== strpos( $url, '/lead/' ) ? array( 'headers' => array(), 'body' => wp_json_encode( array( 'message' => 'Pole topic je povinné' ) ), 'response' => array( 'code' => 400, 'message' => 'Bad Request' ), 'cookies' => array(), 'filename' => null ) : $preempt;
@@ -2413,6 +2425,89 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'opakovaný import P smaže záznam pokusu', $attempt_row( $sub_p ), null );
 		$index_retried = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
 		check( 'opakovaný import P: index už v RAYNETu', isset( $index_retried[ $sub_p ] ) ? $index_retried[ $sub_p ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
+
+		// --- The index cache: compact chunks, dropped by every import -------------
+		$cache_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Kešovaný import', 'post_status' => 'publish' ) );
+		update_post_meta( $cache_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $cache_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( $import_map ) ) ) );
+		$cache_key   = $cache_page . ':impform';
+		$cache_name  = Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $cache_key );
+		$copy_text   = 'Dobrý den, chtěli bychom nabídku na zastřešení terasy u rodinného domu.';
+		// X and Y are one enquiry sent twice: X first, so Y is the duplicate.
+		$sub_x  = $add_stored( $cache_page, 'Xenie', 'xenie.dvakrat@example.cz', $copy_text, '192.0.2.31' );
+		$sub_v1 = $add_stored( $cache_page, 'Vilém', 'vilem.kes@example.cz', 'Poptáváme dodávku a montáž plotu kolem zahrady, zhruba čtyřicet metrů.', '192.0.2.32' );
+		$sub_v2 = $add_stored( $cache_page, 'Věra', 'vera.kes@example.cz', 'Máme zájem o pravidelné čištění odpadů v bytovém domě se čtyřmi vchody.', '192.0.2.33' );
+		$sub_v3 = $add_stored( $cache_page, 'Vojtěch', 'vojtech.kes@example.cz', 'Prosíme o cenu za broušení a lakování parket ve třech pokojích bytu.', '192.0.2.34' );
+		$sub_y  = $add_stored( $cache_page, 'Xenie', 'xenie.dvakrat@example.cz', $copy_text, '192.0.2.35' );
+		$cache_subs = array( $sub_x, $sub_v1, $sub_v2, $sub_v3, $sub_y );
+
+		$chunk_two  = function () {
+			return 2;
+		};
+		$classified = 0;
+		$count_runs = function ( $result ) use ( &$classified ) {
+			$classified++;
+			return $result;
+		};
+		add_filter( 'raynet_import_index_chunk_size', $chunk_two );
+		add_filter( 'raynet_import_spam_score', $count_runs );
+
+		$drop_index( $cache_key );
+		$built = Raynet_Elementor_Submissions::index( $cache_page, 'impform' );
+		$head  = get_transient( $cache_name );
+		check( 'keš: pět odeslání v indexu', array_keys( $built ), array_reverse( $cache_subs ) );
+		check( 'keš: hlavička se třemi díly', is_array( $head ) && isset( $head['chunks'] ) ? $head['chunks'] : null, 3 );
+		check( 'keš: tři díly uložené', array( false !== get_transient( $cache_name . '_0' ), false !== get_transient( $cache_name . '_1' ), false !== get_transient( $cache_name . '_2' ), get_transient( $cache_name . '_3' ) ), array( true, true, true, false ) );
+		check( 'keš: tvar položky jako dřív', array_keys( $built[ $sub_v1 ] ), array( 'state', 'verdict', 'reasons', 'tab', 'preselect', 'block', 'number_warning' ) );
+		check( 'keš: X předvybrané, Y duplicitní', array( $built[ $sub_x ]['preselect'], in_array( 'duplicate', array_column( $built[ $sub_y ]['reasons'], 'id' ), true ), $built[ $sub_y ]['preselect'] ), array( true, true, false ) );
+
+		$classified = 0;
+		$again      = Raynet_Elementor_Submissions::index( $cache_page, 'impform' );
+		check( 'keš: druhé čtení z keše, beze skórování', $classified, 0 );
+		check( 'keš: druhé čtení dá totéž', $again, $built );
+
+		delete_transient( $cache_name . '_1' );
+		$classified = 0;
+		$rebuilt    = Raynet_Elementor_Submissions::index( $cache_page, 'impform' );
+		check( 'keš: chybějící díl znamená nový výpočet', $classified > 0, true );
+		check( 'keš: po výpočtu stejný výsledek', $rebuilt, $built );
+		check( 'keš: chybějící díl je zase uložený', false !== get_transient( $cache_name . '_1' ), true );
+
+		remove_filter( 'raynet_import_spam_score', $count_runs );
+
+		// Another tab sent V1 meanwhile: the cache still says "preselected", the
+		// screen asks the database and offers no checkbox.
+		$import_query->add_action_log( $sub_v1, $action, 'success', 'Lead 79' );
+		$stale_screen = req( '/wp-admin/admin.php?page=raynet-elementor-forms&import=' . rawurlencode( $cache_key ), null, true )['body'];
+		$stale_v1     = $import_row( $stale_screen, $sub_v1 );
+		check( 'stará keš: V1 stále v keši jako předvybrané', Raynet_Elementor_Submissions::index( $cache_page, 'impform' )[ $sub_v1 ]['preselect'], true );
+		check( 'stará keš: řádek V1 je na obrazovce', '' !== $stale_v1, true );
+		check( 'stará keš: V1 bez zaškrtávátka', false !== strpos( $stale_v1, 'name="submissions[]"' ), false );
+		check( 'stará keš: V1 jako už v RAYNETu', false !== strpos( $stale_v1, 'Už v RAYNETu' ), true );
+		check( 'stará keš: V2 zaškrtnuté', false !== strpos( $import_row( $stale_screen, $sub_v2 ), 'checked' ), true );
+
+		// Y is sent: every cached row of the form goes, and X is the duplicate now.
+		$sent_y = Raynet_Elementor_Submissions::import( $cache_page, 'impform', $sub_y, 'import-web' );
+		wp_cache_flush();
+		check( 'import Y vrátí lead', is_array( $sent_y ) ? $sent_y['lead_id'] : $sent_y->get_error_code(), 4242 );
+		check( 'po importu žádná keš', array( get_transient( $cache_name ), get_transient( $cache_name . '_0' ), get_transient( $cache_name . '_1' ), get_transient( $cache_name . '_2' ) ), array( false, false, false, false ) );
+		$after_y = Raynet_Elementor_Submissions::index( $cache_page, 'impform' );
+		check( 'po odeslání Y je X duplicitní a nepředvybrané', array( in_array( 'duplicate', array_column( $after_y[ $sub_x ]['reasons'], 'id' ), true ), $after_y[ $sub_x ]['preselect'] ), array( true, false ) );
+
+		// A refused import changes the row too, so the cache goes as well.
+		update_option( 'raynet_test_refuse_leads', 1 );
+		Raynet_Elementor_Submissions::import( $cache_page, 'impform', $sub_v3, 'import-web' );
+		delete_option( 'raynet_test_refuse_leads' );
+		wp_cache_flush();
+		check( 'po neúspěšném importu žádná keš', array( get_transient( $cache_name ), get_transient( $cache_name . '_0' ) ), array( false, false ) );
+
+		remove_filter( 'raynet_import_index_chunk_size', $chunk_two );
+		foreach ( $cache_subs as $stored_id ) {
+			$import_query->delete_submission( $stored_id );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . $stored_id ) ); // phpcs:ignore WordPress.DB
+		}
+		$drop_index( $cache_key );
+		wp_delete_post( $cache_page, true );
 
 		// A form in a template is stored under the template's id, with the page
 		// it was sent from in meta, as a number or as a string.
