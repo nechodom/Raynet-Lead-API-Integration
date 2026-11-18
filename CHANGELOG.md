@@ -2,7 +2,22 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
-## [Nevydáno]
+## [2.10.0] — 2026-11-18
+
+### Přidáno
+
+- **Import starších odeslání z Elementoru.** Poptávky, které Elementor Pro uložil (*Elementor → Submissions*) dřív, než měl formulář akci RAYNET CRM, nebo které RAYNET tehdy odmítl, jdou poslat do RAYNETu dodatečně. V **RAYNET CRM → Elementor formuláře** má každý formulář s uloženými odesláními odkaz **Importovat starší odeslání (N)**, kde N je počet odeslání, která ještě v RAYNETu nejsou. Obrazovka importu je rozdělí do záložek *V pořádku + podezřelé*, *Spam*, *Už v RAYNETu* a *Nelze importovat*, u každého ukáže důvod a v detailu všechny uložené hodnoty a náhled leadu, jak se odešle.
+- Import nic neposílá sám. Předvybrané jsou jen odeslání s verdiktem *V pořádku*, která se do RAYNETu nikdy neposílala; odeslání, které tehdy selhalo, předvybrané není nikdy, protože RAYNET ho mohl přijmout i tak. Zaškrtnuté řádky na stránce se po potvrzení posílají po jednom na pozadí, s výsledkem u každého.
+- Importovaný lead vzniká stejným mapováním polí a nastavením jako živé odeslání. Nese datum a čas původního odeslání (`leadDate`, souhlas v poznámce), řádek „Importováno z uložených odeslání Elementoru“ v poznámce a štítek `import-web` (na obrazovce jde změnit nebo vymazat). Nezakládá GDPR záznam, neposílá notifikační ani záložní e-maily, nespouští pauzu mezi odesláními z jedné IP, nepřepisuje **Poslední chyba API** a nenahrává přílohy; u nahrávacího pole jde do poznámky uložený odkaz na soubor.
+- Odeslání, které import poslal, se označí řádkem `raynet_crm` / úspěch v logu akcí Elementoru, takže se podruhé nenabídne. Krátký zámek v databázi brání tomu, aby dvě záložky nebo dvojí kliknutí založily lead dvakrát. Odeslání se k formuláři páruje přísně, podle ID widgetu i stránky, aby se odeslání zduplikované stránky neposlala s cizím mapováním.
+- **Hodnocení spamu u importu.** Čtrnáct signálů ve třech silách (odkazy, HTML a BBCode značky, cizí písmo, stejný text od více odesílatelů, klíčová slova, opakovaná IP, nevěrohodné jméno nebo telefon, strojový prohlížeč, jednorázový e-mail, krátká zpráva, duplicitní odeslání) dá verdikt *V pořádku*, *Podezřelé* nebo *Spam*. Hodnotí se uložené hodnoty před sanitizací. Běží celé na webu, bez vnější služby. Je to jen návrh: zaškrtnout jde i řádek označený jako spam.
+- Filtry `raynet_import_spam_config` (prahy, seznamy slov a domén, povolená písma, vypnuté signály) a `raynet_import_spam_score` (vlastní pravidla nad hotovým výsledkem). Druhý dostává syrové, nesanitizované hodnoty odeslání; kdo je vypisuje, musí je escapovat.
+
+### Změněno
+
+- **Filtr `raynet_lead_payload` se volá i bez odeslání.** Obrazovka importu jím skládá náhled leadu, jednou za každý zobrazený řádek. Callback, který při něm něco odesílá nebo zapisuje, by to teď dělal i při pouhém prohlížení obrazovky importu — takovou logiku přesuňte do akce `raynet_lead_created`. Při skutečném odeslání se filtr volá dál právě jednou.
+- Sestavení leadu z formuláře Elementoru je ve vlastní třídě, kterou používá živé odeslání i import. Chování živého odeslání se nemění.
+- Odinstalace s mazáním dat maže i cache a zámky importu.
 
 ### Opraveno
 

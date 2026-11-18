@@ -136,7 +136,7 @@ Elementor Pro ukládá odeslání do tří tabulek (ověřeno na Elementor Pro 4
 | silný | odkaz (`http`, `www.`, `[url=`) v krátkém poli: jméno, příjmení, firma, telefon, předmět |
 | silný | HTML nebo BBCode značky v jakékoli hodnotě |
 | silný | text převážně v jiném písmu než latinka (azbuka, čínština, arabština…) |
-| silný | stejný text zprávy (po normalizaci mezer a velikosti písmen) od 3 a více **různých e-mailů** (bez e-mailu: různých IP adres). Opakování od téhož odesílatele sem nepatří, to řeší pravidlo o duplicitách níže |
+| silný | stejný text zprávy (po normalizaci mezer a velikosti písmen) od 3 a více **různých e-mailů** (bez e-mailu: různých IP adres). Opakování od téhož odesílatele sem nepatří, to řeší pravidlo o duplicitách níže. Platí jen pro zprávu dlouhou aspoň 40 znaků (`same_text_min_length`), krátké běžné věty jako „Prosím o zavolání.“ píšou i skuteční lidé (doplněno při stavbě) |
 | silný | dva a více odkazů ve zprávě |
 | střední | jeden odkaz ve zprávě |
 | střední | klíčová slova typická pro spam (SEO, backlink, casino, crypto, viagra, loan, guest post…) |

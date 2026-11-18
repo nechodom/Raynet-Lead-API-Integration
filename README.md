@@ -40,6 +40,7 @@ WordPress plugin, který posílá poptávky z webových formulářů přímo do 
 - **Mapování po polích formuláře** — plugin načte pole, která formulář opravdu má, a u každého se zeptá, kam v RAYNETu patří. Co v RAYNETu protějšek nemá, zapíše do poznámky leadu pod názvem pole.
 - **Všechna pole leadu, i vlastní** — v Elementoru namapujete kromě jména a kontaktu i IČO, DIČ, druhý e-mail, sociální sítě a vlastní pole, která si vaše instance RAYNETu definuje. Plugin je načte přímo z RAYNETu a hodnoty převede na správný typ.
 - **Přílohy** — soubory nahrané do formuláře Elementoru se k leadu v RAYNETu přiloží jako přílohy.
+- **Import starších odeslání** — poptávky, které Elementor uložil dřív, než formulář posílal do RAYNETu, nebo které RAYNET tehdy nepřijal, pošlete do RAYNETu dodatečně. Plugin u každého odeslání navrhne, jestli jde o spam; odešle se jen to, co potvrdíte.
 - **GDPR souhlas v RAYNETu** — zaškrtnutý souhlas se zapíše do poznámky s datem a zněním a volitelně založí k leadu i právní titul (GDPR záznam).
 - **Jedno pole pro celé jméno** — „Jan Novák" se do RAYNETu rozdělí na jméno a příjmení.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
@@ -133,7 +134,7 @@ Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci R
 
 Hlášky po odeslání i při chybě, přesměrování po úspěchu, nastavení ochrany proti spamu, záložní e-mail, kontrola aktualizací (viz [Aktualizace](#aktualizace)), zapisování chyb do logu a mazání dat při odinstalaci. Hlášky, přesměrování a ochrana proti spamu platí jen pro formuláře z builderu; formuláře Elementoru mají vlastní (viz [Co obstarává Elementor a co plugin](#co-obstarává-elementor-a-co-plugin)). Záložní e-mail a log platí pro oba. Souhlas se zpracováním údajů se nastavuje na formuláři, ne tady.
 
-**Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API a zálohy stránek z nasazení šablon. Akce RAYNET CRM a mapování uložené ve formulářích Elementoru zůstanou ve stránkách; leady v RAYNETu plugin nemaže nikdy.
+**Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API, zálohy stránek z nasazení šablon a cache a zámky importu starších odeslání. Odeslání uložená v Elementoru ani záznamy, které do nich import zapsal, odinstalace nemaže. Akce RAYNET CRM a mapování uložené ve formulářích Elementoru zůstanou ve stránkách; leady v RAYNETu plugin nemaže nikdy.
 
 ---
 
@@ -382,6 +383,104 @@ Skutečný důvod — třeba `RAYNET odmítl přihlášení (401)` — se zobraz
 
 Lead navíc zachytí záložní e-mail, pokud ho máte v nastavení vyplněný. U Elementoru to doporučuji dvojnásob: odeslání je synchronní, žádná fronta na opakování neexistuje.
 
+Odeslání, které RAYNET odmítl, zůstane uložené v Elementoru (má-li formulář akci **Collect Submissions**) a jde poslat znovu importem — viz [Import starších odeslání](#import-starších-odeslání).
+
+### Import starších odeslání
+
+Elementor Pro ukládá odeslání formulářů s akcí **Collect Submissions** do vlastních tabulek (*Elementor → Submissions*). Poptávky, které přišly dřív, než měl formulář akci RAYNET CRM, nebo které RAYNET tehdy odmítl, jsou jen tam. Import je pošle do RAYNETu dodatečně, stejným mapováním polí, jaké formulář používá pro nová odeslání.
+
+V uložených odesláních bývá hodně spamu, a ten se pak z CRM maže ručně. Import proto nic neposílá sám: každé odeslání ohodnotí, ukáže důvod a odešle jen řádky, které zaškrtnete.
+
+> Vyžaduje aktivní **Elementor Pro**. Tabulky odeslání deaktivaci Elementor Pro přežijí, ale import bez něj neběží: odkaz se nezobrazí a obrazovka importu řekne proč. Totéž platí, když tabulka odeslání na webu chybí.
+
+**Kde import najdete.** V **RAYNET CRM → Elementor formuláře** má každý formulář, který má v Elementoru uložená odeslání (mimo koš), odkaz **Importovat starší odeslání (N)**. N je počet odeslání, která ještě v RAYNETu nejsou. Odkaz je vidět i s nulou; na obrazovce pak najdete aspoň to, co už v RAYNETu je. Atomový formulář Elementoru 4 odkaz nemá.
+
+Obrazovka potřebuje jen mapování: formulář musí mít namapovaný e-mail nebo telefon. Zapnutou akci RAYNET CRM nepotřebuje, takže kdo chce jen jednorázově importovat, nemusí ji zapínat. Bez namapovaného kontaktu obrazovka místo tabulky odkáže na **Namapovat pole**. Bez přihlašovacích údajů k RAYNETu tabulku ukáže, ale tlačítko pro odeslání chybí.
+
+**Záložky.** Nahoře jsou počty: kolik odeslání je uloženo, kolik už je v RAYNETu, kolik zbývá k posouzení a kolik z nich hodnocení považuje za v pořádku, podezřelé a spam. Pod nimi čtyři záložky:
+
+| Záložka | Co v ní je |
+|---|---|
+| **V pořádku + podezřelé** | Odeslání k posouzení s verdiktem *V pořádku* nebo *Podezřelé*. Výchozí pohled. |
+| **Spam** | Odeslání s verdiktem *Spam*, s důvody. Zaškrtnout a odeslat jdou taky. |
+| **Už v RAYNETu** | Odeslání, která mají v logu akcí Elementoru úspěšné odeslání do RAYNETu, živé i importované. Zaškrtnout nejdou. |
+| **Nelze importovat** | Odeslání, ze kterých lead nevznikne: po namapování nemají e-mail ani telefon, nebo mají neplatný e-mail. Důvod je u řádku, zaškrtnout nejdou. |
+
+Odeslání v koši Elementoru se nenabízejí vůbec.
+
+Řádek ukazuje datum odeslání, jméno, společnost, e-mail a telefon, začátek zprávy a verdikt s důvody. Odkaz **detail** rozbalí všechny uložené hodnoty (kromě pole typu heslo), IP adresu, prohlížeč (user agent), stránku, ze které odeslání přišlo, a **Náhled leadu**: atributy a poznámku, jak je import pošle do RAYNETu. Náhled počítá s výchozím štítkem importu; odešle se štítek, který je v poli nad tabulkou.
+
+**Co je předvybrané.** Jen řádky s verdiktem *V pořádku*, které se do RAYNETu nikdy neposílaly. Podezřelé, spam a řádky, u kterých odeslání do RAYNETu tehdy selhalo, zůstávají odškrtnuté. U řádku, který tehdy selhal, je původní chyba z logu a výzva „ověřte v RAYNETu, že lead neexistuje“: vypršený čas nebo výpadek spojení neříká, jestli RAYNET lead přesto nezaložil. Hodnocení je jen návrh, zaškrtnout jde i řádek označený jako spam.
+
+**Odeslání.** Tlačítko **Odeslat zaškrtnuté do RAYNETu (N)** se zeptá na potvrzení s počtem a pak posílá zaškrtnuté řádky **na aktuální stránce** na pozadí po jednom. U každého řádku se ukáže číslo leadu nebo chyba, vedle tlačítka průběh a na konci souhrn. Zavřít stránku uprostřed nevadí: co se odeslalo, je označené, zbytek zůstane k posouzení. Na stránku se vejde 50, 100 (výchozí) nebo 200 řádků.
+
+Server před každým odesláním znovu ověří, že odeslání patří k formuláři, není v koši a ještě v RAYNETu není. Po dobu odesílání drží krátký zámek v databázi, takže dvě otevřené záložky ani dvojí kliknutí nezaloží stejný lead dvakrát. Po úspěchu zapíše do logu akcí Elementoru k odeslání řádek `raynet_crm` / úspěch s textem „Importováno, lead 12345“. Je vidět i v detailu odeslání v Elementoru a podle něj plugin příště pozná, že odeslání v RAYNETu je. Je to jediný zápis do tabulek Elementoru; počitadlo úspěšných akcí u odeslání se nemění.
+
+Co se může u řádku objevit místo čísla leadu:
+
+| Hláška | Co znamená |
+|---|---|
+| **„Odeslání už v RAYNETu je.“** / **„Toto odeslání se právě importuje.“** | Odeslání mezitím poslala jiná záložka, nebo se právě posílá. Znovu se nic neodeslalo. |
+| **„Lead N byl v RAYNETu založen, ale odeslání se nepodařilo označit jako odeslané…“** | Lead v RAYNETu je, jen se do logu Elementoru nezapsal řádek o úspěchu. Na stránce se řádek znovu nenabídne a souhrn ho počítá mezi odeslané. Jakmile se ale hodnocení přepočítá (nejpozději za 10 minut), import ho nabídne znovu; než ho pošlete podruhé, ověřte v RAYNETu, že lead existuje. |
+| **„Import se nepodařilo spustit kvůli chybě databáze. Do RAYNETu se nic neodeslalo.“** | Zámek se nepodařilo zapsat. Zkuste to znovu. |
+| **„Formulář nebyl nalezen nebo nemá namapovaný e-mail ani telefon.“** | Formulář mezitím ze stránky zmizel, nebo mu v mapování přestal být e-mail i telefon. |
+| **„Odeslání k tomuto formuláři nepatří nebo je v koši.“** | Odeslání mezitím někdo přesunul do koše. |
+| chyba z RAYNETu, třeba `RAYNET odmítl přihlášení (401)` | RAYNET lead nepřijal. Nic se neoznačí a řádek zůstane k posouzení. |
+| **„výsledek neznámý, ověřte v RAYNETu, než to zkusíte znovu“** | Server neodpověděl (vypršel čas, spadlo spojení, chybová stránka). Lead mohl vzniknout. Řádek zůstane odškrtnutý až do nového načtení stránky; pak se nabídne znovu jako neodeslaný. |
+| **„Platnost stránky vypršela. Načtěte ji znovu.“** | Stránka byla otevřená příliš dlouho. |
+
+**Čím se importovaný lead liší od živého.** Vlastník, kategorie, stav, zdroj, priorita, předmět a ostatní nastavení leadu se berou z formuláře a nastavení pluginu jako u živého odeslání. Liší se tohle:
+
+| | Živé odeslání | Import |
+|---|---|---|
+| `leadDate` | dnešek | den původního odeslání |
+| Poznámka | — | navíc řádek „Importováno z uložených odeslání Elementoru. Původně odesláno: 12. 3. 2025 14:10“ (za předponou poznámky) |
+| URL stránky v poznámce | stránka, ze které formulář přišel | adresa, kterou Elementor u odeslání uložil, pokud má formulář zapnuté **Uvést URL stránky** |
+| Souhlas v poznámce | s aktuálním časem | s časem původního odeslání |
+| GDPR záznam v RAYNETu | podle nastavení | **nezakládá se**; právní titul by platil od dneška, ne od chvíle souhlasu. Souhlas zůstává v poznámce |
+| Notifikační e-maily | podle nastavení | **neposílají se** |
+| Záložní e-mail při chybě | ano | ne, chyba se ukáže u řádku |
+| Pauza mezi odesláními z jedné IP | spouští se | nespouští se |
+| **Poslední chyba API** v nastavení | zapisuje se | nezapisuje se (do PHP logu se chyba zapíše) |
+| Přílohy | nahrají se k leadu | nenahrávají se, soubor už na serveru být nemusí. Do poznámky jde uložený odkaz na soubor, pokud je pole nastavené na přílohu nebo vybrané do poznámky |
+| Štítky | podle nastavení | navíc štítek z pole **Štítek pro importované leady** (výchozí `import-web`, prázdné pole štítek nepřidá). Podle něj importované leady v RAYNETu najdete a případně hromadně smažete |
+| Hooky `raynet_lead_payload`, `raynet_lead_created`, `raynet_lead_failed` | volají se | volají se stejně |
+
+Uložené hodnoty jsou cizí vstup jako každé odeslání formuláře: na obrazovce se escapují a do RAYNETu jdou přes stejnou sanitizaci jako živé odeslání. Pole typu heslo se nezobrazí ani neodešle.
+
+**Číselná pole.** Elementor u pole typu Číslo ukládá jen celé číslo; co návštěvník napsal, se nedochovalo. Živé odeslání proto čte původní text, import ho už nemá. Pošle hodnotu tak, jak je uložená, jen `0` bere jako nevyplněné pole. Úvodní nuly a desetinná část jsou ztracené (z IČO „02795281“ zbylo 2795281) a import je nedomýšlí. Detail řádku na to u každého vyplněného číselného pole upozorní.
+
+**Párování s formulářem je přísné.** Odeslání patří k formuláři, jen když sedí ID widgetu formuláře **a zároveň** stránka. Za stránku se bere ta, pod kterou Elementor odeslání uložil, nebo ta, kterou si poznamenal do metadat odeslání. U globálního widgetu se to liší: Elementor odeslání uloží pod ID šablony widgetu a stránku, na které widget byl, si poznamená do metadat; import přijme obojí. Samotné ID widgetu nestačí: zduplikovaná stránka nebo importovaná šablona ho zachová, a odeslání by se tak poslala s mapováním cizího formuláře. Odeslání formuláře, který už na webu není, import nenabízí.
+
+**Hodnocení spamu.** Každé odeslání projde sadou signálů. Čtou se uložené hodnoty tak, jak je Elementor uložil, ještě před sanitizací, aby se zachytily i HTML značky. Hodnocení nikam neposílá data; běží celé na webu.
+
+| Síla | Signál | ID |
+|---|---|---|
+| silný | odkaz (`http`, `www.`, `[url`) v krátkém poli: jméno, příjmení, společnost, telefon, předmět | `link_short` |
+| silný | HTML nebo BBCode značky v jakékoli hodnotě | `markup` |
+| silný | text převážně v jiném písmu než latinka (azbuka, čínština, arabština…) | `foreign_script` |
+| silný | stejný text zprávy (bez ohledu na mezery a velikost písmen) od 3 a více různých e-mailů, bez e-mailu od různých IP adres; jen u zprávy dlouhé aspoň 40 znaků, krátké věty jako „Prosím o zavolání.“ píšou i skuteční lidé | `same_text` |
+| silný | dva a více odkazů ve zprávě | `links_many` |
+| střední | jeden odkaz ve zprávě | `link_one` |
+| střední | klíčová slova typická pro spam (seo, backlink, casino, crypto, viagra, loan, guest post…) ve zprávě, předmětu nebo ostatních polích | `keywords` |
+| střední | 5 a více odeslání formuláře z téže IP adresy | `same_ip` |
+| střední | nevěrohodné jméno: shodné jméno a příjmení, číslice ve jméně, slovo z pěti a více písmen bez samohlásky, střídání malých a velkých písmen uvnitř slova | `odd_name` |
+| střední | prázdný nebo strojový user agent (`curl`, `python`, `bot`…); jen když ho formulář ukládá | `bot_agent` |
+| střední | duplicitní odeslání (viz níže) | `duplicate` |
+| slabý | nevěrohodný telefon: méně než 9 číslic, nebo samé stejné číslice | `bad_phone` |
+| slabý | e-mail z jednorázové služby (mailinator.com, yopmail.com…) | `disposable_email` |
+| slabý | zpráva kratší než 10 znaků, pokud má formulář namapovanou zprávu | `short_message` |
+
+Verdikt:
+
+- **Spam** — aspoň jeden silný signál, nebo dva a více středních.
+- **Podezřelé** — jeden střední signál, nebo dva a více slabých.
+- **V pořádku** — jinak, tedy i s jediným slabým signálem. Jen tyto řádky jsou předvybrané.
+
+**Duplicity.** Stejný e-mail se stejnou zprávou ve více odesláních (typicky návštěvník, kterému odeslání selhalo a zkusil to znovu): nejstarší se hodnotí normálně, další dostanou důvod „duplicitní odeslání“, a tím verdikt nejméně *Podezřelé*. Kopie, která už v RAYNETu je, se počítá jako původní bez ohledu na stáří.
+
+Hodnocení všech odeslání formuláře se drží až 10 minut v cache; přepočítá se dřív, když se změní nastavení formuláře, konfigurace hodnocení nebo počet jeho odeslání. Prahy, seznamy slov a domén i vypnutí jednotlivých signálů změníte filtrem — viz [`raynet_import_spam_config`](#raynet_import_spam_config-filtr).
+
 ### Export šablony
 
 Při exportu formuláře jako šablony se mapování polí (včetně polí do poznámky a vynechaných polí), předmět, předpona poznámky, číselníková ID, vlastník, štítky i notifikační e-maily odstraní. Zůstane jen priorita, typ leadu a oba přepínače. Jsou vázané na jednu instanci RAYNETu a v cizím webu by zakládaly leady pod cizí kategorií. Přihlašovací údaje v nastavení Elementoru vůbec nejsou — zůstávají v nastavení pluginu.
@@ -457,7 +556,7 @@ Plugin založí lead přes `PUT /api/v2/lead/`:
 |---|---|
 | Předmět / atribut `topic` / předmět z formuláře nebo nastavení, jinak „Poptávka z webu *název webu*“ | `topic` *(povinné)* |
 | nastavení | `priority` *(povinné)* |
-| – | `leadDate` — dnešní datum |
+| – | `leadDate` — dnešní datum (u [importu](#import-starších-odeslání) den původního odeslání) |
 | Jméno, Příjmení (nebo rozdělené celé jméno) | `firstName`, `lastName` |
 | Společnost | `companyName` |
 | E-mail, Telefon | `contactInfo.email`, `contactInfo.tel1` |
@@ -506,6 +605,8 @@ Tři nezávislé vrstvy, všechny vypnutelné v nastavení v části *Chování 
 
 K tomu WordPress nonce. Pokud běží na webu plná cache stránek a nonce vyprší, JavaScript si jednou automaticky vyžádá nový a odeslání zopakuje. Časovou značku ale neobnoví: stránku z cache starší než 24 hodin časová past odmítne. Stránky s formulářem proto držte v cache kratší dobu než den, nebo časovou past vypněte nulou.
 
+Import starších odeslání z Elementoru má vlastní hodnocení spamu, nezávislé na těchto třech vrstvách i na jejich nastavení. Nic neodmítá, jen navrhuje — viz [Import starších odeslání](#import-starších-odeslání).
+
 ---
 
 ## GDPR
@@ -518,17 +619,20 @@ K tomu WordPress nonce. Pokud běží na webu plná cache stránek a nonce vypr�
 - Plugin **neukládá odeslaná data do databáze WordPressu**. Jdou rovnou do RAYNETu; jen když je RAYNET nepřijme (nebo plugin není nastavený), odejdou na **záložní e-mail** z nastavení, je-li vyplněný, u Elementoru i s nahranými soubory do 10 MB celkem.
 - Soubory nahrané přes formulář Elementoru ukládá Elementor sám do `uploads/elementor/forms/` (a u režimu příloha e-mailu je po odeslání maže). Plugin si dělá jen dočasné kopie v dočasném adresáři serveru, čitelné jen pro systémového uživatele, pod kterým běží PHP, a na konci požadavku je maže. Kopie po přerušeném požadavku smaže nejpozději další odeslání formuláře po hodině.
 - IP adresa se používá jen pro omezení frekvence, ukládá se jako hash v transientu a do CRM se neposílá.
+- Import starších odeslání čte odeslání, která uložil Elementor. Sám si z nich na 10 minut drží v transientu jen verdikty a stav, ne hodnoty. IP adresu a user agent uložené Elementorem použije jen pro hodnocení spamu a ukáže je v detailu řádku; do RAYNETu je neposílá.
 - Do poznámky leadu jde URL stránky, ze které poptávka přišla.
 
 ---
 
 ## Hooky pro vývojáře
 
-Hooky platí pro formuláře z builderu, REST endpoint i formuláře Elementoru. ID formuláře nedostávají.
+Hooky platí pro formuláře z builderu, REST endpoint i formuláře Elementoru. `raynet_lead_payload`, `raynet_lead_created` a `raynet_lead_failed` se volají i při [importu starších odeslání](#import-starších-odeslání). ID formuláře nedostávají.
 
 ### `raynet_lead_payload` (filtr)
 
 Poslední místo před odesláním do RAYNETu. `$values` nese základní pole (`firstName`, `lastName`, `companyName`, `email`, `phone`, `topic`, `message`, `street`, `city`, `zipCode`); nevyplněná jsou prázdný řetězec a celé jméno už je rozdělené. Další standardní atributy a vlastní pole z Elementoru najdete jen v `$payload`.
+
+**Filtr se volá i tehdy, když se nic neodesílá.** Obrazovka importu starších odeslání jím skládá náhled leadu, jednou za každý řádek, který ukazuje — na stránce se 100 řádky tedy až stokrát. Callback proto smí jen upravit a vrátit payload, bez vedlejších účinků: žádné požadavky, e-maily ani zápisy do databáze. Co má proběhnout jen u skutečně založeného leadu, patří do `raynet_lead_created`.
 
 ```php
 add_filter( 'raynet_lead_payload', function ( $payload, $values ) {
@@ -579,6 +683,64 @@ add_filter( 'raynet_lead_gdpr_record', function ( array $record, $lead_id ) {
 }, 10, 2 );
 ```
 
+### `raynet_import_spam_config` (filtr)
+
+Konfigurace [hodnocení spamu](#import-starších-odeslání) u importu starších odeslání, než se hodnocení spočítá. Dostane pole s výchozími hodnotami a vrací ho upravené; klíč, který vynecháte, má výchozí hodnotu.
+
+| Klíč | Výchozí | Význam |
+|---|---|---|
+| `strong_to_spam` | `1` | kolik silných signálů dá verdikt spam |
+| `medium_to_spam` | `2` | kolik středních signálů dá verdikt spam |
+| `medium_to_suspect` | `1` | kolik středních signálů dá verdikt podezřelé |
+| `weak_to_suspect` | `2` | kolik slabých signálů dá verdikt podezřelé |
+| `same_text_senders` | `3` | od kolika různých odesílatelů platí `same_text` |
+| `same_text_min_length` | `40` | kolik znaků musí zpráva mít, aby se `same_text` uplatnil |
+| `same_ip_count` | `5` | od kolika odeslání z jedné IP platí `same_ip` |
+| `min_message_length` | `10` | kratší zpráva spustí `short_message` |
+| `min_phone_digits` | `9` | telefon s méně číslicemi spustí `bad_phone` |
+| `keywords` | `seo`, `backlink`, `casino`, `crypto`, `viagra`, `loan`, `guest post`… | slova a fráze pro `keywords`, hledané jako celá slova bez ohledu na velikost písmen |
+| `disposable_domains` | `mailinator.com`, `yopmail.com`… | domény pro `disposable_email`, včetně jejich subdomén |
+| `allowed_scripts` | `Latin` | písma, která `foreign_script` nebere jako cizí (názvy písem Unicode: `Cyrillic`, `Greek`, `Han`…) |
+| `disabled` | prázdné | ID signálů, které se nepočítají |
+
+ID signálů jsou v tabulce u [hodnocení spamu](#import-starších-odeslání). Web, který píše azbukou, vypne signál písma takhle:
+
+```php
+add_filter( 'raynet_import_spam_config', function ( array $config ) {
+	$config['disabled'][] = 'foreign_script';
+	return $config;
+} );
+```
+
+Přesnější je azbuku povolit a signál nechat pro ostatní písma: `$config['allowed_scripts'][] = 'Cyrillic';`. Změna konfigurace se projeví hned, hodnocení v cache se přepočítá.
+
+### `raynet_import_spam_score` (filtr)
+
+Hotový výsledek hodnocení jednoho uloženého odeslání, pro vlastní pravidla. Dostane výsledek, ohodnocené hodnoty a uložené odeslání; vrací výsledek.
+
+- `$result` — `verdict` (`ok`, `suspect` nebo `spam`) a `reasons`, seznam důvodů s klíči `id`, `strength` (`strong`, `medium`, `weak`) a `count`.
+- `$submission` — `values` (`firstName`, `lastName`, `companyName`, `email`, `phone`, `topic`, `message` podle mapování formuláře), `texts` (ostatní vyplněné hodnoty), `ip`, `user_agent` (`null`, když ho formulář neukládá), `has_message_field` a `duplicate`.
+- `$row` — uložené odeslání: `id`, `created_at`, `referer`, `ip`, `user_agent`, `state` (`new`, `failed`, `sent`), `log` a `values` podle ID polí.
+
+> **Hodnoty jsou syrové.** `values`, `texts` i hodnoty v `$row` jsou přesně to, co poslal kdokoli, kdo formulář vyplnil, bez sanitizace — hodnocení je čte záměrně před ní, aby zachytilo HTML značky. Kdo je vypisuje nebo ukládá, musí je sám escapovat nebo sanitizovat. Do RAYNETu jde odeslání sanitizované stejně jako živé.
+
+Verdikt se počítá jen z toho, co filtr vrátí, prahy z konfigurace se znovu neuplatní. Výsledek bez platného `verdict` nebo s `reasons`, které nejsou pole, se zahodí a platí původní hodnocení — rozbitý filtr tak spam nepředvybere. Důvod s neznámým `id` obrazovka vypíše tak, jak je, takže se do `id` hodí rovnou čitelný text:
+
+```php
+add_filter( 'raynet_import_spam_score', function ( array $result, array $submission, array $row ) {
+	$email = strtolower( $submission['values']['email'] );
+
+	if ( '.ru' === substr( $email, -3 ) ) {
+		$result['verdict']   = 'spam';
+		$result['reasons'][] = array( 'id' => 'e-mail v doméně .ru', 'strength' => 'strong', 'count' => 0 );
+	}
+
+	return $result;
+}, 10, 3 );
+```
+
+Hodnocení se drží až 10 minut v cache. Na změnu konfigurace z `raynet_import_spam_config` reaguje hned, na změnu tohoto filtru až po vypršení cache nebo po změně nastavení formuláře či počtu jeho odeslání.
+
 ---
 
 ## REST endpoint
@@ -625,6 +787,8 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **Ve výběru vlastníka chybí uživatel** | Seznam je starý — v nastavení klikněte na **Načíst znovu** u vlastníka. Účty bez kontaktní osoby a účty, které RAYNET vede jako neplatné (bývalí uživatelé), se nenabízejí. Když místo výběru zůstává pole pro ID, popisek pod ním říká proč (nejčastěji API klíč bez práva vypisovat uživatele). |
 | **Formulář hlásí chybu, ale lead v RAYNETu je** | Selhala jiná akce formuláře, typicky e-mailová notifikace Elementoru (nefunkční odesílání pošty na webu). Přihlášený správce vidí u chyby, která akce to byla. |
 | **„RAYNET: integrace s Elementor Pro Forms není aktivní“** | Elementor Pro je zapnutý, ale jeho formuláře se nenačetly. Nejčastěji chybí nebo je zastaralý základní Elementor (Elementor Pro to hlásí i vlastním upozorněním); jinak tato verze Elementor Pro nemá rozhraní akcí po odeslání, se kterým plugin počítá. Formuláře Elementoru do té doby leady nezakládají, formuláře z builderu fungují dál. Aktivujte nebo aktualizujte Elementor. |
+| **Odkaz „Importovat starší odeslání“ nevidím** | Elementor Pro není aktivní, nebo na webu chybí jeho tabulka odeslání. Nebo formulář nemá v Elementoru žádné uložené odeslání mimo koš — odeslání ukládá jen formulář s akcí **Collect Submissions**, a jen od chvíle, kdy ji má. Atomový formulář Elementoru 4 odkaz nemá nikdy. Viz [Import starších odeslání](#import-starších-odeslání). |
+| **Odeslání v importu chybí** | Podívejte se na ostatní záložky: spam, odeslání bez e-mailu a telefonu i odeslání, která už v RAYNETu jsou, mají vlastní. Odeslání v koši Elementoru se nenabízejí. Import páruje přísně podle ID widgetu i stránky, takže odeslání ze zduplikované stránky patří k formuláři na té kopii, a odeslání formuláře, který mezitím dostal nové ID nebo z webu zmizel, se nenabídnou vůbec. |
 
 Chyby API se zapisují do PHP logu s prefixem `[Raynet Lead API Integration]`, pokud je zapnuté *Zapisovat chyby API do PHP logu* (ve výchozím stavu je). Poslední chyba se navíc zobrazuje nahoře na stránce nastavení jako **Poslední chyba API:** s datem a časem. Zůstane tam, dokud ji nepřepíše další chyba nebo dokud neproběhne úspěšný test spojení — úspěšně založený lead ji nesmaže. Pro zapnutí logu WordPressu:
 
@@ -665,7 +829,7 @@ Repozitář obsahuje testy, které plugin proženou bez instalace WordPressu —
 php tests/run.php
 ```
 
-Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky, builder, stránku nastavení, aktualizace, odhad mapování, převod hodnot vlastních polí, souhlas, přílohy, výběr vlastníka z uživatelů RAYNETu a odinstalaci. Výběr vlastníka v editoru Elementoru (JavaScript) testuje `tests/js/` přes Node.js, který `run.php` spustí také. Testy vyžadují PHP 8.0+ a Node.js; samotný plugin běží od PHP 7.4.
+Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky, builder, stránku nastavení, aktualizace, odhad mapování, převod hodnot vlastních polí, souhlas, přílohy, výběr vlastníka z uživatelů RAYNETu, hodnocení spamu a sestavení leadu z uloženého odeslání Elementoru a odinstalaci. Výběr vlastníka v editoru Elementoru a sériové odesílání na obrazovce importu (JavaScript) testuje `tests/js/` přes Node.js, který `run.php` spustí také. Testy vyžadují PHP 8.0+ a Node.js; samotný plugin běží od PHP 7.4.
 
 ### Integrační sada
 
@@ -680,7 +844,7 @@ Ověřuje pořadí hooků, že `manage_options` zůstává funkční, položky m
 
 Adresář `.wp-test/` je mimo git a dá se kdykoliv zahodit; `bin/wp-test-setup.sh --fresh` ho postaví znovu.
 
-Většina kontrol se týká Elementoru a běží jen tehdy, když je Elementor Pro v testovací instalaci přítomné: nakopírujte `elementor` a `elementor-pro` do `.wp-test/wp/wp-content/plugins/` a aktivujte je. Pak sada projde i hledání formulářů v šablonách a popupech, nasazení šablon se zálohou a koncepty, obrazovku mapování přes HTTP, vlastní pole, souhlas s GDPR záznamem, skutečné nahrání přílohy přes AJAX Elementoru a výběr vlastníka z uživatelů RAYNETu (v nastavení, šablonách, builderu i v Elementoru). Bez Elementor Pro tuhle část přeskočí celou, včetně kontrol nastavení a builderu, které v ní jsou.
+Většina kontrol se týká Elementoru a běží jen tehdy, když je Elementor Pro v testovací instalaci přítomné: nakopírujte `elementor` a `elementor-pro` do `.wp-test/wp/wp-content/plugins/` a aktivujte je. Pak sada projde i hledání formulářů v šablonách a popupech, nasazení šablon se zálohou a koncepty, obrazovku mapování přes HTTP, vlastní pole, souhlas s GDPR záznamem, skutečné nahrání přílohy přes AJAX Elementoru, výběr vlastníka z uživatelů RAYNETu (v nastavení, šablonách, builderu i v Elementoru) a import uložených odeslání: skutečné tabulky odeslání Elementoru, odkaz s počtem, obrazovku importu přes HTTP, import jednoho odeslání přes AJAX až k payloadu pro RAYNET, zápis do logu akcí, zámek proti dvojímu odeslání, odmítnutí bez přihlášení a bez nonce a chování s vypnutým Elementor Pro. Bez Elementor Pro tuhle část přeskočí celou, včetně kontrol nastavení a builderu, které v ní jsou.
 
 Historie změn je v [CHANGELOG.md](CHANGELOG.md).
 
