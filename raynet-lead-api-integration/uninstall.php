@@ -45,6 +45,11 @@ $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off cleanu
 	$wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s", '_raynet_elementor_backup' )
 );
 
+// RAYNET settings of Elementor 4 atomic forms, kept on the page holding them.
+$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off cleanup on uninstall.
+	$wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s", '_raynet_crm_atomic_forms' )
+);
+
 // Forms are posts, so they take their meta with them.
 $raynet_forms = get_posts(
 	array(

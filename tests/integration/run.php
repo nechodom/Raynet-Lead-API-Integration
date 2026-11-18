@@ -930,7 +930,167 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'atomový formulář se ukáže', count( $atomic_rows ), 1 );
 		check( 'atomový formulář je označený', isset( $atomic_rows[0] ) ? $atomic_rows[0]['atomic'] : null, true );
 		check( 'atomový formulář má název', isset( $atomic_rows[0] ) ? $atomic_rows[0]['form_name'] : '', 'Nový formulář' );
-		check( 'atomový formulář nejde nastavit', is_wp_error( Raynet_Elementor_Forms::apply( $atomic_page, 'atomform', array(), true ) ), true );
+		check( 'atomový formulář bez polí je vypnutý', isset( $atomic_rows[0] ) ? $atomic_rows[0]['enabled'] : null, false );
+		check( 'registr akcí atomového formuláře je k dispozici', Raynet_Elementor_Atomic_Forms::supported(), true );
+		check( 'atomový řádek nese podporu', isset( $atomic_rows[0]['supported'] ) ? $atomic_rows[0]['supported'] : null, true );
+
+		// --- Elementor 4 atomic form: reading and configuring --------------------
+		global $wpdb;
+
+		$typed = function ( $type, $value ) {
+			return array( '$$type' => $type, 'value' => $value );
+		};
+		$str   = function ( $value ) use ( $typed ) {
+			return $typed( 'string', $value );
+		};
+		$aw    = function ( $id, $type, array $settings = array() ) {
+			return array( 'id' => $id, 'elType' => 'widget', 'widgetType' => $type, 'settings' => $settings, 'elements' => array(), 'isInner' => false );
+		};
+		$alabel = function ( $id, $html, $input ) use ( $aw, $typed, $str ) {
+			return $aw( $id, 'e-form-label', array( 'text' => $typed( 'html-v3', array( 'content' => $str( $html ), 'children' => array() ) ), 'input-id' => $str( $input ) ) );
+		};
+		$atomic_form = array(
+			'id'       => 'aform1',
+			'elType'   => 'e-form',
+			'settings' => array(
+				'form-name' => $str( 'Atomová poptávka' ),
+				'classes'   => $typed( 'classes', array( 'e-aform1-1' ) ),
+			),
+			'elements' => array(
+				$alabel( 'al1', 'E-mail', 'mail' ),
+				$aw( 'af1', 'e-form-input', array( 'type' => $str( 'email' ), '_cssid' => $str( 'mail' ) ) ),
+				$alabel( 'al2', 'Zpráva', 'msg' ),
+				$aw( 'af2', 'e-form-textarea', array( '_cssid' => $str( 'msg' ) ) ),
+				array(
+					'id'       => 'arow',
+					'elType'   => 'e-flexbox',
+					'settings' => array(),
+					'elements' => array(
+						$aw( 'af3', 'e-form-checkbox', array( '_cssid' => $str( 'gdpr' ) ) ),
+						$alabel( 'al3', 'Souhlasím se <strong>zpracováním</strong> osobních údajů', 'gdpr' ),
+					),
+				),
+				$alabel( 'al4', 'Služba', 'svc' ),
+				$aw( 'af4', 'e-form-select', array( '_cssid' => $str( 'svc' ) ) ),
+				$alabel( 'al5', 'Příloha', 'file' ),
+				$aw( 'af5', 'e-form-file-upload', array( '_cssid' => $str( 'file' ) ) ),
+				$aw( 'af6', 'e-form-input', array( 'placeholder' => $str( 'Název firmy' ) ) ),
+				$aw( 'af7', 'e-form-input' ),
+				$aw( 'asb', 'e-form-submit-button' ),
+			),
+		);
+
+		$mixed_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Atomový i klasický', 'post_status' => 'publish' ) );
+		update_post_meta( $mixed_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $mixed_page, '_elementor_data', wp_slash( wp_json_encode( array_merge( array( $atomic_form ), $form_layout( 'mixclassic', 'Klasický', array( 'submit_actions' => array( 'email', 'raynet_crm' ), 'raynet_crm_topic' => 'Klasické téma' ) ) ) ) ) );
+
+		$mixed_rows = array();
+
+		foreach ( Raynet_Elementor_Forms::scan() as $row ) {
+			if ( $mixed_page === $row['post_id'] ) {
+				$mixed_rows[ $row['widget_id'] ] = $row;
+			}
+		}
+
+		check( 'sken najde atomový formulář s poli', isset( $mixed_rows['aform1'] ) ? count( $mixed_rows['aform1']['fields'] ) : 0, 7 );
+		check( 'atomový formulář je atomový', isset( $mixed_rows['aform1'] ) ? $mixed_rows['aform1']['atomic'] : null, true );
+		check( 'atomový formulář zatím vypnutý', isset( $mixed_rows['aform1'] ) ? $mixed_rows['aform1']['enabled'] : null, false );
+		check( 'atomová pole mají typy ze stromu', isset( $mixed_rows['aform1'] ) ? array_column( $mixed_rows['aform1']['fields'], 'type' ) : array(), array( 'email', 'textarea', 'acceptance', 'select', 'upload', 'text', 'text' ) );
+		check( 'klasický řádek má podporu', isset( $mixed_rows['mixclassic'] ) ? $mixed_rows['mixclassic']['supported'] : null, true );
+
+		$mixed_before = json_decode( get_post_meta( $mixed_page, '_elementor_data', true ), true );
+		$mixed_done   = Raynet_Elementor_Forms::apply( $mixed_page, 'aform1', array( 'priority' => 'CRITICAL', 'topic' => 'Atomová' ), true );
+		check( 'atomový formulář nastaven', $mixed_done, array( 'aform1' ) );
+
+		$mixed_after = json_decode( get_post_meta( $mixed_page, '_elementor_data', true ), true );
+		check(
+			'strom má e-mail i RAYNET',
+			isset( $mixed_after[0]['settings']['actions-after-submit'] ) ? $mixed_after[0]['settings']['actions-after-submit'] : null,
+			array( '$$type' => 'string-array', 'value' => array( $str( 'email' ), $str( 'raynet_crm' ) ) )
+		);
+		$after_rest = $mixed_after[0];
+		unset( $after_rest['settings']['actions-after-submit'] );
+		check( 'jinak se atomový prvek nezměnil', wp_json_encode( $after_rest ), wp_json_encode( $mixed_before[0] ) );
+		check( 'klasický widget na stejné stránce beze změny', wp_json_encode( $mixed_after[1] ), wp_json_encode( $mixed_before[1] ) );
+
+		$atomic_meta = get_post_meta( $mixed_page, Raynet_Elementor_Atomic_Forms::META, true );
+		check( 'meta drží nastavení leadu', isset( $atomic_meta['aform1']['raynet_crm_priority'] ) ? $atomic_meta['aform1']['raynet_crm_priority'] : '', 'CRITICAL' );
+		check( 'meta drží téma', isset( $atomic_meta['aform1']['raynet_crm_topic'] ) ? $atomic_meta['aform1']['raynet_crm_topic'] : '', 'Atomová' );
+		check( 'meta nedrží nic cizího', isset( $atomic_meta['aform1'] ) ? array_values( array_filter( array_keys( $atomic_meta['aform1'] ), function ( $key ) {
+			return 0 !== strpos( $key, 'raynet_crm_' );
+		} ) ) : array( 'chybí' ), array() );
+
+		$atomic_settings = Raynet_Elementor_Forms::form_settings( $mixed_page, 'aform1' );
+		$atomic_map = null !== $atomic_settings ? Raynet_Elementor_Forms::current_map( $atomic_settings ) : array();
+		ksort( $atomic_map );
+		check( 'e-mail a další namapované samy', $atomic_map, array( 'companyName' => 'af6', 'email' => 'af1', 'gdprConsent' => 'af3', 'message' => 'af2' ) );
+		check( 'form_settings() má název', null !== $atomic_settings ? $atomic_settings['form_name'] : '', 'Atomová poptávka' );
+
+		$mixed_now = Raynet_Elementor_Forms::forms_in_post( $mixed_page );
+		check( 'po nasazení zapnutý', $mixed_now[0]['enabled'], true );
+		check( 'po nasazení má kontakt', $mixed_now[0]['has_contact'], true );
+
+		// Mapping screen data: changes go to meta and come back the same way.
+		$saved = Raynet_Elementor_Forms::save_targets( $mixed_page, 'aform1', array( 'af6' => '-', 'af4' => Raynet_Elementor_Forms::TARGET_NOTICE, 'af7' => 'www' ), true );
+		check( 'mapování atomového formuláře uloženo', $saved, true );
+		$round = Raynet_Elementor_Forms::field_targets( Raynet_Elementor_Forms::form_settings( $mixed_page, 'aform1' ) );
+		check( 'firma vynechaná', isset( $round['af6'] ) ? $round['af6'] : '', '-' );
+		check( 'služba do poznámky', isset( $round['af4'] ) ? $round['af4'] : '', Raynet_Elementor_Forms::TARGET_NOTICE );
+		check( 'poslední pole na web', isset( $round['af7'] ) ? $round['af7'] : '', 'www' );
+		check( 'e-mail zůstal', isset( $round['af1'] ) ? $round['af1'] : '', 'email' );
+		check( 'akce po uložení mapování stejné', json_decode( get_post_meta( $mixed_page, '_elementor_data', true ), true )[0]['settings']['actions-after-submit'], $mixed_after[0]['settings']['actions-after-submit'] );
+
+		// A pending draft gets the slug in its copy of the element; the settings
+		// stay on the page, not on the revision.
+		$atomic_draft = (int) wp_insert_post(
+			array(
+				'post_type'   => 'revision',
+				'post_status' => 'inherit',
+				'post_parent' => $mixed_page,
+				'post_name'   => $mixed_page . '-autosave-v1',
+				'post_title'  => 'Atomový i klasický',
+				'post_author' => get_current_user_id(),
+			)
+		);
+		$draft_form = $atomic_form;
+		$draft_form['settings']['form-name'] = $str( 'Rozpracovaná' );
+		// Its own actions, set in the editor and not yet published.
+		$draft_form['settings']['actions-after-submit'] = $typed( 'string-array', array( $str( 'email' ), $str( 'raynet_crm' ), $str( 'collect-submissions' ) ) );
+		update_metadata( 'post', $atomic_draft, '_elementor_data', wp_slash( wp_json_encode( array( $draft_form ) ) ) );
+		$wpdb->update( $wpdb->posts, array( 'post_modified_gmt' => '2020-01-01 00:00:00' ), array( 'ID' => $mixed_page ) );
+		$wpdb->update( $wpdb->posts, array( 'post_modified_gmt' => '2021-01-01 00:00:00' ), array( 'ID' => $atomic_draft ) );
+		clean_post_cache( $mixed_page );
+		clean_post_cache( $atomic_draft );
+
+		$off = Raynet_Elementor_Forms::update_forms(
+			$mixed_page,
+			'aform1',
+			function ( array $settings ) {
+				$settings['submit_actions'] = array_values( array_diff( $settings['submit_actions'], array( 'raynet_crm' ) ) );
+				$settings['raynet_crm_priority'] = 'MINOR';
+				return $settings;
+			}
+		);
+		check( 'atomový formulář vypnut', $off, array( 'aform1' ) );
+		$draft_after = json_decode( get_metadata( 'post', $atomic_draft, '_elementor_data', true ), true );
+		check( 'koncept nese změnu akcí', isset( $draft_after[0]['settings']['actions-after-submit'] ) ? $draft_after[0]['settings']['actions-after-submit'] : null, array( '$$type' => 'string-array', 'value' => array( $str( 'email' ), $str( 'collect-submissions' ) ) ) );
+		check( 'stránka má jen e-mail', json_decode( get_post_meta( $mixed_page, '_elementor_data', true ), true )[0]['settings']['actions-after-submit'], array( '$$type' => 'string-array', 'value' => array( $str( 'email' ) ) ) );
+		check( 'koncept si nechal svůj název', $draft_after[0]['settings']['form-name'], $str( 'Rozpracovaná' ) );
+		check( 'revize nemá vlastní meta', metadata_exists( 'post', $atomic_draft, Raynet_Elementor_Atomic_Forms::META ), false );
+		check( 'meta stránky změněné jednou', Raynet_Elementor_Atomic_Forms::stored( $mixed_page, 'aform1' )['raynet_crm_priority'], 'MINOR' );
+		check( 'mapování po vypnutí zůstalo', Raynet_Elementor_Forms::field_targets( Raynet_Elementor_Forms::form_settings( $mixed_page, 'aform1' ) )['af7'], 'www' );
+
+		// A stale entry for a form no longer on the page does no harm.
+		$stale_meta            = get_post_meta( $mixed_page, Raynet_Elementor_Atomic_Forms::META, true );
+		$stale_meta['zmizely'] = array( 'raynet_crm_topic' => 'Smazaný formulář' );
+		$stale_meta['rozbity'] = 'není pole';
+		update_post_meta( $mixed_page, Raynet_Elementor_Atomic_Forms::META, $stale_meta );
+		check( 'zastaralá položka meta nevadí skenu', count( Raynet_Elementor_Forms::forms_in_post( $mixed_page ) ), 2 );
+		check( 'zastaralý formulář se nenajde', Raynet_Elementor_Forms::form_settings( $mixed_page, 'zmizely' ), null );
+		check( 'zastaralý formulář nejde nastavit', is_wp_error( Raynet_Elementor_Forms::apply( $mixed_page, 'zmizely', array(), true ) ), true );
+
+		wp_delete_post( $atomic_draft, true );
+		wp_delete_post( $mixed_page, true );
 
 		// An autosave older than the post is ignored by the editor. Writing meta
 		// alone would leave an earlier autosave "newer" for good.

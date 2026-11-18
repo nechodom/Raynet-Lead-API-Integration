@@ -100,9 +100,9 @@ class Raynet_Elementor_Forms {
 	/**
 	 * Element type of Elementor 4's atomic form.
 	 *
-	 * It is a different element from the Form widget, with its own fixed list
-	 * of actions and no room for this plugin's settings, so it is listed but
-	 * cannot be configured.
+	 * It is a different element from the Form widget, with no room for this
+	 * plugin's settings. Raynet_Elementor_Atomic_Forms presents it as widget
+	 * settings and keeps the RAYNET part in post meta.
 	 */
 	const ATOMIC_TYPE = 'e-form';
 
@@ -341,25 +341,7 @@ class Raynet_Elementor_Forms {
 					return;
 				}
 
-				$settings = isset( $element['settings'] ) ? (array) $element['settings'] : array();
-				$actions  = self::submit_actions( $settings );
-
-				$found[] = array(
-					'post_id'     => $post_id,
-					'post_title'  => get_the_title( $post_id ),
-					'location'    => self::location_label( $post_id ),
-					'rendered'    => self::is_rendered( $post_id ),
-					'widget_id'   => isset( $element['id'] ) ? (string) $element['id'] : '',
-					'form_name'   => isset( $settings['form_name'] ) ? (string) $settings['form_name'] : '',
-					'fields'      => self::readable_fields( $settings ),
-					'enabled'     => in_array( self::ACTION_NAME, $actions, true ),
-					'mapped'      => self::mapped_count( $settings ),
-					'has_contact' => self::maps_contact( $settings ),
-					'undecided'   => count( array_keys( self::field_targets( $settings ), '', true ) ),
-					'noted'       => count( array_keys( self::field_targets( $settings ), self::TARGET_NOTICE, true ) ),
-					'atomic'      => false,
-					'edit_url'    => self::edit_url( $post_id ),
-				);
+				$found[] = self::row( $post_id, $element, isset( $element['settings'] ) ? (array) $element['settings'] : array(), false );
 			}
 		);
 
@@ -374,13 +356,20 @@ class Raynet_Elementor_Forms {
 	 * @return array<string,mixed> Row in the shape forms_in_post() returns.
 	 */
 	private static function atomic_row( $post_id, array $element ) {
-		$settings = isset( $element['settings'] ) ? (array) $element['settings'] : array();
-		$name     = isset( $settings['form-name'] ) ? $settings['form-name'] : '';
+		return self::row( $post_id, $element, Raynet_Elementor_Atomic_Forms::settings( $post_id, $element ), true );
+	}
 
-		// Atomic settings are typed values: {"$$type": "string", "value": "..."}.
-		if ( is_array( $name ) ) {
-			$name = isset( $name['value'] ) && is_scalar( $name['value'] ) ? $name['value'] : '';
-		}
+	/**
+	 * One form's row for the list.
+	 *
+	 * @param int                 $post_id  Post id.
+	 * @param array<string,mixed> $element  Element data.
+	 * @param array<string,mixed> $settings Settings in the shape of the Form widget's.
+	 * @param bool                $atomic   The form is an Elementor 4 atomic form.
+	 * @return array<string,mixed> Row.
+	 */
+	private static function row( $post_id, array $element, array $settings, $atomic ) {
+		$targets = self::field_targets( $settings );
 
 		return array(
 			'post_id'     => $post_id,
@@ -388,14 +377,17 @@ class Raynet_Elementor_Forms {
 			'location'    => self::location_label( $post_id ),
 			'rendered'    => self::is_rendered( $post_id ),
 			'widget_id'   => isset( $element['id'] ) ? (string) $element['id'] : '',
-			'form_name'   => (string) $name,
-			'fields'      => array(),
-			'enabled'     => false,
-			'mapped'      => 0,
-			'has_contact' => false,
-			'undecided'   => 0,
-			'noted'       => 0,
-			'atomic'      => true,
+			'form_name'   => isset( $settings['form_name'] ) ? (string) $settings['form_name'] : '',
+			'fields'      => self::readable_fields( $settings ),
+			'enabled'     => in_array( self::ACTION_NAME, self::submit_actions( $settings ), true ),
+			'mapped'      => self::mapped_count( $settings ),
+			'has_contact' => self::maps_contact( $settings ),
+			'undecided'   => count( array_keys( $targets, '', true ) ),
+			'noted'       => count( array_keys( $targets, self::TARGET_NOTICE, true ) ),
+			'atomic'      => $atomic,
+			// Whether this plugin's action can run on the form. A Form widget
+			// always can; an atomic form needs Elementor Pro's action registry.
+			'supported'   => $atomic ? Raynet_Elementor_Atomic_Forms::supported() : true,
 			'edit_url'    => self::edit_url( $post_id ),
 		);
 	}
@@ -792,9 +784,14 @@ class Raynet_Elementor_Forms {
 			return new WP_Error( 'raynet_no_data', __( 'Stránka nemá data Elementoru.', 'raynet-lead-api-integration' ) );
 		}
 
-		$configured = self::change_tree( $tree, $widget_ids, $change );
+		$atomic     = array();
+		$configured = self::change_tree( $tree, $widget_ids, $change, $post_id, $atomic );
 
 		if ( empty( $configured ) ) {
+			if ( ! Raynet_Elementor_Atomic_Forms::supported() && self::holds_atomic( $tree, $widget_ids ) ) {
+				return new WP_Error( 'raynet_atomic_unsupported', __( 'Tato verze Elementoru Pro akce atomového formuláře neumí.', 'raynet-lead-api-integration' ) );
+			}
+
 			return new WP_Error( 'raynet_no_form', __( 'Formulář se na stránce nenašel.', 'raynet-lead-api-integration' ) );
 		}
 
@@ -802,6 +799,12 @@ class Raynet_Elementor_Forms {
 
 		if ( is_wp_error( $written ) ) {
 			return $written;
+		}
+
+		// The RAYNET settings of an atomic form live in the document's meta,
+		// written once the layout is, so a failed write leaves both as they were.
+		foreach ( $atomic as $form_id => $settings ) {
+			Raynet_Elementor_Atomic_Forms::store( $post_id, $form_id, $settings );
 		}
 
 		// Elementor opens its editor on an autosave that is newer than the
@@ -814,7 +817,9 @@ class Raynet_Elementor_Forms {
 		foreach ( self::pending_autosaves( $post_id ) as $autosave_id ) {
 			$draft = self::read_tree( $autosave_id );
 
-			if ( empty( $draft ) || empty( self::change_tree( $draft, $widget_ids, $change ) ) ) {
+			// An atomic form in the draft reads its RAYNET settings from the
+			// page, stored just above; only the element is rewritten here.
+			if ( empty( $draft ) || empty( self::change_tree( $draft, $widget_ids, $change, $post_id ) ) ) {
 				continue;
 			}
 
@@ -830,24 +835,45 @@ class Raynet_Elementor_Forms {
 	}
 
 	/**
-	 * Applies a change to the named form widgets inside one layout.
+	 * Applies a change to the named forms inside one layout.
 	 *
-	 * @param array<int,mixed> $tree       Layout, by reference.
-	 * @param string[]         $widget_ids Form widget ids.
-	 * @param callable         $change     Receives settings, returns settings.
-	 * @return string[] Ids of the widgets found and changed.
+	 * A Form widget's settings are changed in place. An atomic form is handed
+	 * to `$change` as widget-shaped settings; only its actions after submit
+	 * are written back into the element, and the settings to store are
+	 * returned in `$atomic` for the caller to save once the layout is written.
+	 *
+	 * @param array<int,mixed>                   $tree       Layout, by reference.
+	 * @param string[]                           $widget_ids Form element ids.
+	 * @param callable                           $change     Receives settings, returns settings.
+	 * @param int                                $post_id    Document whose meta holds atomic form settings.
+	 * @param array<string,array<string,mixed>>  $atomic     Atomic form id => changed settings, by reference.
+	 * @return string[] Ids of the forms found and changed.
 	 */
-	private static function change_tree( array &$tree, array $widget_ids, callable $change ) {
+	private static function change_tree( array &$tree, array $widget_ids, callable $change, $post_id, array &$atomic = array() ) {
 		$configured = array();
+		$supported  = Raynet_Elementor_Atomic_Forms::supported();
 
 		self::walk(
 			$tree,
-			static function ( &$element ) use ( $widget_ids, $change, &$configured ) {
-				if ( ! isset( $element['widgetType'] ) || 'form' !== $element['widgetType'] ) {
+			static function ( &$element ) use ( $widget_ids, $change, $post_id, $supported, &$configured, &$atomic ) {
+				if ( ! isset( $element['id'] ) || ! in_array( (string) $element['id'], $widget_ids, true ) ) {
 					return;
 				}
 
-				if ( ! isset( $element['id'] ) || ! in_array( (string) $element['id'], $widget_ids, true ) ) {
+				if ( isset( $element['elType'] ) && self::ATOMIC_TYPE === $element['elType'] ) {
+					// Without the action registry the slug would do nothing.
+					if ( ! $supported ) {
+						return;
+					}
+
+					$settings                         = $change( Raynet_Elementor_Atomic_Forms::settings( $post_id, $element ) );
+					$element                          = Raynet_Elementor_Atomic_Forms::apply( $element, $settings, 0 );
+					$atomic[ (string) $element['id'] ] = $settings;
+					$configured[]                     = (string) $element['id'];
+					return;
+				}
+
+				if ( ! isset( $element['widgetType'] ) || 'form' !== $element['widgetType'] ) {
 					return;
 				}
 
@@ -860,10 +886,34 @@ class Raynet_Elementor_Forms {
 	}
 
 	/**
-	 * Settings of one form widget as stored on its page.
+	 * Tells whether a layout holds an atomic form with one of the given ids.
+	 *
+	 * @param array<int,mixed> $tree       Layout.
+	 * @param string[]         $widget_ids Form element ids.
+	 * @return bool True when one is there.
+	 */
+	private static function holds_atomic( array $tree, array $widget_ids ) {
+		$found = false;
+
+		self::walk(
+			$tree,
+			static function ( $element ) use ( $widget_ids, &$found ) {
+				if ( isset( $element['elType'], $element['id'] ) && self::ATOMIC_TYPE === $element['elType'] && in_array( (string) $element['id'], $widget_ids, true ) ) {
+					$found = true;
+				}
+			}
+		);
+
+		return $found;
+	}
+
+	/**
+	 * Settings of one form as stored on its page.
+	 *
+	 * An atomic form's settings come in the shape of the Form widget's.
 	 *
 	 * @param int    $post_id   Page id.
-	 * @param string $widget_id Form widget id.
+	 * @param string $widget_id Form widget or atomic form element id.
 	 * @return array<string,mixed>|null Settings, or null when not found.
 	 */
 	public static function form_settings( $post_id, $widget_id ) {
@@ -872,8 +922,14 @@ class Raynet_Elementor_Forms {
 
 		self::walk(
 			$tree,
-			static function ( $element ) use ( $widget_id, &$found ) {
-				if ( null === $found && isset( $element['widgetType'], $element['id'] ) && 'form' === $element['widgetType'] && (string) $element['id'] === (string) $widget_id ) {
+			static function ( $element ) use ( $post_id, $widget_id, &$found ) {
+				if ( null !== $found || ! isset( $element['id'] ) || (string) $element['id'] !== (string) $widget_id ) {
+					return;
+				}
+
+				if ( isset( $element['elType'] ) && self::ATOMIC_TYPE === $element['elType'] ) {
+					$found = Raynet_Elementor_Atomic_Forms::settings( $post_id, $element );
+				} elseif ( isset( $element['widgetType'] ) && 'form' === $element['widgetType'] ) {
 					$found = isset( $element['settings'] ) ? (array) $element['settings'] : array();
 				}
 			}
