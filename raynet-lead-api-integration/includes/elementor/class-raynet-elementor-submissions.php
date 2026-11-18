@@ -535,12 +535,22 @@ class Raynet_Elementor_Submissions {
 	 *
 	 * Everything is checked again against the database, not the cached index:
 	 * the form, that the submission belongs to it and is not in the trash, and
-	 * that its action log has no successful RAYNET entry yet. A per-submission
-	 * lock, taken before that check and released on every way out, keeps two
-	 * concurrent requests (two open tabs, a double click) from both passing it.
-	 * A lock older than LOCK_TTL is taken as left behind by a crashed request
-	 * and taken over. Should the log row fail to save after the lead was
-	 * created, the error `raynet_import_unlogged` says so and carries the lead id.
+	 * that its action log has no successful RAYNET entry yet.
+	 *
+	 * That check runs under a per-submission lock: a row in the options table
+	 * whose name is unique (the table's unique key on option_name), inserted
+	 * with INSERT IGNORE. Of two concurrent requests for the same submission
+	 * exactly one inserts the row; the other is refused before it reads the
+	 * state, so two tabs or a double click cannot both send it. A lock older
+	 * than LOCK_TTL is taken as left behind by a request that died and is
+	 * taken over, again by at most one request (see lock()). The lock is
+	 * released on every way out, and only if it is still this request's own.
+	 * A request that runs longer than LOCK_TTL can lose its lock to another;
+	 * that one then still finds the success entry in the log, unless the
+	 * first has not written it yet.
+	 *
+	 * Should the log row fail to save after the lead was created, the error
+	 * `raynet_import_unlogged` says so and carries the lead id.
 	 *
 	 * @param int    $post_id       Post the form lives in.
 	 * @param string $widget_id     Form widget id.
@@ -562,14 +572,16 @@ class Raynet_Elementor_Submissions {
 			return new WP_Error( 'raynet_import_no_form', __( 'Formulář nebyl nalezen nebo nemá namapovaný e-mail ani telefon.', 'raynet-lead-api-integration' ) );
 		}
 
-		if ( ! self::lock( $submission_id ) ) {
+		$token = time() . ':' . wp_generate_password( 12, false );
+
+		if ( ! self::lock( $submission_id, $token ) ) {
 			return new WP_Error( 'raynet_import_already_sent', __( 'Toto odeslání se právě importuje.', 'raynet-lead-api-integration' ) );
 		}
 
 		try {
 			return self::send( $post_id, $widget_id, $submission_id, $form_settings, $tag );
 		} finally {
-			delete_option( self::LOCK_PREFIX . $submission_id );
+			self::unlock( $submission_id, $token );
 		}
 	}
 
@@ -651,28 +663,69 @@ class Raynet_Elementor_Submissions {
 	/**
 	 * Takes the import lock of one submission.
 	 *
-	 * add_option() is atomic: it fails when the option already exists.
+	 * The lock is an options row read and written only with raw SQL, never
+	 * through get_option() / add_option() / delete_option(): those go through
+	 * the options and notoptions object caches, and add_option() checks for
+	 * the row and inserts it in two steps, so two requests can both succeed.
+	 * Here the database decides: option_name is a unique key, so of two
+	 * INSERT IGNOREs exactly one affects a row.
 	 *
-	 * @param int $submission_id Submission id.
-	 * @return bool True when the lock is now held by this request.
+	 * A stale lock is removed by a DELETE that names the stale value read; if
+	 * two requests try, only one deletes a row, and only that one tries the
+	 * INSERT again — which a third request may still win.
+	 *
+	 * @param int    $submission_id Submission id.
+	 * @param string $token         This request's token, "<unix time>:<random>".
+	 * @return bool True when the lock is now held with this token.
 	 */
-	private static function lock( $submission_id ) {
-		$name = self::LOCK_PREFIX . $submission_id;
+	private static function lock( $submission_id, $token ) {
+		global $wpdb;
 
-		if ( add_option( $name, time(), '', 'no' ) ) {
+		$name = self::LOCK_PREFIX . (int) $submission_id;
+
+		if ( self::insert_lock( $name, $token ) ) {
 			return true;
 		}
 
-		$since = (int) get_option( $name, 0 );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- The lock bypasses the options cache on purpose.
+		$current = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
 
-		if ( $since > time() - self::LOCK_TTL ) {
+		if ( null === $current || (int) strtok( (string) $current, ':' ) > time() - self::LOCK_TTL ) {
 			return false;
 		}
 
-		// Left behind by a request that died: take it over.
-		delete_option( $name );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See above.
+		$deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s", $name, $current ) );
 
-		return add_option( $name, time(), '', 'no' );
+		return 1 === $deleted && self::insert_lock( $name, $token );
+	}
+
+	/**
+	 * Inserts the lock row unless one exists.
+	 *
+	 * @param string $name  Option name.
+	 * @param string $token Lock token.
+	 * @return bool True when this call inserted the row.
+	 */
+	private static function insert_lock( $name, $token ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See lock().
+		return 1 === $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $token ) );
+	}
+
+	/**
+	 * Releases the import lock of one submission, if it is still this token's.
+	 *
+	 * @param int    $submission_id Submission id.
+	 * @param string $token         Token the lock was taken with.
+	 * @return void
+	 */
+	private static function unlock( $submission_id, $token ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See lock().
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s", self::LOCK_PREFIX . (int) $submission_id, $token ) );
 	}
 
 	/**

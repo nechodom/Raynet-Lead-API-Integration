@@ -1857,6 +1857,15 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'load: D nese původní chybu', isset( $loaded_d[ $sub_d ] ) ? $loaded_d[ $sub_d ]['log'] : null, 'Connection timed out' );
 		check( 'load: D nese hodnoty', isset( $loaded_d[ $sub_d ] ) ? $loaded_d[ $sub_d ]['values']['email'] : null, 'eva.importova@example.cz' );
 
+		// The lock is read and written with raw SQL only, as the class does.
+		$lock_row = function ( $submission_id ) use ( $wpdb ) {
+			return $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", Raynet_Elementor_Submissions::LOCK_PREFIX . $submission_id ) ); // phpcs:ignore WordPress.DB
+		};
+		$put_lock = function ( $submission_id, $value ) use ( $wpdb ) {
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", Raynet_Elementor_Submissions::LOCK_PREFIX . $submission_id ) ); // phpcs:ignore WordPress.DB
+			$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", Raynet_Elementor_Submissions::LOCK_PREFIX . $submission_id, $value ) ); // phpcs:ignore WordPress.DB
+		};
+
 		$succeeded_before = (int) $wpdb->get_var( $wpdb->prepare( "SELECT actions_succeeded_count FROM {$wpdb->prefix}e_submissions WHERE id = %d", $sub_a ) ); // phpcs:ignore WordPress.DB
 		$last_error_orig  = get_option( 'raynet_lead_last_error', null );
 		$last_error_mark  = array( 'message' => 'značka testu importu', 'time' => 1 );
@@ -1891,6 +1900,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 			}
 		}
 		check( 'log A nese úspěšný import', $log_a_found, true );
+		check( 'po úspěchu zámek uvolněn', $lock_row( $sub_a ), null );
 		check( 'počitadlo úspěchů A beze změny', (int) $wpdb->get_var( $wpdb->prepare( "SELECT actions_succeeded_count FROM {$wpdb->prefix}e_submissions WHERE id = %d", $sub_a ) ), $succeeded_before ); // phpcs:ignore WordPress.DB
 		check( 'poslední chyba API beze změny po úspěchu', get_option( 'raynet_lead_last_error' ), $last_error_mark );
 
@@ -1933,26 +1943,35 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'odmítnutí nezapsalo do logu B', count( (array) $import_query->get_submissions_actions_log( $sub_b ) ), $log_b_before );
 		check( 'poslední chyba API beze změny po odmítnutí', get_option( 'raynet_lead_last_error' ), $last_error_mark );
 		check( 'odmítnutí neposlalo e-mail', get_option( 'raynet_test_mails', array() ), array() );
-		check( 'po odmítnutí zámek uvolněn', get_option( Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_b ), false );
-		check( 'po odmítnutí duplicity zámek uvolněn', get_option( Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_a ), false );
+		check( 'po odmítnutí zámek uvolněn', $lock_row( $sub_b ), null );
+		check( 'po odmítnutí duplicity zámek uvolněn', $lock_row( $sub_a ), null );
 
 		// A submission another request is importing right now is left alone.
-		$lock_d = Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_d;
-		add_option( $lock_d, time(), '', 'no' );
+		$foreign_token = time() . ':cizipozadavek';
+		$put_lock( $sub_d, $foreign_token );
 		update_option( 'raynet_test_http_calls', array() );
 		$locked = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_d, 'import-web' );
 		wp_cache_flush();
 		check( 'zamčené odeslání odmítnuto', is_wp_error( $locked ) ? $locked->get_error_code() : null, 'raynet_import_already_sent' );
 		check( 'zamčené odeslání: hláška o běžícím importu', is_wp_error( $locked ) && false !== strpos( $locked->get_error_message(), 'právě importuje' ), true );
 		check( 'zamčené odeslání nic neposlalo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
-		check( 'cizí zámek zůstane', false !== get_option( $lock_d ), true );
+		check( 'cizí zámek zůstane se svou hodnotou', $lock_row( $sub_d ), $foreign_token );
 
 		// A lock left behind by a request that died is taken over.
-		update_option( $lock_d, time() - 600, false );
+		$put_lock( $sub_d, ( time() - 600 ) . ':mrtvypozadavek' );
 		$stale = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_d, 'import-web' );
 		wp_cache_flush();
 		check( 'starý zámek převzat a D importováno', is_array( $stale ) ? $stale['lead_id'] : $stale->get_error_code(), 4242 );
-		check( 'po importu D zámek uvolněn', get_option( $lock_d ), false );
+		check( 'po importu D žádný zámek', $lock_row( $sub_d ), null );
+
+		// Releasing never removes a lock taken with another token.
+		$put_lock( $sub_d, '1:tokenX' );
+		$unlock = new ReflectionMethod( 'Raynet_Elementor_Submissions', 'unlock' );
+		$unlock->setAccessible( true );
+		$unlock->invoke( null, $sub_d, '1:tokenY' );
+		check( 'uvolnění cizím tokenem zámek nechá', $lock_row( $sub_d ), '1:tokenX' );
+		$unlock->invoke( null, $sub_d, '1:tokenX' );
+		check( 'uvolnění vlastním tokenem zámek smaže', $lock_row( $sub_d ), null );
 
 		// A filter that breaks the verdict cannot make spam look clean.
 		$rows_b      = Raynet_Elementor_Submissions::load( $import_page, 'impform', array( $sub_b ) );
@@ -2006,7 +2025,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'nezapsaný log: hláška jmenuje lead', is_wp_error( $unlogged ) && false !== strpos( $unlogged->get_error_message(), '4242' ), true );
 		$index_unlogged = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
 		check( 'nezapsaný log: index ukazuje odesláno', isset( $index_unlogged[ $sub_b ] ) ? $index_unlogged[ $sub_b ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
-		check( 'nezapsaný log: zámek uvolněn', get_option( Raynet_Elementor_Submissions::LOCK_PREFIX . $sub_b ), false );
+		check( 'nezapsaný log: zámek uvolněn', $lock_row( $sub_b ), null );
 
 		// A form in a template is stored under the template's id, with the page
 		// it was sent from in meta, as a number or as a string.
