@@ -63,6 +63,22 @@ class Raynet_Elementor_Submissions {
 	const LOCK_FAILED = 'failed';
 
 	/**
+	 * Prefix of the option recording an import attempt of one submission that
+	 * has no success row in Elementor's action log (yet).
+	 */
+	const ATTEMPT_PREFIX = 'raynet_import_attempt_';
+
+	/**
+	 * Outcomes of a recorded attempt: sent and never confirmed; RAYNET timed
+	 * out or failed on its side; RAYNET refused the lead; the lead was created
+	 * but Elementor's log row could not be written.
+	 */
+	const ATTEMPT_PENDING  = 'pending';
+	const ATTEMPT_UNKNOWN  = 'unknown';
+	const ATTEMPT_REFUSED  = 'refused';
+	const ATTEMPT_UNLOGGED = 'unlogged';
+
+	/**
 	 * Elementor's query class, which owns the action log.
 	 */
 	const QUERY_CLASS = '\\ElementorPro\\Modules\\Forms\\Submissions\\Database\\Query';
@@ -604,8 +620,18 @@ class Raynet_Elementor_Submissions {
 	 * that one then still finds the success entry in the log, unless the
 	 * first has not written it yet.
 	 *
-	 * Should the log row fail to save after the lead was created, the error
-	 * `raynet_import_unlogged` says so and carries the lead id.
+	 * Every send is recorded in the plugin's own option row
+	 * (ATTEMPT_PREFIX . id) before RAYNET is called, as `pending`, so a
+	 * request that dies on the way still leaves a trace. The row goes once
+	 * Elementor's log holds the success; otherwise it says what happened:
+	 * `unknown` (RAYNET timed out or failed on its side: the lead may exist),
+	 * `refused`, or `unlogged` (the lead exists, Elementor's log row could not
+	 * be written even on a second try). A submission with such a row is never
+	 * preselected again; see hydrate().
+	 *
+	 * Errors besides those of the checks: `raynet_import_unknown` when the
+	 * outcome is unknown, `raynet_api_error` when RAYNET refused, and
+	 * `raynet_import_unlogged` with the lead id in its data.
 	 *
 	 * @param int    $post_id       Post the form lives in.
 	 * @param string $widget_id     Form widget id.
@@ -675,38 +701,38 @@ class Raynet_Elementor_Submissions {
 			return $prepared;
 		}
 
+		// From here on a send may happen: say so before it does.
+		self::record_attempt( $submission_id, self::ATTEMPT_PENDING );
+
 		$form   = new Raynet_Lead_Form();
 		$result = $form->submit_lead( $prepared['values'], $prepared['settings'], $prepared['context'] );
 
 		if ( is_wp_error( $result ) ) {
-			$data = $result->get_error_data();
-
-			return new WP_Error(
-				'raynet_api_error',
-				is_array( $data ) && isset( $data['diagnostic'] ) ? (string) $data['diagnostic'] : $result->get_error_message()
-			);
+			return self::failed( $post_id, $widget_id, $submission_id, $result );
 		}
 
 		$lead_id = isset( $result['lead_id'] ) ? (int) $result['lead_id'] : 0;
 		$query   = call_user_func( array( self::QUERY_CLASS, 'get_instance' ) );
+		$status  = constant( self::QUERY_CLASS . '::ACTIONS_LOG_STATUS_SUCCESS' );
+		/* translators: %d: lead id. */
+		$entry = sprintf( __( 'Importováno, lead %d', 'raynet-lead-api-integration' ), $lead_id );
 
 		// The action log is how a submission is known to be in RAYNET. The
 		// success counter stays: the action may not have been on the form then.
-		$logged = $query->add_action_log(
-			$submission_id,
-			self::action(),
-			constant( self::QUERY_CLASS . '::ACTIONS_LOG_STATUS_SUCCESS' ),
-			sprintf(
-				/* translators: %d: lead id. */
-				__( 'Importováno, lead %d', 'raynet-lead-api-integration' ),
-				$lead_id
-			)
-		);
+		// One more try before giving up: a second lead is worse than a retry.
+		$logged = $query->add_action_log( $submission_id, self::action(), $status, $entry );
+
+		if ( false === $logged ) {
+			$logged = $query->add_action_log( $submission_id, self::action(), $status, $entry );
+		}
 
 		self::mark_sent( $post_id, $widget_id, $submission_id );
 
-		// Without the log row a later index would offer the submission again.
+		// Without the log row a later index would offer the submission again;
+		// the attempt row keeps it out of reach and remembers the lead.
 		if ( false === $logged ) {
+			self::record_attempt( $submission_id, self::ATTEMPT_UNLOGGED, '', $lead_id );
+
 			return new WP_Error(
 				'raynet_import_unlogged',
 				sprintf(
@@ -718,7 +744,83 @@ class Raynet_Elementor_Submissions {
 			);
 		}
 
+		self::forget_attempt( $submission_id );
+
 		return array( 'lead_id' => $lead_id );
+	}
+
+	/**
+	 * Records what a failed send means and turns it into import()'s error.
+	 *
+	 * Nothing left the site (the plugin is not configured, or the payload
+	 * could not be encoded): the attempt is dropped. RAYNET did not answer, or
+	 * answered with a 5xx: the lead may exist, so the outcome is unknown. Any
+	 * other answer is a refusal, kept with its reason.
+	 *
+	 * @param int      $post_id       Post the form lives in.
+	 * @param string   $widget_id     Form widget id.
+	 * @param int      $submission_id Submission id.
+	 * @param WP_Error $error         Error from submit_lead().
+	 * @return WP_Error `raynet_import_unknown` or `raynet_api_error`.
+	 */
+	private static function failed( $post_id, $widget_id, $submission_id, WP_Error $error ) {
+		$data       = $error->get_error_data();
+		$diagnostic = is_array( $data ) && isset( $data['diagnostic'] ) ? (string) $data['diagnostic'] : $error->get_error_message();
+		$code       = is_array( $data ) && isset( $data['code'] ) ? (string) $data['code'] : '';
+		$status     = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
+
+		if ( 'raynet_transport_error' === $code || $status >= 500 ) {
+			self::record_attempt( $submission_id, self::ATTEMPT_UNKNOWN, $diagnostic );
+
+			return new WP_Error(
+				'raynet_import_unknown',
+				sprintf(
+					/* translators: %s: error detail. */
+					__( 'Výsledek je neznámý: RAYNET neodpověděl nebo ohlásil chybu na své straně, lead tam proto možná vznikl. Než odeslání zkusíte znovu, ověřte v RAYNETu, že lead neexistuje. (%s)', 'raynet-lead-api-integration' ),
+					$diagnostic
+				)
+			);
+		}
+
+		if ( 0 === strpos( $code, 'raynet_http_' ) ) {
+			self::record_attempt( $submission_id, self::ATTEMPT_REFUSED, $diagnostic );
+		} else {
+			self::forget_attempt( $submission_id );
+		}
+
+		return new WP_Error( 'raynet_api_error', $diagnostic );
+	}
+
+	/**
+	 * Writes the attempt record of one submission, replacing any earlier one.
+	 *
+	 * @param int    $submission_id Submission id.
+	 * @param string $outcome       One of the ATTEMPT_* outcomes.
+	 * @param string $message       What RAYNET or the connection said; may be empty.
+	 * @param int    $lead_id       Lead id, for ATTEMPT_UNLOGGED only.
+	 * @return void
+	 */
+	private static function record_attempt( $submission_id, $outcome, $message = '', $lead_id = 0 ) {
+		update_option(
+			self::ATTEMPT_PREFIX . (int) $submission_id,
+			array(
+				'time'    => time(),
+				'outcome' => (string) $outcome,
+				'message' => (string) $message,
+				'lead_id' => (int) $lead_id,
+			),
+			false
+		);
+	}
+
+	/**
+	 * Removes the attempt record of one submission.
+	 *
+	 * @param int $submission_id Submission id.
+	 * @return void
+	 */
+	private static function forget_attempt( $submission_id ) {
+		delete_option( self::ATTEMPT_PREFIX . (int) $submission_id );
 	}
 
 	/**
@@ -965,6 +1067,12 @@ class Raynet_Elementor_Submissions {
 	/**
 	 * Adds values and the RAYNET action state to submission records.
 	 *
+	 * A success row in Elementor's action log makes a submission sent. Without
+	 * one, the plugin's own attempt record decides: `unlogged` is sent too,
+	 * with the lead id in `lead_id`; any other attempt (pending, unknown,
+	 * refused) is failed, with what happened in `log`. Last comes a failure
+	 * row in Elementor's log, written by the live action.
+	 *
 	 * @param array<int,array<string,mixed>> $records Records from the submissions table.
 	 * @param int                            $post_id Post the form lives in.
 	 * @return array<int,array<string,mixed>> Rows keyed by id, in the records' order.
@@ -988,6 +1096,7 @@ class Raynet_Elementor_Submissions {
 				'user_agent' => (string) $record['user_agent'],
 				'state'      => self::STATE_NEW,
 				'log'        => '',
+				'lead_id'    => 0,
 				'values'     => array(),
 			);
 		}
@@ -1029,7 +1138,86 @@ class Raynet_Elementor_Submissions {
 			}
 		}
 
+		foreach ( self::attempts( $ids ) as $id => $attempt ) {
+			if ( self::STATE_SENT === $rows[ $id ]['state'] ) {
+				continue;
+			}
+
+			if ( self::ATTEMPT_UNLOGGED === $attempt['outcome'] ) {
+				$rows[ $id ]['state']   = self::STATE_SENT;
+				$rows[ $id ]['log']     = '';
+				$rows[ $id ]['lead_id'] = $attempt['lead_id'];
+				continue;
+			}
+
+			$rows[ $id ]['state'] = self::STATE_FAILED;
+			$rows[ $id ]['log']   = self::attempt_text( $attempt );
+		}
+
 		return $rows;
+	}
+
+	/**
+	 * Attempt records of some submissions, in one query.
+	 *
+	 * Read with SQL rather than get_option(): one query for a whole batch,
+	 * and never a stale object cache.
+	 *
+	 * @param int[] $ids Submission ids.
+	 * @return array<int,array{outcome:string,message:string,lead_id:int}> Records by submission id; malformed ones are left out.
+	 */
+	private static function attempts( array $ids ) {
+		global $wpdb;
+
+		$names = array();
+
+		foreach ( $ids as $id ) {
+			$names[] = self::ATTEMPT_PREFIX . (int) $id;
+		}
+
+		if ( empty( $names ) ) {
+			return array();
+		}
+
+		$in = $wpdb->prepare( implode( ',', array_fill( 0, count( $names ), '%s' ) ), $names );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery -- The name list is prepared above.
+		$records  = (array) $wpdb->get_results( "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name IN ({$in})", ARRAY_A );
+		$outcomes = array( self::ATTEMPT_PENDING, self::ATTEMPT_UNKNOWN, self::ATTEMPT_REFUSED, self::ATTEMPT_UNLOGGED );
+		$attempts = array();
+
+		foreach ( $records as $record ) {
+			$value = maybe_unserialize( $record['option_value'] );
+
+			if ( ! is_array( $value ) || ! isset( $value['outcome'] ) || ! in_array( $value['outcome'], $outcomes, true ) ) {
+				continue;
+			}
+
+			$attempts[ (int) substr( (string) $record['option_name'], strlen( self::ATTEMPT_PREFIX ) ) ] = array(
+				'outcome' => (string) $value['outcome'],
+				'message' => isset( $value['message'] ) && is_scalar( $value['message'] ) ? (string) $value['message'] : '',
+				'lead_id' => isset( $value['lead_id'] ) ? (int) $value['lead_id'] : 0,
+			);
+		}
+
+		return $attempts;
+	}
+
+	/**
+	 * What an unconfirmed attempt says on the import screen.
+	 *
+	 * @param array{outcome:string,message:string} $attempt Record from attempts().
+	 * @return string Text, unescaped.
+	 */
+	private static function attempt_text( array $attempt ) {
+		if ( self::ATTEMPT_REFUSED === $attempt['outcome'] ) {
+			/* translators: %s: reason RAYNET gave. */
+			return sprintf( __( 'při předchozím importu RAYNET odmítl: %s', 'raynet-lead-api-integration' ), $attempt['message'] );
+		}
+
+		$text = __( 'při předchozím importu: výsledek neznámý', 'raynet-lead-api-integration' );
+
+		return '' === $attempt['message'] ? $text : $text . ' (' . $attempt['message'] . ')';
 	}
 
 	/**

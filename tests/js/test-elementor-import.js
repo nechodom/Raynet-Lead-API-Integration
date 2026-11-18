@@ -46,6 +46,8 @@ function load() {
 
 	vm.runInNewContext( SOURCE, context );
 
+	load.view = context.window.raynetImportRowView || ( () => null );
+
 	return context.window.raynetImportQueue;
 }
 
@@ -139,6 +141,27 @@ async function run() {
 	sender.pending[ 0 ].resolve( { ok: false, leadId: 4242, code: 'raynet_import_unlogged', message: 'Lead 4242 byl založen…', unknown: false } );
 	await settle();
 	check( 'nezapsaný log se počítá jako odeslaný', summary, { sent: 1, failed: 0, unknown: 0 } );
+
+	// The server says itself the outcome is unknown (RAYNET timed out or failed).
+	sender = controlled();
+	results = [];
+	summary = null;
+	queue( [ 9 ], sender.sendOne, ( id, result ) => results.push( [ id, result ] ), ( done ) => {
+		summary = done;
+	} );
+	await settle();
+	sender.pending[ 0 ].resolve( { ok: false, leadId: 0, code: 'raynet_import_unknown', message: 'Výsledek je neznámý…', unknown: false } );
+	await settle();
+	check( 'kód neznámého výsledku se počítá jako neznámý', summary, { sent: 0, failed: 0, unknown: 1 } );
+	check( 'kód neznámého výsledku: řádek dostane hlášku serveru', results[ 0 ][ 1 ].message, 'Výsledek je neznámý…' );
+
+	// What each answer does to the row's checkbox.
+	const view = load.view;
+	check( 'řádek: kód neznámého výsledku zakáže zaškrtávátko', view( { ok: false, leadId: 0, code: 'raynet_import_unknown', message: 'x', unknown: false } ), { outcome: 'unknown', box: 'disable' } );
+	check( 'řádek: bez odpovědi zakáže zaškrtávátko', view( { ok: false, leadId: 0, code: '', message: '', unknown: true } ), { outcome: 'unknown', box: 'disable' } );
+	check( 'řádek: úspěch zaškrtávátko odebere', view( ok( 1 ) ), { outcome: 'sent', box: 'remove' } );
+	check( 'řádek: nezapsaný log zaškrtávátko odebere', view( { ok: false, leadId: 5, code: 'raynet_import_unlogged', message: 'x', unknown: false } ), { outcome: 'unlogged', box: 'remove' } );
+	check( 'řádek: odmítnutí jen odškrtne', view( { ok: false, leadId: 0, code: 'raynet_api_error', message: 'x', unknown: false } ), { outcome: 'failed', box: 'untick' } );
 
 	// Nothing to send.
 	sender = controlled();

@@ -96,6 +96,7 @@ check( 'smaže omezovače odesílání', (bool) preg_grep( '/raynet\\\\_lead\\\\
 check( 'smaže uložené indexy importu', (bool) preg_grep( '/\'\\\\_transient\\\\_raynet\\\\_import\\\\_idx\\\\_%\'/', $deleted->queries ), true );
 check( 'smaže expirace indexů importu', (bool) preg_grep( '/\'\\\\_transient\\\\_timeout\\\\_raynet\\\\_import\\\\_idx\\\\_%\'/', $deleted->queries ), true );
 check( 'smaže zámky importu', (bool) preg_grep( '/\'raynet\\\\_import\\\\_lock\\\\_%\'/', $deleted->queries ), true );
+check( 'smaže záznamy pokusů o import', (bool) preg_grep( '/\'raynet\\\\_import\\\\_attempt\\\\_%\'/', $deleted->queries ), true );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

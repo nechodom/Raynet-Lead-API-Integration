@@ -464,7 +464,11 @@ class Raynet_Lead_Form {
 	 *                                       raynet_import, raynet_lead_date,
 	 *                                       raynet_consent_time, raynet_extra_tags
 	 *                                       and raynet_import_note.
-	 * @return array<string,mixed>|WP_Error Result, or an error.
+	 * @return array<string,mixed>|WP_Error Result, or an error. The data of a
+	 *                                      `raynet_api_error` holds `diagnostic`
+	 *                                      (the real reason), `code` (the API
+	 *                                      client's error code) and `status`
+	 *                                      (HTTP status, 0 without an answer).
 	 */
 	public function submit_lead( array $values, array $settings, array $context = array() ) {
 		// An import replays old submissions on an administrator's request: no
@@ -511,13 +515,21 @@ class Raynet_Lead_Form {
 			 */
 			do_action( 'raynet_lead_failed', $response, $payload );
 
+			$error_data = $response->get_error_data();
+
 			// The visitor gets the configured wording; the real reason travels in
 			// the data so a caller with somewhere to put it — Elementor's
-			// admin-only error channel — can surface it.
+			// admin-only error channel — can surface it. The client's code and
+			// the HTTP status (0 when RAYNET never answered) let an import tell
+			// a refusal from an outcome nobody knows.
 			return new WP_Error(
 				'raynet_api_error',
 				$this->public_error_message( $settings ),
-				array( 'diagnostic' => $response->get_error_message() )
+				array(
+					'diagnostic' => $response->get_error_message(),
+					'code'       => $response->get_error_code(),
+					'status'     => is_array( $error_data ) && isset( $error_data['status'] ) ? (int) $error_data['status'] : 0,
+				)
 			);
 		}
 

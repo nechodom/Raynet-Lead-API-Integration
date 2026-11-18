@@ -512,6 +512,19 @@ class Raynet_Elementor_Import_Admin {
 			</td>
 			<td>
 				<?php self::verdict( $item ); ?>
+				<?php if ( ! empty( $row['lead_id'] ) ) : ?>
+					<br /><span class="raynet-elm__warn">
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %d: lead id. */
+								__( 'lead %d — v Elementoru se nepodařilo označit', 'raynet-lead-api-integration' ),
+								(int) $row['lead_id']
+							)
+						);
+						?>
+					</span>
+				<?php endif; ?>
 				<?php if ( Raynet_Elementor_Submissions::STATE_FAILED === $item['state'] ) : ?>
 					<br /><span class="raynet-elm__warn">
 						<?php

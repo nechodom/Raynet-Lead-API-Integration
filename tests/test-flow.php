@@ -162,6 +162,18 @@ check( 'diagnostika je v datech chyby', str_contains( (string) ( $r->get_error_d
 check( 'fallback email sent', count( $GLOBALS['wp_mails'] ), 1 );
 check( 'fallback carries the lead', str_contains( $GLOBALS['wp_mails'][0]['body'], 'jan@example.cz' ), true );
 check( 'last error stored for admin', str_contains( get_option( 'raynet_lead_last_error' )['message'], '401' ), true );
+check( 'data chyby nesou kód klienta API', $r->get_error_data()['code'] ?? null, 'raynet_http_401' );
+check( 'data chyby nesou HTTP stav', $r->get_error_data()['status'] ?? null, 401 );
+
+// The connection drops: no status, the client's own code, same wording for the visitor.
+configure( array( 'error_message' => 'Nepovedlo se.' ) );
+$GLOBALS['wp_next_response'] = new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out' );
+$r = process( $form, valid_input() );
+check( 'výpadek spojení: chyba API', code( $r ), 'raynet_api_error' );
+check( 'výpadek spojení: návštěvník vidí stejnou hlášku', $r->get_error_message(), 'Nepovedlo se.' );
+check( 'výpadek spojení: kód transportní chyby', $r->get_error_data()['code'] ?? null, 'raynet_transport_error' );
+check( 'výpadek spojení: stav 0', $r->get_error_data()['status'] ?? null, 0 );
+check( 'výpadek spojení: diagnostika', str_contains( (string) ( $r->get_error_data()['diagnostic'] ?? '' ), 'Operation timed out' ), true );
 
 // Unconfigured plugin.
 $GLOBALS['wp_options'] = array(); $GLOBALS['wp_transients'] = array(); $GLOBALS['wp_mails'] = array(); $GLOBALS['wp_requests'] = array();

@@ -25,12 +25,41 @@
 	}
 
 	/**
+	 * What one answer means for its row.
+	 *
+	 * A lead that was created but could not be marked as sent (code
+	 * raynet_import_unlogged) counts as sent: it must not be retried. No
+	 * answer, or the server saying RAYNET timed out or failed on its side
+	 * (code raynet_import_unknown), is an unknown outcome: the lead may exist,
+	 * so the row cannot be ticked again until the page is reloaded.
+	 *
+	 * @param {Object} result Result of sendOne().
+	 * @return {Object} { outcome: sent|unlogged|unknown|failed, box: remove|disable|untick }.
+	 */
+	function view( result ) {
+		if ( result.ok ) {
+			return { outcome: 'sent', box: 'remove' };
+		}
+
+		if ( 'raynet_import_unlogged' === result.code ) {
+			return { outcome: 'unlogged', box: 'remove' };
+		}
+
+		if ( result.unknown || 'raynet_import_unknown' === result.code ) {
+			return { outcome: 'unknown', box: 'disable' };
+		}
+
+		return { outcome: 'failed', box: 'untick' };
+	}
+
+	window.raynetImportRowView = view;
+
+	/**
 	 * Sends submissions one after another, never two at once.
 	 *
 	 * sendOne( id ) returns a Promise of { ok, leadId, code, message, unknown };
 	 * a rejected Promise means the server did not answer, so the outcome is
-	 * unknown. A lead that was created but could not be marked as sent
-	 * (code raynet_import_unlogged) counts as sent: it must not be retried.
+	 * unknown. Each result is counted by view().
 	 *
 	 * @param {number[]} ids      Submission ids, in the order to send them.
 	 * @param {Function} sendOne  Sends one id.
@@ -64,12 +93,14 @@
 				.then( function ( result ) {
 					result = result || { ok: false, leadId: 0, code: '', message: '', unknown: true };
 
-					if ( result.unknown ) {
+					var outcome = view( result ).outcome;
+
+					if ( 'unknown' === outcome ) {
 						summary.unknown++;
-					} else if ( result.ok || 'raynet_import_unlogged' === result.code ) {
-						summary.sent++;
-					} else {
+					} else if ( 'failed' === outcome ) {
 						summary.failed++;
+					} else {
+						summary.sent++;
 					}
 
 					onResult( id, result, position, ids.length );
@@ -179,28 +210,34 @@
 			var $cell = $row.find( '.raynet-import__result' );
 			var $box = $row.find( 'input[name="submissions[]"]' );
 
+			var shown = view( result );
+
 			$row.removeClass( 'is-sent is-warning is-error is-unknown' );
 
-			if ( result.ok ) {
+			if ( 'remove' === shown.box ) {
 				$box.remove();
+			} else if ( 'disable' === shown.box ) {
+				// RAYNET may have the lead: unticked until the page is reloaded.
+				$box.prop( 'checked', false ).prop( 'disabled', true );
+			} else {
+				$box.prop( 'checked', false );
+			}
+
+			if ( 'sent' === shown.outcome ) {
 				$row.addClass( 'is-sent' );
 				$cell.text( format( config.sent, [ result.leadId ] ) );
-			} else if ( 'raynet_import_unlogged' === result.code ) {
+			} else if ( 'unlogged' === shown.outcome ) {
 				// The lead exists: never offer it again from this page.
-				$box.remove();
 				$row.addClass( 'is-warning' );
 				$cell.empty().append(
 					$( '<strong>' ).text( format( config.sent, [ result.leadId ] ) ),
 					' ',
 					$( '<span>' ).text( result.message )
 				);
-			} else if ( result.unknown ) {
-				// RAYNET may have the lead: unticked until the page is reloaded.
-				$box.prop( 'checked', false ).prop( 'disabled', true );
+			} else if ( 'unknown' === shown.outcome ) {
 				$row.addClass( 'is-unknown' );
-				$cell.text( config.unknown );
+				$cell.text( result.message || config.unknown );
 			} else {
-				$box.prop( 'checked', false );
 				$row.addClass( 'is-error' );
 				$cell.text( result.message || config.failed );
 			}

@@ -1837,6 +1837,19 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 
 		$import_key = $import_page . ':impform';
 
+		// Every cached index row of one form, whatever it is split into. The
+		// pattern is left unescaped: SQLite's LIKE has no default escape
+		// character, and an underscore matching itself is all it needs here.
+		$drop_index = function ( $form_key ) use ( $wpdb ) {
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", '_transient%' . Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $form_key ) . '%' ) ); // phpcs:ignore WordPress.DB
+			wp_cache_flush();
+		};
+		// The plugin's record of an import attempt, read past every cache.
+		$attempt_row = function ( $submission_id ) use ( $wpdb ) {
+			$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . (int) $submission_id ) ); // phpcs:ignore WordPress.DB
+			return null === $value ? null : maybe_unserialize( $value );
+		};
+
 		check( 'odeslání vložena', 0 < min( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f ), true );
 		check( 'import je dostupný', Raynet_Elementor_Submissions::available(), true );
 
@@ -1994,15 +2007,15 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		foreach ( $paged_ids as $paged_id ) {
 			$import_query->delete_submission( $paged_id );
 		}
-		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $paged_page . ':impform' ) );
+		$drop_index( $paged_page . ':impform' );
 		wp_delete_post( $paged_page, true );
 
 		// A spam-score filter returning reasons in odd shapes does not break the screen.
 		update_option( 'raynet_test_odd_reasons', 1 );
-		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+		$drop_index( $import_key );
 		$odd = req( $import_url, null, true );
 		delete_option( 'raynet_test_odd_reasons' );
-		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+		$drop_index( $import_key );
 		$odd_a = $import_row( $odd['body'], $sub_a );
 		check( 'divné důvody: obrazovka se načte', $odd['status'], 200 );
 		check( 'divné důvody: řádek A je tu', '' !== $odd_a, true );
@@ -2113,7 +2126,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$import_query->delete_submission( $sub_sent );
 		wp_delete_post( $empty_page, true );
 		wp_delete_post( $sent_page, true );
-		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+		$drop_index( $import_key );
 
 		// The lock is read and written with raw SQL only, as the class does.
 		$lock_row = function ( $submission_id ) use ( $wpdb ) {
@@ -2159,6 +2172,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		}
 		check( 'log A nese úspěšný import', $log_a_found, true );
 		check( 'po úspěchu zámek uvolněn', $lock_row( $sub_a ), null );
+		check( 'po úspěchu žádný záznam pokusu', $attempt_row( $sub_a ), null );
 		check( 'počitadlo úspěchů A beze změny', (int) $wpdb->get_var( $wpdb->prepare( "SELECT actions_succeeded_count FROM {$wpdb->prefix}e_submissions WHERE id = %d", $sub_a ) ), $succeeded_before ); // phpcs:ignore WordPress.DB
 		check( 'poslední chyba API beze změny po úspěchu', get_option( 'raynet_lead_last_error' ), $last_error_mark );
 
@@ -2178,6 +2192,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'import cizího odeslání odmítnut', is_wp_error( $foreign ) ? $foreign->get_error_code() : null, 'raynet_import_not_found' );
 		$sent_c = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_c, 'import-web' );
 		check( 'import odeslaného C odmítnut', is_wp_error( $sent_c ) ? $sent_c->get_error_code() : null, 'raynet_import_already_sent' );
+		check( 'odmítnutí bez odeslání nenechá záznam pokusu', array( $attempt_row( $sub_a ), $attempt_row( $sub_c ), $attempt_row( $sub_e ), $attempt_row( $sub_f ) ), array( null, null, null, null ) );
 
 		// Without a mapped contact the form cannot make a lead at all.
 		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( array( $import_map[0], $import_map[2] ) ) ) ) );
@@ -2190,14 +2205,16 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'bez mapování kontaktu nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
 		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( $import_map ) ) ) );
 
-		// RAYNET refuses: the error comes back, nothing is marked or remembered.
+		// RAYNET is down (503): the lead may or may not exist, nothing is marked
+		// in Elementor or remembered as the last API error.
 		update_option( 'raynet_test_refuse_leads', 1 );
 		$log_b_before = count( (array) $import_query->get_submissions_actions_log( $sub_b ) );
 		$refused      = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_b, 'import-web' );
 		delete_option( 'raynet_test_refuse_leads' );
 		wp_cache_flush();
-		check( 'odmítnutí RAYNETem vrátí chybu API', is_wp_error( $refused ) ? $refused->get_error_code() : null, 'raynet_api_error' );
-		check( 'chyba API nese diagnostiku', is_wp_error( $refused ) && '' !== $refused->get_error_message(), true );
+		check( 'výpadek RAYNETu (503): výsledek neznámý', is_wp_error( $refused ) ? $refused->get_error_code() : null, 'raynet_import_unknown' );
+		check( 'chyba API nese diagnostiku', is_wp_error( $refused ) && false !== strpos( $refused->get_error_message(), '503' ), true );
+		check( 'výpadek RAYNETu (503): pokus zapsán jako neznámý', is_array( $attempt_row( $sub_b ) ) ? $attempt_row( $sub_b )['outcome'] : null, 'unknown' );
 		check( 'odmítnutí nezapsalo do logu B', count( (array) $import_query->get_submissions_actions_log( $sub_b ) ), $log_b_before );
 		check( 'poslední chyba API beze změny po odmítnutí', get_option( 'raynet_lead_last_error' ), $last_error_mark );
 		check( 'odmítnutí neposlalo e-mail', get_option( 'raynet_test_mails', array() ), array() );
@@ -2219,6 +2236,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'chyba zámku: hláška netvrdí, že se importuje', is_wp_error( $lock_failed ) && false === strpos( $lock_failed->get_error_message(), 'právě importuje' ) && false !== strpos( $lock_failed->get_error_message(), 'databáz' ), true );
 		check( 'chyba zámku: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
 		check( 'chyba zámku: žádný zámek nezůstal', $lock_row( $sub_d ), null );
+		check( 'chyba zámku: žádný záznam pokusu', $attempt_row( $sub_d ), null );
 
 		// A submission another request is importing right now is left alone.
 		$foreign_token = time() . ':cizipozadavek';
@@ -2230,6 +2248,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'zamčené odeslání: hláška o běžícím importu', is_wp_error( $locked ) && false !== strpos( $locked->get_error_message(), 'právě importuje' ), true );
 		check( 'zamčené odeslání nic neposlalo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
 		check( 'cizí zámek zůstane se svou hodnotou', $lock_row( $sub_d ), $foreign_token );
+		check( 'zamčené odeslání: žádný záznam pokusu', $attempt_row( $sub_d ), null );
 
 		// A lock left behind by a request that died is taken over.
 		$put_lock( $sub_d, ( time() - 600 ) . ':mrtvypozadavek' );
@@ -2300,6 +2319,100 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$index_unlogged = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
 		check( 'nezapsaný log: index ukazuje odesláno', isset( $index_unlogged[ $sub_b ] ) ? $index_unlogged[ $sub_b ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
 		check( 'nezapsaný log: zámek uvolněn', $lock_row( $sub_b ), null );
+		$unlogged_attempt = $attempt_row( $sub_b );
+		check( 'nezapsaný log: pokus zapsán s leadem', is_array( $unlogged_attempt ) ? array( $unlogged_attempt['outcome'], $unlogged_attempt['lead_id'] ) : null, array( 'unlogged', 4242 ) );
+
+		// Without any cache, the lead the plugin created is still known.
+		$drop_index( $import_key );
+		$index_unlogged = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		check( 'nezapsaný log bez keše: B už v RAYNETu', isset( $index_unlogged[ $sub_b ] ) ? array( $index_unlogged[ $sub_b ]['tab'], $index_unlogged[ $sub_b ]['preselect'] ) : null, array( Raynet_Elementor_Submissions::TAB_SENT, false ) );
+		$unlogged_tab = req( $import_url . '&zalozka=sent', null, true )['body'];
+		$row_unlogged = $import_row( $unlogged_tab, $sub_b );
+		check( 'nezapsaný log: B na záložce Už v RAYNETu', '' !== $row_unlogged, true );
+		check( 'nezapsaný log: řádek jmenuje lead', false !== strpos( $row_unlogged, 'lead 4242 — v Elementoru se nepodařilo označit' ), true );
+		check( 'nezapsaný log: bez zaškrtávátka', false !== strpos( $row_unlogged, 'name="submissions[]"' ), false );
+		update_option( 'raynet_test_http_calls', array() );
+		$unlogged_again = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_b, 'import-web' );
+		wp_cache_flush();
+		check( 'nezapsaný log: znovu se neodešle', is_wp_error( $unlogged_again ) ? $unlogged_again->get_error_code() : null, 'raynet_import_already_sent' );
+		check( 'nezapsaný log: znovu nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+
+		// --- Attempts without a confirmed mark stay visible ---------------------
+		// T, U, R and P are clean enquiries, preselected until an attempt says otherwise.
+		$sub_t = $add_stored( $import_page, 'Tereza', 'tereza.pokusna@example.cz', 'Dobrý den, poptáváme pravidelný úklid kanceláří v centru Prahy dvakrát týdně.', '192.0.2.21' );
+		$sub_u = $add_stored( $import_page, 'Urban', 'urban.pokusny@example.cz', 'Prosím o nabídku na výměnu střešní krytiny na chatě v Beskydech.', '192.0.2.22' );
+		$sub_r = $add_stored( $import_page, 'Radka', 'radka.pokusna@example.cz', 'Zajímá nás pronájem lešení na tři měsíce pro rekonstrukci fasády.', '192.0.2.23' );
+		$sub_p = $add_stored( $import_page, 'Pavel', 'pavel.pokusny@example.cz', 'Potřebujeme revizi elektroinstalace v provozovně před kolaudací.', '192.0.2.24' );
+		$index_fresh = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		check( 'pokusy: T, U, R, P předvybrané na začátku', array( $index_fresh[ $sub_t ]['preselect'], $index_fresh[ $sub_u ]['preselect'], $index_fresh[ $sub_r ]['preselect'], $index_fresh[ $sub_p ]['preselect'] ), array( true, true, true, true ) );
+
+		// RAYNET down, over AJAX: the code reaches the screen's script.
+		$attempt_nonce = preg_match( '/raynetElementorImport = \{[^;]*?"nonce":"([^"]+)"/', req( $import_url, null, true )['body'], $attempt_m ) ? $attempt_m[1] : '';
+		update_option( 'raynet_test_refuse_leads', 1 );
+		$ajax_unknown = req( '/wp-admin/admin-ajax.php', array( 'action' => 'raynet_elm_import_one', '_wpnonce' => $attempt_nonce, 'form' => $import_key, 'submission' => $sub_t, 'tag' => 'import-web' ), true );
+		delete_option( 'raynet_test_refuse_leads' );
+		wp_cache_flush();
+		$ajax_unknown_j = json_decode( $ajax_unknown['body'], true );
+		check( 'AJAX výpadek: kód neznámého výsledku', isset( $ajax_unknown_j['data']['code'] ) ? $ajax_unknown_j['data']['code'] : null, 'raynet_import_unknown' );
+		check( 'AJAX výpadek: hláška', isset( $ajax_unknown_j['data']['message'] ) && false !== strpos( $ajax_unknown_j['data']['message'], 'ověřte v RAYNETu' ), true );
+		check( 'AJAX výpadek: pokus neznámý', is_array( $attempt_row( $sub_t ) ) ? $attempt_row( $sub_t )['outcome'] : null, 'unknown' );
+
+		// The connection drops in this process: a transport error.
+		$drop_connection = function ( $preempt, $args, $url ) {
+			return false !== strpos( $url, '/lead/' ) ? new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out' ) : $preempt;
+		};
+		update_option( 'raynet_test_http_calls', array() );
+		add_filter( 'pre_http_request', $drop_connection, 5, 3 );
+		$transport = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_u, 'import-web' );
+		remove_filter( 'pre_http_request', $drop_connection, 5 );
+		wp_cache_flush();
+		$transport_attempt = $attempt_row( $sub_u );
+		check( 'spojení spadlo: výsledek neznámý', is_wp_error( $transport ) ? $transport->get_error_code() : null, 'raynet_import_unknown' );
+		check( 'spojení spadlo: hláška říká, že výsledek je neznámý', is_wp_error( $transport ) && false !== strpos( $transport->get_error_message(), 'neznámý' ) && false !== strpos( $transport->get_error_message(), 'Operation timed out' ), true );
+		check( 'spojení spadlo: pokus neznámý s důvodem', is_array( $transport_attempt ) ? array( $transport_attempt['outcome'], false !== strpos( $transport_attempt['message'], 'Operation timed out' ), $transport_attempt['lead_id'] ) : null, array( 'unknown', true, 0 ) );
+		check( 'spojení spadlo: v Elementoru žádný řádek logu', count( (array) $import_query->get_submissions_actions_log( $sub_u ) ), 0 );
+		check( 'spojení spadlo: poslední chyba API beze změny', get_option( 'raynet_lead_last_error' ), $last_error_mark );
+
+		// RAYNET refuses the lead itself (4xx): the reason is kept.
+		$refuse_lead = function ( $preempt, $args, $url ) {
+			return false !== strpos( $url, '/lead/' ) ? array( 'headers' => array(), 'body' => wp_json_encode( array( 'message' => 'Pole topic je povinné' ) ), 'response' => array( 'code' => 400, 'message' => 'Bad Request' ), 'cookies' => array(), 'filename' => null ) : $preempt;
+		};
+		add_filter( 'pre_http_request', $refuse_lead, 5, 3 );
+		$refused_r = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_r, 'import-web' );
+		remove_filter( 'pre_http_request', $refuse_lead, 5 );
+		wp_cache_flush();
+		$refused_attempt = $attempt_row( $sub_r );
+		check( 'RAYNET odmítl (400): chyba API', is_wp_error( $refused_r ) ? $refused_r->get_error_code() : null, 'raynet_api_error' );
+		check( 'RAYNET odmítl (400): pokus odmítnutý s důvodem', is_array( $refused_attempt ) ? array( $refused_attempt['outcome'], false !== strpos( $refused_attempt['message'], 'Pole topic je povinné' ) ) : null, array( 'refused', true ) );
+		check( 'RAYNET odmítl (400): v Elementoru žádný řádek logu', count( (array) $import_query->get_submissions_actions_log( $sub_r ) ), 0 );
+
+		// A request that died after sending: only the "pending" mark is left.
+		$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", 'raynet_import_attempt_' . $sub_p, maybe_serialize( array( 'time' => time() - 60, 'outcome' => 'pending', 'message' => '', 'lead_id' => 0 ) ) ) ); // phpcs:ignore WordPress.DB
+		$drop_index( $import_key );
+
+		$index_attempts = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		foreach ( array( 'T' => $sub_t, 'U' => $sub_u, 'R' => $sub_r, 'P' => $sub_p ) as $attempt_label => $attempt_id ) {
+			check( 'pokus ' . $attempt_label . ': selhalo, nepředvybrané', isset( $index_attempts[ $attempt_id ] ) ? array( $index_attempts[ $attempt_id ]['state'], $index_attempts[ $attempt_id ]['preselect'] ) : null, array( Raynet_Elementor_Submissions::STATE_FAILED, false ) );
+		}
+
+		$attempt_screen = req( $import_url, null, true )['body'];
+		foreach ( array( 'T' => $sub_t, 'U' => $sub_u, 'P' => $sub_p ) as $attempt_label => $attempt_id ) {
+			$attempt_html = $import_row( $attempt_screen, $attempt_id );
+			check( 'obrazovka ' . $attempt_label . ': výsledek neznámý', false !== strpos( $attempt_html, 'tehdy selhalo: „při předchozím importu: výsledek neznámý' ) && false !== strpos( $attempt_html, 'ověřte v RAYNETu, že lead neexistuje' ), true );
+			check( 'obrazovka ' . $attempt_label . ': zaškrtávátko bez zaškrtnutí', false !== strpos( $attempt_html, 'name="submissions[]"' ) && false === strpos( $attempt_html, 'checked' ), true );
+		}
+		$attempt_r_html = $import_row( $attempt_screen, $sub_r );
+		check( 'obrazovka R: RAYNET odmítl s důvodem', false !== strpos( $attempt_r_html, 'při předchozím importu RAYNET odmítl: ' ) && false !== strpos( $attempt_r_html, 'Pole topic je povinné' ), true );
+		check( 'obrazovka R: bez zaškrtnutí', false === strpos( $attempt_r_html, 'checked' ), true );
+
+		// Ticked deliberately, a row with an attempt is sent, and the attempt goes.
+		update_option( 'raynet_test_http_calls', array() );
+		$retried = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_p, 'import-web' );
+		wp_cache_flush();
+		check( 'opakovaný import P vrátí lead', is_array( $retried ) ? $retried['lead_id'] : $retried->get_error_code(), 4242 );
+		check( 'opakovaný import P smaže záznam pokusu', $attempt_row( $sub_p ), null );
+		$index_retried = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		check( 'opakovaný import P: index už v RAYNETu', isset( $index_retried[ $sub_p ] ) ? $index_retried[ $sub_p ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
 
 		// A form in a template is stored under the template's id, with the page
 		// it was sent from in meta, as a number or as a string.
@@ -2309,10 +2422,11 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$sub_i = $add_stored( $import_page + 200000, 'Ivo', 'ivo@example.cz', 'Stránka s ID, které jen začíná stejnými číslicemi, sem nepatří.', '192.0.2.9', array( 'meta' => wp_json_encode( array( 'edit_post_id' => (int) ( $import_page . '1' ) ) ) ) );
 		check( 'stránka z meta jako číslo i řetězec, ne předpona', array_keys( Raynet_Elementor_Submissions::load( $import_page, 'impform', array( $sub_g, $sub_h, $sub_i ) ) ), array( $sub_h, $sub_g ) );
 
-		foreach ( array( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f, $sub_g, $sub_h, $sub_i ) as $stored_id ) {
+		foreach ( array( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f, $sub_g, $sub_h, $sub_i, $sub_t, $sub_u, $sub_r, $sub_p ) as $stored_id ) {
 			$import_query->delete_submission( $stored_id );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . $stored_id ) ); // phpcs:ignore WordPress.DB
 		}
-		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+		$drop_index( $import_key );
 		if ( null === $last_error_orig ) {
 			delete_option( 'raynet_lead_last_error' );
 		} else {
