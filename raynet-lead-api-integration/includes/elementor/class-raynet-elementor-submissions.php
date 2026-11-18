@@ -316,15 +316,18 @@ class Raynet_Elementor_Submissions {
 		$ip_counts = array();
 		$first     = array();
 
+		$map = Raynet_Elementor_Forms::current_map( $form_settings );
+
 		self::each_batch(
 			$post_id,
 			$widget_id,
-			static function ( array $rows ) use ( $form_settings, &$senders, &$ip_counts, &$first ) {
+			static function ( array $rows ) use ( $form_settings, $map, &$senders, &$ip_counts, &$first ) {
 				foreach ( $rows as $row ) {
-					$values   = self::assemble( $row, $form_settings )['values'];
-					$email    = strtolower( $values['email'] );
+					$parts    = self::assemble( $row, $form_settings );
+					$email    = strtolower( $parts['values']['email'] );
 					$ip       = trim( (string) $row['ip'] );
-					$text_key = Raynet_Submission_Spam_Score::text_key( $values['message'] );
+					// The same text classify() hands to the scorer.
+					$text_key = Raynet_Submission_Spam_Score::text_key( self::score_values( $parts['fields'], $map )['message'] );
 					$sender   = '' !== $email ? $email : $ip;
 
 					if ( '' !== $ip ) {
@@ -381,12 +384,16 @@ class Raynet_Elementor_Submissions {
 		$parts    = self::assemble( $row, $form_settings );
 		$values   = $parts['values'];
 		$block    = Raynet_Elementor_Lead_Builder::contact_error( $values );
-		$dup_key  = self::duplicate_key( strtolower( $values['email'] ), Raynet_Submission_Spam_Score::text_key( $values['message'] ) );
-		$first_of = isset( $stats['first_of'] ) && is_array( $stats['first_of'] ) ? $stats['first_of'] : array();
 		$map      = Raynet_Elementor_Forms::current_map( $form_settings );
+		// Scored before sanitizing, which would strip the very markup the
+		// rules look for. Only the scoring sees these; prepare() sends the
+		// sanitized values.
+		$raw      = self::score_values( $parts['fields'], $map );
+		$dup_key  = self::duplicate_key( strtolower( $values['email'] ), Raynet_Submission_Spam_Score::text_key( $raw['message'] ) );
+		$first_of = isset( $stats['first_of'] ) && is_array( $stats['first_of'] ) ? $stats['first_of'] : array();
 
 		$submission = array(
-			'values'            => array_intersect_key( $values, array_flip( Raynet_Submission_Spam_Score::VALUE_KEYS ) ),
+			'values'            => $raw,
 			'texts'             => self::other_texts( $parts['fields'], $map ),
 			'ip'                => isset( $row['ip'] ) ? (string) $row['ip'] : '',
 			'user_agent'        => self::stores_user_agent( $form_settings ) ? ( isset( $row['user_agent'] ) ? (string) $row['user_agent'] : '' ) : null,
@@ -781,6 +788,49 @@ class Raynet_Elementor_Submissions {
 		}
 
 		return $lines;
+	}
+
+	/**
+	 * The values the spam rules read, as stored: before any sanitizing.
+	 *
+	 * Each comes from the field the mapping points at. A whole name mapped
+	 * to fullName is split the way collect_values() splits it, so the first
+	 * and last name are not the same raw string twice.
+	 *
+	 * @param array<string,array<string,string>> $fields Fields from fields_for().
+	 * @param array<string,string>               $map    Current mapping, attribute => field id.
+	 * @return array<string,string> Raynet_Submission_Spam_Score::VALUE_KEYS => raw value.
+	 */
+	private static function score_values( array $fields, array $map ) {
+		$raw = static function ( $remote ) use ( $fields, $map ) {
+			if ( ! isset( $map[ $remote ], $fields[ $map[ $remote ] ] ) || 'password' === $fields[ $map[ $remote ] ]['type'] ) {
+				return '';
+			}
+
+			return (string) $fields[ $map[ $remote ] ]['value'];
+		};
+
+		$values = array();
+
+		foreach ( Raynet_Submission_Spam_Score::VALUE_KEYS as $key ) {
+			$values[ $key ] = $raw( $key );
+		}
+
+		$whole = trim( (string) preg_replace( '/\s+/u', ' ', $raw( 'fullName' ) ) );
+
+		if ( '' !== $whole ) {
+			$split = Raynet_Lead_Form_Definition::split_name( $whole );
+
+			// Same rule as collect_values(): a separately asked part wins,
+			// unless it is the same field again.
+			foreach ( array( 'firstName', 'lastName' ) as $part ) {
+				if ( '' === trim( $values[ $part ] ) || trim( $values[ $part ] ) === $whole ) {
+					$values[ $part ] = isset( $split[ $part ] ) ? (string) $split[ $part ] : '';
+				}
+			}
+		}
+
+		return $values;
 	}
 
 	/**

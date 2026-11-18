@@ -220,5 +220,34 @@ $no_meta                         = $form_settings;
 $no_meta['submissions_metadata'] = array( 'remote_ip' );
 check( 'prázdný user agent u formuláře, který ho neukládá', in_array( 'bot_agent', reason_ids( Raynet_Elementor_Submissions::classify( $no_agent_row, $no_meta, $stats, $config ) ), true ), false );
 
+// Markup is judged on what was stored, before sanitizing strips it.
+$script_name                   = $row;
+$script_name['values']['name'] = '<script>alert(1)</script>';
+$script                        = Raynet_Elementor_Submissions::classify( $script_name, $form_settings, $stats, $config );
+check( 'skript ve jméně: důvod markup', in_array( 'markup', reason_ids( $script ), true ), true );
+check( 'skript ve jméně: spam', $script['tab'], Raynet_Elementor_Submissions::TAB_SPAM );
+check( 'skript ve jméně: nepředvybrané', $script['preselect'], false );
+
+$link_message                  = $row;
+$link_message['values']['msg'] = 'Dobrý den, podívejte se na <a href="http://x.example">klik</a> a napište nám zpět.';
+check( 'odkaz se značkou ve zprávě: důvod markup', in_array( 'markup', reason_ids( Raynet_Elementor_Submissions::classify( $link_message, $form_settings, $stats, $config ) ), true ), true );
+
+$attribute_message                  = $row;
+$attribute_message['values']['msg'] = '"><img src=x onerror=alert(1)>';
+check( 'značka v atributu ve zprávě: spam', Raynet_Elementor_Submissions::classify( $attribute_message, $form_settings, $stats, $config )['tab'], Raynet_Elementor_Submissions::TAB_SPAM );
+
+check( 'čistý řádek po změně: stále k posouzení a předvybraný', array( $clean['tab'], $clean['preselect'] ), array( Raynet_Elementor_Submissions::TAB_REVIEW, true ) );
+
+// A whole name in one field is split for the rules as it is for the lead,
+// even when the same field is mapped to the first name too.
+$whole_form = $form_settings;
+$whole_form[ Raynet_Elementor_Forms::ACTION_NAME . '_fields_map' ][0] = array( 'remote_id' => 'email', 'local_id' => 'email' );
+$whole_form[ Raynet_Elementor_Forms::ACTION_NAME . '_fields_map' ][]  = array( 'remote_id' => 'fullName', 'local_id' => 'name' );
+$whole_row                   = $row;
+$whole_row['values']['name'] = 'Jana Nováková';
+$whole                       = Raynet_Elementor_Submissions::classify( $whole_row, $whole_form, $stats, $config );
+check( 'celé jméno v jednom poli: bez odd_name', in_array( 'odd_name', reason_ids( $whole ), true ), false );
+check( 'celé jméno v jednom poli: předvybrané', $whole['preselect'], true );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

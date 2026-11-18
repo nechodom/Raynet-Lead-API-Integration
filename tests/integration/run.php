@@ -1911,6 +1911,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		// Wherever the score puts G, its row and stored values are on the screen.
 		$xss_body = '' !== $import_row( $review['body'], $sub_xss ) ? $review['body'] : $spam_tab;
 		check( 'XSS: G je na obrazovce', '' !== $import_row( $xss_body, $sub_xss ), true );
+		$xss_index = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		check( 'XSS: G je spam a není předvybrané', isset( $xss_index[ $sub_xss ] ) ? array( $xss_index[ $sub_xss ]['tab'], $xss_index[ $sub_xss ]['preselect'] ) : null, array( Raynet_Elementor_Submissions::TAB_SPAM, false ) );
 		check( 'XSS: jméno escapované', false !== strpos( $xss_body, '&lt;script&gt;alert(1)&lt;/script&gt;' ), true );
 		check( 'XSS: zpráva escapovaná', false !== strpos( $xss_body, '&quot;&gt;&lt;img src=x onerror=alert(1)&gt;' ), true );
 
