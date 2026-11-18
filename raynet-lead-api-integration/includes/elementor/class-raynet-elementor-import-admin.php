@@ -317,7 +317,8 @@ class Raynet_Elementor_Import_Admin {
 			),
 			admin_url( 'admin.php' )
 		);
-		$ids  = array_slice( $by_tab[ $tab ], ( $page - 1 ) * $per_page, $per_page );
+		// A page past the end shows nothing; the offset is only computed for a real page.
+		$ids  = $page <= (int) ceil( count( $by_tab[ $tab ] ) / $per_page ) ? array_slice( $by_tab[ $tab ], ( $page - 1 ) * $per_page, $per_page ) : array();
 		$rows = Raynet_Elementor_Submissions::load( $post_id, $widget_id, $ids );
 		$pick = in_array( $tab, array( Raynet_Elementor_Submissions::TAB_REVIEW, Raynet_Elementor_Submissions::TAB_SPAM ), true );
 
@@ -819,6 +820,8 @@ class Raynet_Elementor_Import_Admin {
 	 */
 	private static function pagination( $base, $page, $per_page, $total ) {
 		$pages = max( 1, (int) ceil( $total / $per_page ) );
+		// Past the end the table says the page is empty; the links stay real.
+		$page = min( max( 1, (int) $page ), $pages );
 		?>
 		<div class="raynet-import__pages">
 			<?php if ( $pages > 1 ) : ?>
@@ -863,6 +866,9 @@ class Raynet_Elementor_Import_Admin {
 	 * @return array<int,int|null> Numbers in order, null for a gap.
 	 */
 	public static function page_numbers( $page, $pages ) {
+		// A page from the URL can be anything; range() over it must stay small.
+		$pages  = max( 1, (int) $pages );
+		$page   = min( max( 1, (int) $page ), $pages );
 		$wanted = array_unique( array_merge( array( 1, $pages ), range( max( 1, $page - 2 ), min( $pages, $page + 2 ) ) ) );
 		$wanted = array_filter(
 			$wanted,

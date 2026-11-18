@@ -65,18 +65,21 @@ class Raynet_Submission_Spam_Score {
 	 */
 	public static function default_config() {
 		return array(
-			'strong_to_spam'     => 1,
-			'medium_to_spam'     => 2,
-			'medium_to_suspect'  => 1,
-			'weak_to_suspect'    => 2,
-			'same_text_senders'  => 3,
-			'same_ip_count'      => 5,
-			'min_message_length' => 10,
-			'min_phone_digits'   => 9,
-			'keywords'           => array( 'seo', 'backlink', 'backlinks', 'casino', 'crypto', 'bitcoin', 'viagra', 'cialis', 'loan', 'loans', 'guest post', 'ranking', 'traffic', 'forex', 'porn' ),
-			'disposable_domains' => array( 'mailinator.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com', 'temp-mail.org', 'yopmail.com', 'trashmail.com', 'sharklasers.com', 'getnada.com', 'dispostable.com' ),
-			'allowed_scripts'    => array( 'Latin' ),
-			'disabled'           => array(),
+			'strong_to_spam'       => 1,
+			'medium_to_spam'       => 2,
+			'medium_to_suspect'    => 1,
+			'weak_to_suspect'      => 2,
+			'same_text_senders'    => 3,
+			// Shorter messages ("Prosím o zavolání.") are stock lines real
+			// people share, so repeating them is no sign of spam.
+			'same_text_min_length' => 40,
+			'same_ip_count'        => 5,
+			'min_message_length'   => 10,
+			'min_phone_digits'     => 9,
+			'keywords'             => array( 'seo', 'backlink', 'backlinks', 'casino', 'crypto', 'bitcoin', 'viagra', 'cialis', 'loan', 'loans', 'guest post', 'ranking', 'traffic', 'forex', 'porn' ),
+			'disposable_domains'   => array( 'mailinator.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com', 'temp-mail.org', 'yopmail.com', 'trashmail.com', 'sharklasers.com', 'getnada.com', 'dispostable.com' ),
+			'allowed_scripts'      => array( 'Latin' ),
+			'disabled'             => array(),
 		);
 	}
 
@@ -127,6 +130,7 @@ class Raynet_Submission_Spam_Score {
 		$user_agent = isset( $submission['user_agent'] ) && is_scalar( $submission['user_agent'] ) ? (string) $submission['user_agent'] : null;
 		$message    = $values['message'];
 		$links      = self::count_links( $message );
+		$same_min   = isset( $config['same_text_min_length'] ) ? (int) $config['same_text_min_length'] : 40;
 
 		$text_senders = isset( $stats['text_senders'] ) && is_array( $stats['text_senders'] ) ? $stats['text_senders'] : array();
 		$ip_counts    = isset( $stats['ip_counts'] ) && is_array( $stats['ip_counts'] ) ? $stats['ip_counts'] : array();
@@ -145,7 +149,7 @@ class Raynet_Submission_Spam_Score {
 			array( 'link_short', self::STRONG, self::has_short_link( $values ), 0 ),
 			array( 'markup', self::STRONG, self::has_markup( array_merge( array_values( $values ), $texts ) ), 0 ),
 			array( 'foreign_script', self::STRONG, self::is_foreign_script( implode( "\n", $free_text ), (array) $config['allowed_scripts'] ), 0 ),
-			array( 'same_text', self::STRONG, $senders >= (int) $config['same_text_senders'], $senders ),
+			array( 'same_text', self::STRONG, $senders >= (int) $config['same_text_senders'] && self::length( trim( $message ) ) >= $same_min, $senders ),
 			array( 'links_many', self::STRONG, $links >= 2, 0 ),
 			array( 'link_one', self::MEDIUM, 1 === $links, 0 ),
 			array( 'keywords', self::MEDIUM, self::has_keyword( implode( "\n", array_merge( array( $message, $values['topic'] ), $texts ) ), (array) $config['keywords'] ), 0 ),

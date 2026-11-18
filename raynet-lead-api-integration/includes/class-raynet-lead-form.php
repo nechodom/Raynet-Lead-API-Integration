@@ -565,6 +565,11 @@ class Raynet_Lead_Form {
 		/**
 		 * Filters the lead payload right before it is sent to RAYNET.
 		 *
+		 * Also runs when nothing is sent: the import screen of stored
+		 * Elementor submissions calls it to preview the lead, once per row
+		 * it shows. Callbacks must only change the payload and have no side
+		 * effects (no requests, mail, or writes).
+		 *
 		 * @param array<string,mixed> $payload Lead payload.
 		 * @param array<string,string> $values Sanitized form values.
 		 */

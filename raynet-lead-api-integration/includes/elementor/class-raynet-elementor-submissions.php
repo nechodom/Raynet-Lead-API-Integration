@@ -56,6 +56,13 @@ class Raynet_Elementor_Submissions {
 	const LOCK_TTL = 300;
 
 	/**
+	 * Outcomes of taking the import lock.
+	 */
+	const LOCK_HELD   = 'held';
+	const LOCK_BUSY   = 'busy';
+	const LOCK_FAILED = 'failed';
+
+	/**
 	 * Elementor's query class, which owns the action log.
 	 */
 	const QUERY_CLASS = '\\ElementorPro\\Modules\\Forms\\Submissions\\Database\\Query';
@@ -434,8 +441,13 @@ class Raynet_Elementor_Submissions {
 		/**
 		 * Filters the spam verdict of one stored submission before import.
 		 *
+		 * `$submission['values']` and `$submission['texts']` are the RAW stored
+		 * values: unsanitized and written by whoever sent the form. A callback
+		 * that outputs or stores them must escape or sanitize them itself.
+		 * A malformed result is ignored and the original verdict kept.
+		 *
 		 * @param array<string,mixed> $result     Verdict and reasons from Raynet_Submission_Spam_Score::score().
-		 * @param array<string,mixed> $submission What was scored: mapped values, other texts, IP, user agent, flags.
+		 * @param array<string,mixed> $submission What was scored: raw mapped values, raw other texts, IP, user agent, flags.
 		 * @param array<string,mixed> $row        Stored submission.
 		 */
 		$filtered = apply_filters( 'raynet_import_spam_score', $result, $submission, $row );
@@ -505,6 +517,14 @@ class Raynet_Elementor_Submissions {
 
 		/**
 		 * Filters the spam scoring config used by the import screen.
+		 *
+		 * Keys (see Raynet_Submission_Spam_Score::default_config()):
+		 * strong_to_spam, medium_to_spam, medium_to_suspect, weak_to_suspect
+		 * (verdict thresholds); same_text_senders (different senders of one
+		 * message for same_text); same_text_min_length (characters a message
+		 * needs before same_text applies, default 40); same_ip_count;
+		 * min_message_length; min_phone_digits; keywords; disposable_domains;
+		 * allowed_scripts (Unicode script names); disabled (signal ids).
 		 *
 		 * @param array<string,mixed> $config Thresholds, word lists, allowed scripts and disabled signals.
 		 */
@@ -609,7 +629,13 @@ class Raynet_Elementor_Submissions {
 
 		$token = time() . ':' . wp_generate_password( 12, false );
 
-		if ( ! self::lock( $submission_id, $token ) ) {
+		$lock = self::lock( $submission_id, $token );
+
+		if ( self::LOCK_FAILED === $lock ) {
+			return new WP_Error( 'raynet_import_lock_failed', __( 'Import se nepodařilo spustit kvůli chybě databáze. Do RAYNETu se nic neodeslalo.', 'raynet-lead-api-integration' ) );
+		}
+
+		if ( self::LOCK_HELD !== $lock ) {
 			return new WP_Error( 'raynet_import_already_sent', __( 'Toto odeslání se právě importuje.', 'raynet-lead-api-integration' ) );
 		}
 
@@ -709,30 +735,50 @@ class Raynet_Elementor_Submissions {
 	 * two requests try, only one deletes a row, and only that one tries the
 	 * INSERT again — which a third request may still win.
 	 *
+	 * A failing INSERT with no lock row behind it is a database error, not
+	 * another import: it is reported as LOCK_FAILED.
+	 *
 	 * @param int    $submission_id Submission id.
 	 * @param string $token         This request's token, "<unix time>:<random>".
-	 * @return bool True when the lock is now held with this token.
+	 * @return string LOCK_HELD when the lock is now held with this token,
+	 *                LOCK_BUSY when another request holds it, LOCK_FAILED on a
+	 *                database error.
 	 */
 	private static function lock( $submission_id, $token ) {
 		global $wpdb;
 
-		$name = self::LOCK_PREFIX . (int) $submission_id;
+		$name     = self::LOCK_PREFIX . (int) $submission_id;
+		$inserted = self::insert_lock( $name, $token );
 
-		if ( self::insert_lock( $name, $token ) ) {
-			return true;
+		if ( 1 === $inserted ) {
+			return self::LOCK_HELD;
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- The lock bypasses the options cache on purpose.
 		$current = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
 
-		if ( null === $current || (int) strtok( (string) $current, ':' ) > time() - self::LOCK_TTL ) {
-			return false;
+		if ( null === $current ) {
+			return false === $inserted ? self::LOCK_FAILED : self::LOCK_BUSY;
+		}
+
+		if ( (int) strtok( (string) $current, ':' ) > time() - self::LOCK_TTL ) {
+			return self::LOCK_BUSY;
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See above.
 		$deleted = $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s", $name, $current ) );
 
-		return 1 === $deleted && self::insert_lock( $name, $token );
+		if ( 1 !== $deleted ) {
+			return self::LOCK_BUSY;
+		}
+
+		$inserted = self::insert_lock( $name, $token );
+
+		if ( 1 === $inserted ) {
+			return self::LOCK_HELD;
+		}
+
+		return false === $inserted ? self::LOCK_FAILED : self::LOCK_BUSY;
 	}
 
 	/**
@@ -740,13 +786,16 @@ class Raynet_Elementor_Submissions {
 	 *
 	 * @param string $name  Option name.
 	 * @param string $token Lock token.
-	 * @return bool True when this call inserted the row.
+	 * @return int|false 1 when this call inserted the row, 0 when one existed,
+	 *                   false on a database error.
 	 */
 	private static function insert_lock( $name, $token ) {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See lock().
-		return 1 === $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $token ) );
+		$result = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $name, $token ) );
+
+		return false === $result ? false : (int) $result;
 	}
 
 	/**

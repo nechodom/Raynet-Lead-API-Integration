@@ -121,6 +121,22 @@ $r   = score( submission(), array( 'text_senders' => array( $key => 3 ) ) );
 check( '3 odesílatelé stejného textu -> same_text', $r['reasons'], array( array( 'id' => 'same_text', 'strength' => 'strong', 'count' => 3 ) ) );
 $r = score( submission(), array( 'text_senders' => array( $key => 2 ) ) );
 check( '2 odesílatelé stejného textu nic', $r['reasons'], array() );
+check( 'základní zpráva má aspoň 40 znaků', mb_strlen( submission()['values']['message'] ) >= 40, true );
+check( 'výchozí minimální délka stejného textu', $S::default_config()['same_text_min_length'], 40 );
+// Three real people may send the same short stock line.
+$short     = 'Prosím o zavolání. ' . '!';
+$short_key = $S::text_key( $short );
+check( 'krátká zpráva má 20 znaků', mb_strlen( $short ), 20 );
+$r = score( submission( array( 'message' => $short ) ), array( 'text_senders' => array( $short_key => 3 ) ) );
+check( 'krátký stejný text od 3 lidí bez same_text', in_array( 'same_text', ids( $r ), true ), false );
+$r = score( submission( array( 'message' => $short ) ), array( 'text_senders' => array( $short_key => 3 ) ), array( 'same_text_min_length' => 0 ) );
+check( 'same_text_min_length 0 -> same_text', in_array( 'same_text', ids( $r ), true ), true );
+// Counted like min_message_length: trimmed, in characters.
+$edge = str_repeat( 'č', 40 );
+$r    = score( submission( array( 'message' => '  ' . $edge . '  ' ) ), array( 'text_senders' => array( $S::text_key( $edge ) => 3 ) ) );
+check( 'přesně 40 znaků (bez mezer okolo) -> same_text', in_array( 'same_text', ids( $r ), true ), true );
+$r = score( submission( array( 'message' => '  ' . mb_substr( $edge, 1 ) . '  ' ) ), array( 'text_senders' => array( $S::text_key( mb_substr( $edge, 1 ) ) => 3 ) ) );
+check( '39 znaků -> bez same_text', in_array( 'same_text', ids( $r ), true ), false );
 
 // links_many / link_one.
 $r = score( submission( array( 'message' => 'Podívejte se na https://a.example a www.b.example prosím.' ) ) );

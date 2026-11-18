@@ -1967,6 +1967,35 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'stránkování: bez mezery u kraje', Raynet_Elementor_Import_Admin::page_numbers( 4, 7 ), array( 1, 2, 3, 4, 5, 6, 7 ) );
 		check( 'stránkování: jedna stránka', Raynet_Elementor_Import_Admin::page_numbers( 1, 1 ), array( 1 ) );
 		check( 'stránkování: mimo rozsah', Raynet_Elementor_Import_Admin::page_numbers( 99, 1 ), array( 1 ) );
+		check( 'stránkování: obrovská stránka', Raynet_Elementor_Import_Admin::page_numbers( 50000000, 3 ), array( 1, 2, 3 ) );
+		check( 'stránkování: nula a záporná', array( Raynet_Elementor_Import_Admin::page_numbers( 0, 3 ), Raynet_Elementor_Import_Admin::page_numbers( -5, 3 ) ), array( array( 1, 2, 3 ), array( 1, 2, 3 ) ) );
+
+		// A huge page number on a tab with several pages.
+		$paged_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Mnoho odeslání', 'post_status' => 'publish' ) );
+		update_post_meta( $paged_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $paged_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( $import_map ) ) ) );
+		$paged_ids = array();
+		for ( $i = 0; $i < 51; $i++ ) {
+			$paged_ids[] = $add_stored( $paged_page, 'Osoba' . $i, 'osoba' . $i . '@example.cz', 'Dobrý den, poptávka číslo ' . $i . ' na servis kotle v rodinném domě.', '198.18.0.' . $i );
+		}
+		$paged_log   = file_exists( $debug_log = WP_CONTENT_DIR . '/debug.log' ) ? count( file( $debug_log ) ) : 0;
+		$paged_url   = '/wp-admin/admin.php?page=raynet-elementor-forms&import=' . rawurlencode( $paged_page . ':impform' ) . '&na_stranku=50';
+		$paged_first = req( $paged_url, null, true );
+		$paged_huge  = req( $paged_url . '&strana=50000000', null, true );
+		$paged_new   = file_exists( $debug_log ) ? preg_grep( '/sqlite-database-integration|wp-cli\.phar/', preg_grep( '/PHP /', array_slice( file( $debug_log ), $paged_log ) ), PREG_GREP_INVERT ) : array();
+		check( 'více stránek: druhá stránka v odkazech', false !== strpos( $paged_first['body'], 'strana=2' ), true );
+		check( 'obrovská stránka: 200', $paged_huge['status'], 200 );
+		check( 'obrovská stránka: hláška prázdné stránky', false !== strpos( $paged_huge['body'], 'Na této stránce nejsou žádná odeslání.' ), true );
+		// Only the screen's own paging block: Elementor echoes the request URL elsewhere.
+		$huge_pages = preg_match( '~<div class="raynet-import__pages">.*?</div>~s', $paged_huge['body'], $huge_m ) ? $huge_m[0] : '';
+		check( 'obrovská stránka: stránkování vykreslené', false !== strpos( $huge_pages, 'strana=1' ), true );
+		check( 'obrovská stránka: odkazy jen na skutečné stránky', (bool) preg_match( '~strana=(?:[3-9]|\d{2,})\b~', $huge_pages ), false );
+		check( 'obrovská stránka: žádná PHP chyba', array_values( $paged_new ), array() );
+		foreach ( $paged_ids as $paged_id ) {
+			$import_query->delete_submission( $paged_id );
+		}
+		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $paged_page . ':impform' ) );
+		wp_delete_post( $paged_page, true );
 
 		// A spam-score filter returning reasons in odd shapes does not break the screen.
 		update_option( 'raynet_test_odd_reasons', 1 );
@@ -2174,6 +2203,22 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'odmítnutí neposlalo e-mail', get_option( 'raynet_test_mails', array() ), array() );
 		check( 'po odmítnutí zámek uvolněn', $lock_row( $sub_b ), null );
 		check( 'po odmítnutí duplicity zámek uvolněn', $lock_row( $sub_a ), null );
+
+		// The lock cannot be written at all: a database error, not "being imported".
+		$break_lock = function ( $sql ) {
+			return false !== stripos( $sql, 'INSERT IGNORE' ) && false !== strpos( $sql, Raynet_Elementor_Submissions::LOCK_PREFIX ) ? 'INSERT INTO raynet_no_such_table (x) VALUES (1)' : $sql;
+		};
+		update_option( 'raynet_test_http_calls', array() );
+		$lock_suppressed = $wpdb->suppress_errors( true );
+		add_filter( 'query', $break_lock );
+		$lock_failed = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_d, 'import-web' );
+		remove_filter( 'query', $break_lock );
+		$wpdb->suppress_errors( $lock_suppressed );
+		wp_cache_flush();
+		check( 'chyba zámku: vlastní kód', is_wp_error( $lock_failed ) ? $lock_failed->get_error_code() : null, 'raynet_import_lock_failed' );
+		check( 'chyba zámku: hláška netvrdí, že se importuje', is_wp_error( $lock_failed ) && false === strpos( $lock_failed->get_error_message(), 'právě importuje' ) && false !== strpos( $lock_failed->get_error_message(), 'databáz' ), true );
+		check( 'chyba zámku: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		check( 'chyba zámku: žádný zámek nezůstal', $lock_row( $sub_d ), null );
 
 		// A submission another request is importing right now is left alone.
 		$foreign_token = time() . ':cizipozadavek';
