@@ -139,6 +139,15 @@ $no_actions                                     = $form;
 $no_actions['settings']['actions-after-submit'] = typed( 'string-array', array() );
 check( 'vypnuté všechny akce zůstanou vypnuté', Raynet_Elementor_Atomic_Forms::actions( $no_actions ), array() );
 
+// Elementor Pro's controller falls back to e-mail only when the form stores
+// e-mail settings; with neither, the form runs nothing.
+$bare = $form;
+unset( $bare['settings']['email'] );
+check( 'bez akcí i bez nastavení e-mailu neběží nic', Raynet_Elementor_Atomic_Forms::actions( $bare ), array() );
+$bare_on = Raynet_Elementor_Atomic_Forms::apply( $bare, array( 'submit_actions' => array( 'raynet_crm' ) ), 0 );
+check( 'zapnutí bez e-mailu e-mail nepřidá', Raynet_Elementor_Atomic_Forms::actions( $bare_on ), array( 'raynet_crm' ) );
+check( 'beze změny se prázdný seznam nezapíše', array_key_exists( 'actions-after-submit', Raynet_Elementor_Atomic_Forms::apply( $bare, array( 'submit_actions' => array() ), 0 )['settings'] ), false );
+
 // --- settings() / store() / stored() --------------------------------------------
 $GLOBALS['wp_meta'] = array();
 

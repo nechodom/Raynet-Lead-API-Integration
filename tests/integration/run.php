@@ -955,6 +955,9 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 			'settings' => array(
 				'form-name' => $str( 'Atomová poptávka' ),
 				'classes'   => $typed( 'classes', array( 'e-aform1-1' ) ),
+				// Elementor Pro runs e-mail by default only for a form that stores
+				// e-mail settings; the editor writes them with a new form.
+				'email'     => $typed( 'email', array( 'to' => $str( 'obchod@example.cz' ) ) ),
 			),
 			'elements' => array(
 				$alabel( 'al1', 'E-mail', 'mail' ),
@@ -1088,6 +1091,62 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'zastaralá položka meta nevadí skenu', count( Raynet_Elementor_Forms::forms_in_post( $mixed_page ) ), 2 );
 		check( 'zastaralý formulář se nenajde', Raynet_Elementor_Forms::form_settings( $mixed_page, 'zmizely' ), null );
 		check( 'zastaralý formulář nejde nastavit', is_wp_error( Raynet_Elementor_Forms::apply( $mixed_page, 'zmizely', array(), true ) ), true );
+
+		// A value with a backslash and a quote survives the meta round trip.
+		Raynet_Elementor_Atomic_Forms::store( $mixed_page, 'aform1', array( 'raynet_crm_topic' => 'C:\\cesta "v uvozovkách"' ) );
+		check( 'zpětné lomítko a uvozovky přežijí uložení', Raynet_Elementor_Atomic_Forms::stored( $mixed_page, 'aform1' ), array( 'raynet_crm_topic' => 'C:\\cesta "v uvozovkách"' ) );
+
+		// Rollback puts the RAYNET settings back with the tree: first on a page
+		// that had none, then on one that had some.
+		$atomic_page_with = function ( $title, $meta ) use ( $atomic_form ) {
+			$id = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => $title, 'post_status' => 'publish' ) );
+			update_post_meta( $id, '_elementor_edit_mode', 'builder' );
+			update_post_meta( $id, '_elementor_data', wp_slash( wp_json_encode( array( $atomic_form ) ) ) );
+
+			if ( null !== $meta ) {
+				update_post_meta( $id, Raynet_Elementor_Atomic_Forms::META, $meta );
+			}
+
+			return $id;
+		};
+
+		$undo_fresh = $atomic_page_with( 'Vrácení bez nastavení', null );
+		check( 'nasazení na čistý atomový formulář', Raynet_Elementor_Forms::apply( $undo_fresh, 'aform1', array( 'topic' => 'Ze šablony' ), true ), array( 'aform1' ) );
+		check( 'před vrácením zapnutý', Raynet_Elementor_Forms::forms_in_post( $undo_fresh )[0]['enabled'], true );
+		check( 'vrácení čistého projde', Raynet_Elementor_Forms::restore( $undo_fresh ), true );
+		check( 'po vrácení vypnutý', Raynet_Elementor_Forms::forms_in_post( $undo_fresh )[0]['enabled'], false );
+		check( 'po vrácení bez nastavení RAYNETu', Raynet_Elementor_Atomic_Forms::stored( $undo_fresh, 'aform1' ), array() );
+		check( 'po vrácení meta zmizelo', metadata_exists( 'post', $undo_fresh, Raynet_Elementor_Atomic_Forms::META ), false );
+		check( 'po vrácení zmizela i záloha meta', metadata_exists( 'post', $undo_fresh, Raynet_Elementor_Forms::ATOMIC_BACKUP_META ), false );
+
+		$undo_kept = $atomic_page_with( 'Vrácení s nastavením', array( 'aform1' => array( 'raynet_crm_topic' => 'Původní', 'raynet_crm_notice_fields' => array( 'af4' ) ) ) );
+		Raynet_Elementor_Forms::apply( $undo_kept, 'aform1', array( 'topic' => 'Ze šablony' ), true );
+		check( 'šablona přepsala téma', Raynet_Elementor_Atomic_Forms::stored( $undo_kept, 'aform1' )['raynet_crm_topic'], 'Ze šablony' );
+		check( 'vrácení s nastavením projde', Raynet_Elementor_Forms::restore( $undo_kept ), true );
+		check( 'po vrácení původní nastavení', Raynet_Elementor_Atomic_Forms::stored( $undo_kept, 'aform1' ), array( 'raynet_crm_topic' => 'Původní', 'raynet_crm_notice_fields' => array( 'af4' ) ) );
+		check( 'po vrácení s nastavením vypnutý', Raynet_Elementor_Forms::forms_in_post( $undo_kept )[0]['enabled'], false );
+
+		// One apply over a page's classic and atomic form configures both, and
+		// the classic one exactly as it would be on its own.
+		$both_page = $atomic_page_with( 'Obě v jednom volání', null );
+		update_post_meta( $both_page, '_elementor_data', wp_slash( wp_json_encode( array_merge( array( $atomic_form ), $form_layout( 'bothclassic', 'Klasický' ) ) ) ) );
+		$solo_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Jen klasický', 'post_status' => 'publish' ) );
+		update_post_meta( $solo_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $solo_page, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'bothclassic', 'Klasický' ) ) ) );
+
+		$both_lead = array( 'topic' => 'Společná', 'priority' => 'CRITICAL' );
+		check( 'jedno volání nastaví oba formuláře', Raynet_Elementor_Forms::apply( $both_page, array( 'aform1', 'bothclassic' ), $both_lead, true ), array( 'aform1', 'bothclassic' ) );
+		Raynet_Elementor_Forms::apply( $solo_page, 'bothclassic', $both_lead, true );
+		check(
+			'klasický widget nastaven stejně jako bez atomového',
+			wp_json_encode( Raynet_Elementor_Forms::form_settings( $both_page, 'bothclassic' ) ),
+			wp_json_encode( Raynet_Elementor_Forms::form_settings( $solo_page, 'bothclassic' ) )
+		);
+		check( 'atomový v témže volání zapnutý', Raynet_Elementor_Forms::forms_in_post( $both_page )[0]['enabled'], true );
+
+		foreach ( array( $undo_fresh, $undo_kept, $both_page, $solo_page ) as $atomic_cleanup ) {
+			wp_delete_post( $atomic_cleanup, true );
+		}
 
 		wp_delete_post( $atomic_draft, true );
 		wp_delete_post( $mixed_page, true );

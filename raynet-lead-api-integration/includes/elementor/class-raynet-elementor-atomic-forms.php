@@ -130,7 +130,8 @@ class Raynet_Elementor_Atomic_Forms {
 	 * The actions the form runs after submit.
 	 *
 	 * Elementor stores no default, so a form whose actions were never touched
-	 * has no such setting and runs the e-mail action.
+	 * has no such setting. Elementor Pro then runs the e-mail action if the
+	 * form stores e-mail settings, and nothing otherwise.
 	 *
 	 * @param array<string,mixed> $element The `e-form` element.
 	 * @return string[] Action slugs.
@@ -138,8 +139,10 @@ class Raynet_Elementor_Atomic_Forms {
 	public static function actions( array $element ) {
 		$settings = isset( $element['settings'] ) && is_array( $element['settings'] ) ? $element['settings'] : array();
 
+		// Mirrors Elementor Pro's Atomic_Form_Controller::resolve_widget_settings():
+		// the e-mail fallback applies only when e-mail settings are stored.
 		if ( ! isset( $settings[ self::ACTIONS_PROP ] ) ) {
-			return array( 'email' );
+			return isset( $settings['email'] ) ? array( 'email' ) : array();
 		}
 
 		$actions = array();

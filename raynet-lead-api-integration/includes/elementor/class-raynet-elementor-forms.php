@@ -37,6 +37,17 @@ class Raynet_Elementor_Forms {
 	const BACKUP_META = '_raynet_elementor_backup';
 
 	/**
+	 * Meta key holding the atomic forms' RAYNET settings as they were when
+	 * the layout backup was taken.
+	 *
+	 * Those settings live beside the layout, not in it, so a rollback of the
+	 * layout alone would leave a template's settings behind for the next
+	 * enable to bring back. Stored as {present: bool, value: mixed}, so "there
+	 * were none" can be told from "there was an empty list".
+	 */
+	const ATOMIC_BACKUP_META = '_raynet_crm_atomic_forms_backup';
+
+	/**
 	 * Meta key holding a fingerprint of the layout as this plugin last wrote it.
 	 *
 	 * Lets a rollback tell "nothing has happened since" from "the page has been
@@ -1539,11 +1550,37 @@ class Raynet_Elementor_Forms {
 		$result = self::write_tree( $post_id, $tree, false );
 
 		if ( ! is_wp_error( $result ) ) {
+			self::restore_atomic_settings( $post_id );
 			delete_post_meta( $post_id, self::BACKUP_META );
+			delete_post_meta( $post_id, self::ATOMIC_BACKUP_META );
 			delete_post_meta( $post_id, self::STAMP_META );
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Puts the atomic forms' RAYNET settings back as the backup found them.
+	 *
+	 * A backup taken by a version that kept no snapshot leaves them alone:
+	 * nothing says what they were.
+	 *
+	 * @param int $post_id Page id.
+	 * @return void
+	 */
+	private static function restore_atomic_settings( $post_id ) {
+		$snapshot = get_post_meta( (int) $post_id, self::ATOMIC_BACKUP_META, true );
+
+		if ( ! is_array( $snapshot ) || ! array_key_exists( 'present', $snapshot ) ) {
+			return;
+		}
+
+		if ( empty( $snapshot['present'] ) ) {
+			delete_post_meta( (int) $post_id, Raynet_Elementor_Atomic_Forms::META );
+			return;
+		}
+
+		update_post_meta( (int) $post_id, Raynet_Elementor_Atomic_Forms::META, wp_slash( isset( $snapshot['value'] ) ? $snapshot['value'] : '' ) );
 	}
 
 	/**
@@ -1678,6 +1715,15 @@ class Raynet_Elementor_Forms {
 
 			if ( is_string( $previous ) && '' !== $previous ) {
 				update_post_meta( (int) $post_id, self::BACKUP_META, wp_slash( $previous ) );
+
+				// Taken here, before update_forms() stores the new settings.
+				$present = metadata_exists( 'post', (int) $post_id, Raynet_Elementor_Atomic_Forms::META );
+				$snapshot = array(
+					'present' => $present,
+					'value'   => $present ? get_post_meta( (int) $post_id, Raynet_Elementor_Atomic_Forms::META, true ) : null,
+				);
+
+				update_post_meta( (int) $post_id, self::ATOMIC_BACKUP_META, wp_slash( $snapshot ) );
 			}
 		}
 

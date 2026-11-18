@@ -49,6 +49,9 @@ $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off cleanu
 $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off cleanup on uninstall.
 	$wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s", '_raynet_crm_atomic_forms' )
 );
+$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off cleanup on uninstall.
+	$wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s", '_raynet_crm_atomic_forms_backup' )
+);
 
 // Forms are posts, so they take their meta with them.
 $raynet_forms = get_posts(
