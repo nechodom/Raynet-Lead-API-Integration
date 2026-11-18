@@ -1857,6 +1857,180 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'load: D nese původní chybu', isset( $loaded_d[ $sub_d ] ) ? $loaded_d[ $sub_d ]['log'] : null, 'Connection timed out' );
 		check( 'load: D nese hodnoty', isset( $loaded_d[ $sub_d ] ) ? $loaded_d[ $sub_d ]['values']['email'] : null, 'eva.importova@example.cz' );
 
+		// --- The import screen, over HTTP ------------------------------------
+		// G carries markup in every value it can; K is a clean row the AJAX
+		// checks send, so A stays untouched for the checks of import() below.
+		$sub_xss = $add_stored( $import_page, '<script>alert(1)</script>', 'gustav.xss@example.cz', '"><img src=x onerror=alert(1)>', '192.0.2.10' );
+		$sub_k   = $add_stored( $import_page, 'Klára', 'klara.ajaxova@example.cz', 'Dobrý den, prosím o nezávaznou nabídku na výměnu oken v rodinném domě.', '192.0.2.11' );
+
+		// The row of one submission in a page of the import table.
+		$import_row = function ( $html, $submission_id ) {
+			return preg_match( '~<tr[^>]*\bdata-submission="' . (int) $submission_id . '"[^>]*>.*?</tr>~s', $html, $m ) ? $m[0] : '';
+		};
+		$import_url = '/wp-admin/admin.php?page=raynet-elementor-forms&import=' . rawurlencode( $import_key );
+
+		$empty_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Formulář bez odeslání', 'post_status' => 'publish' ) );
+		update_post_meta( $empty_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $empty_page, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'emptyform', 'Bez odeslání' ) ) ) );
+
+		$forms_view = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true )['body'];
+		check( 'přehled: odkaz na import formuláře', (bool) preg_match( '~href="[^"]*import=' . preg_quote( $import_key, '~' ) . '"[^>]*>\s*Importovat starší odeslání \(~', $forms_view ), true );
+		check( 'přehled: počet čekajících v odkazu', false !== strpos( $forms_view, 'Importovat starší odeslání (5)' ), true );
+		check( 'přehled: formulář bez odeslání odkaz nemá', false !== strpos( $forms_view, 'import=' . $empty_page . ':emptyform' ), false );
+
+		$review = req( $import_url, null, true );
+		$row_a  = $import_row( $review['body'], $sub_a );
+		$row_d  = $import_row( $review['body'], $sub_d );
+		check( 'import: obrazovka se načte', $review['status'], 200 );
+		check( 'import: tabulka', false !== strpos( $review['body'], 'class="wp-list-table widefat raynet-import"' ), true );
+		check( 'import: A zaškrtnuté', '' !== $row_a && false !== strpos( $row_a, 'name="submissions[]"' ) && false !== strpos( $row_a, 'checked' ), true );
+		check( 'import: D bez zaškrtnutí', '' !== $row_d && false === strpos( $row_d, 'checked' ), true );
+		check( 'import: D má zaškrtávátko', false !== strpos( $row_d, 'name="submissions[]"' ), true );
+		check( 'import: D vyzývá k ověření', false !== strpos( $row_d, 'tehdy selhalo: „Connection timed out“ — ověřte v RAYNETu, že lead neexistuje' ), true );
+		check( 'import: B, C, E, F na výchozí záložce nejsou', array( $import_row( $review['body'], $sub_b ), $import_row( $review['body'], $sub_c ), $import_row( $review['body'], $sub_e ), $import_row( $review['body'], $sub_f ) ), array( '', '', '', '' ) );
+		check( 'import: pole štítku s výchozí hodnotou', (bool) preg_match( '~id="raynet-import-tag"[^>]*value="import-web"~', $review['body'] ), true );
+		check( 'import: tlačítko odeslání', false !== strpos( $review['body'], 'id="raynet-import-send"' ), true );
+		check( 'import: skript načtený', false !== strpos( $review['body'], 'raynet-elementor-import.js' ), true );
+		check( 'import: detail s náhledem leadu', false !== strpos( $row_a . $review['body'], 'Importováno z uložených odeslání Elementoru. Původně odesláno: 12. 3. 2025 14:10' ), true );
+
+		$spam_tab = req( $import_url . '&zalozka=spam', null, true )['body'];
+		$row_b    = $import_row( $spam_tab, $sub_b );
+		check( 'spam: B s důvodem písma', false !== strpos( $row_b, 'text v jiném písmu než latinka' ), true );
+		check( 'spam: B nezaškrtnuté', '' !== $row_b && false === strpos( $row_b, 'checked' ), true );
+
+		$sent_tab = req( $import_url . '&zalozka=sent', null, true )['body'];
+		$row_c    = $import_row( $sent_tab, $sub_c );
+		check( 'odeslané: C je tu', '' !== $row_c, true );
+		check( 'odeslané: C bez zaškrtávátka', false !== strpos( $row_c, 'name="submissions[]"' ), false );
+
+		// Review Focus 1: stored values are never markup.
+		foreach ( array( 'výchozí' => $review['body'], 'spam' => $spam_tab ) as $tab_label => $tab_body ) {
+			check( 'XSS (' . $tab_label . '): žádný skript', false !== strpos( $tab_body, '<script>alert(1)</script>' ), false );
+			check( 'XSS (' . $tab_label . '): žádný onerror', false !== strpos( $tab_body, 'onerror=alert(1)>' ), false );
+		}
+		// Wherever the score puts G, its row and stored values are on the screen.
+		$xss_body = '' !== $import_row( $review['body'], $sub_xss ) ? $review['body'] : $spam_tab;
+		check( 'XSS: G je na obrazovce', '' !== $import_row( $xss_body, $sub_xss ), true );
+		check( 'XSS: jméno escapované', false !== strpos( $xss_body, '&lt;script&gt;alert(1)&lt;/script&gt;' ), true );
+		check( 'XSS: zpráva escapovaná', false !== strpos( $xss_body, '&quot;&gt;&lt;img src=x onerror=alert(1)&gt;' ), true );
+
+		$odd_size = req( $import_url . '&na_stranku=7', null, true )['body'];
+		check( 'neplatný počet na stránku je 100', false !== strpos( $odd_size, 'data-per-page="100"' ), true );
+		check( 'platný počet na stránku 50', false !== strpos( req( $import_url . '&na_stranku=50', null, true )['body'], 'data-per-page="50"' ), true );
+
+		$far = req( $import_url . '&strana=99', null, true );
+		check( 'stránka mimo rozsah: 200', $far['status'], 200 );
+		check( 'stránka mimo rozsah: hláška', false !== strpos( $far['body'], 'Na této stránce nejsou žádná odeslání.' ), true );
+		check( 'stránka mimo rozsah: žádné řádky', false !== strpos( $far['body'], 'data-submission=' ), false );
+
+		$missing = req( '/wp-admin/admin.php?page=raynet-elementor-forms&import=999999:nic', null, true );
+		check( 'neznámý formulář: 200', $missing['status'], 200 );
+		check( 'neznámý formulář: hláška', false !== strpos( $missing['body'], 'Formulář nebyl nalezen.' ), true );
+
+		// Without a mapped contact the screen sends the admin to the mapping.
+		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( array( $import_map[0], $import_map[2] ) ) ) ) );
+		$unready = req( $import_url, null, true )['body'];
+		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( $import_map ) ) ) );
+		check( 'bez kontaktu: odkaz na mapování', false !== strpos( $unready, 'mapovat=' . $import_key ), true );
+		check( 'bez kontaktu: bez tlačítka odeslání', false !== strpos( $unready, 'id="raynet-import-send"' ), false );
+		check( 'bez kontaktu: bez tabulky', false !== strpos( $unready, 'raynet-import"' ), false );
+
+		// Without credentials there is nothing to send with.
+		$credentials = get_option( Raynet_Lead_Settings::OPTION );
+		update_option( Raynet_Lead_Settings::OPTION, array_merge( (array) $credentials, array( 'api_key' => '' ) ) );
+		$unconfigured = req( $import_url, null, true )['body'];
+		update_option( Raynet_Lead_Settings::OPTION, $credentials );
+		check( 'bez nastavení: odkaz do nastavení', false !== strpos( $unconfigured, 'page=raynet-lead-integration' ), true );
+		check( 'bez nastavení: bez tlačítka odeslání', false !== strpos( $unconfigured, 'id="raynet-import-send"' ), false );
+
+		// --- One submission over AJAX (Review Focus 2) -------------------------
+		preg_match( '/raynetElementorImport = \{[^;]*?"nonce":"([^"]+)"/', $review['body'], $import_nonce );
+		$import_nonce = isset( $import_nonce[1] ) ? $import_nonce[1] : '';
+		check( 'nonce importu na stránce', '' !== $import_nonce, true );
+		$ajax_import = function ( $nonce, $as_user, $tag = 'import-web' ) use ( $import_key, $sub_k ) {
+			$post = array(
+				'action'     => 'raynet_elm_import_one',
+				'form'       => $import_key,
+				'submission' => $sub_k,
+				'tag'        => $tag,
+			);
+			if ( null !== $nonce ) {
+				$post['_wpnonce'] = $nonce;
+			}
+			return req( '/wp-admin/admin-ajax.php', $post, $as_user );
+		};
+
+		update_option( 'raynet_test_http_calls', array() );
+		$forged = $ajax_import( null, true );
+		wp_cache_flush();
+		check( 'AJAX bez nonce: 403', $forged['status'], 403 );
+		check( 'AJAX bez nonce: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+
+		$anonymous = $ajax_import( $import_nonce, false );
+		wp_cache_flush();
+		check( 'AJAX nepřihlášený: neúspěch', false !== strpos( $anonymous['body'], '"success":true' ), false );
+		check( 'AJAX nepřihlášený: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+
+		$long_tag = 'import-ajax ' . str_repeat( 'x', 80 );
+		$sent_k   = json_decode( $ajax_import( $import_nonce, true, $long_tag )['body'], true );
+		wp_cache_flush();
+		check( 'AJAX: úspěch', isset( $sent_k['success'] ) ? $sent_k['success'] : null, true );
+		check( 'AJAX: číslo leadu', isset( $sent_k['data']['lead_id'] ) ? $sent_k['data']['lead_id'] : null, 4242 );
+		$ajax_payload = null;
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/lead/' ) ) {
+				$ajax_payload = json_decode( $call['body'], true );
+			}
+		}
+		check( 'AJAX: štítek oříznutý na 60 znaků', isset( $ajax_payload['tags'] ) && in_array( mb_substr( $long_tag, 0, 60 ), explode( ',', $ajax_payload['tags'] ), true ), true );
+
+		update_option( 'raynet_test_http_calls', array() );
+		$again_k = $ajax_import( $import_nonce, true );
+		$again_j = json_decode( $again_k['body'], true );
+		wp_cache_flush();
+		check( 'AJAX podruhé: chyba', isset( $again_j['success'] ) ? $again_j['success'] : null, false );
+		check( 'AJAX podruhé: 400', $again_k['status'], 400 );
+		check( 'AJAX podruhé: kód', isset( $again_j['data']['code'] ) ? $again_j['data']['code'] : null, 'raynet_import_already_sent' );
+		check( 'AJAX podruhé: hláška', isset( $again_j['data']['message'] ) && '' !== $again_j['data']['message'], true );
+		check( 'AJAX podruhé: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+
+		// --- Elementor Pro switched off (Review Focus 3) -----------------------
+		// This process keeps Pro loaded; the web server reads the option fresh,
+		// so the screens are checked over HTTP. Pro is switched back on in any
+		// case, even if this process dies on the way.
+		$plugins_before = get_option( 'active_plugins' );
+		$restore_pro    = function () use ( $plugins_before ) {
+			update_option( 'active_plugins', $plugins_before );
+		};
+		register_shutdown_function( $restore_pro );
+		$debug_log   = WP_CONTENT_DIR . '/debug.log';
+		$debug_lines = file_exists( $debug_log ) ? count( file( $debug_log ) ) : 0;
+
+		try {
+			update_option( 'active_plugins', array_values( array_diff( (array) $plugins_before, array( 'elementor-pro/elementor-pro.php' ) ) ) );
+			$without_pro_list   = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true );
+			$without_pro_import = req( $import_url, null, true );
+		} finally {
+			$restore_pro();
+		}
+
+		check( 'bez Pro: přehled se načte', $without_pro_list['status'], 200 );
+		check( 'bez Pro: přehled je opravdu bez Pro', false !== strpos( $without_pro_list['body'], 'Elementor Pro není aktivní' ), true );
+		check( 'bez Pro: žádný odkaz na import', false !== strpos( $without_pro_list['body'], 'Importovat starší odeslání' ), false );
+		check( 'bez Pro: import se načte', $without_pro_import['status'], 200 );
+		check( 'bez Pro: import vysvětlí proč', false !== strpos( $without_pro_import['body'], 'Import potřebuje aktivní Elementor Pro' ), true );
+		check( 'bez Pro: bez tabulky', false !== strpos( $without_pro_import['body'], 'raynet-import"' ), false );
+		$new_lines = file_exists( $debug_log ) ? array_slice( file( $debug_log ), $debug_lines ) : array();
+		// The SQLite driver's deprecation noise is not ours, as at the end of the suite.
+		$new_lines = preg_grep( '/sqlite-database-integration|wp-cli\.phar/', preg_grep( '/PHP /', $new_lines ), PREG_GREP_INVERT );
+		check( 'bez Pro: žádná PHP chyba', count( $new_lines ), 0 );
+		check( 'Pro je zase aktivní', in_array( 'elementor-pro/elementor-pro.php', (array) get_option( 'active_plugins' ), true ), true );
+
+		$import_query->delete_submission( $sub_xss );
+		$import_query->delete_submission( $sub_k );
+		wp_delete_post( $empty_page, true );
+		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+
 		// The lock is read and written with raw SQL only, as the class does.
 		$lock_row = function ( $submission_id ) use ( $wpdb ) {
 			return $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", Raynet_Elementor_Submissions::LOCK_PREFIX . $submission_id ) ); // phpcs:ignore WordPress.DB

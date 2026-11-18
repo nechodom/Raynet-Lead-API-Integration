@@ -77,11 +77,18 @@ class Raynet_Elementor_Forms_Admin {
 			return;
 		}
 
+		if ( isset( $_GET['import'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only selection.
+			Raynet_Elementor_Import_Admin::render( sanitize_text_field( wp_unslash( $_GET['import'] ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only selection.
+			return;
+		}
+
 		$forms     = Raynet_Elementor_Forms::scan();
 		$templates = Raynet_Elementor_Forms::templates();
 		$editing   = isset( $_GET['sablona'] ) ? sanitize_title( wp_unslash( $_GET['sablona'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only selection.
 		$lead      = isset( $templates[ $editing ] ) ? $templates[ $editing ]['lead'] : Raynet_Lead_Form_Definition::lead_defaults();
 		$name      = isset( $templates[ $editing ] ) ? $templates[ $editing ]['name'] : '';
+		// One query for the whole site, not one per form.
+		$pending   = Raynet_Elementor_Submissions::pending_counts();
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Elementor formuláře', 'raynet-lead-api-integration' ); ?></h1>
@@ -241,6 +248,18 @@ class Raynet_Elementor_Forms_Admin {
 													&nbsp;|&nbsp;
 												<?php endif; ?>
 												<a href="<?php echo esc_url( $form['edit_url'] ); ?>"><?php esc_html_e( 'Otevřít v Elementoru', 'raynet-lead-api-integration' ); ?></a>
+												<?php if ( ! $form['atomic'] && '' !== $form['widget_id'] && ! empty( $pending[ $key ] ) ) : ?>
+													&nbsp;|&nbsp;
+													<a href="<?php echo esc_url( Raynet_Elementor_Import_Admin::url( $form ) ); ?>">
+														<?php
+														printf(
+															/* translators: %d: number of stored submissions not yet in RAYNET. */
+															esc_html__( 'Importovat starší odeslání (%d)', 'raynet-lead-api-integration' ),
+															(int) $pending[ $key ]
+														);
+														?>
+													</a>
+												<?php endif; ?>
 												<?php if ( Raynet_Elementor_Forms::has_backup( $form['post_id'] ) ) : ?>
 													&nbsp;|&nbsp;
 													<?php

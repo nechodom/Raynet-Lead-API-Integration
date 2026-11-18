@@ -175,3 +175,147 @@
 	color: #6b5a12;
 	font-size: 12px;
 }
+
+/* The import screen of one form. */
+.raynet-import__where {
+	font-weight: 400;
+	color: #646970;
+}
+
+.raynet-import__summary {
+	margin: 12px 0;
+}
+
+.raynet-import__tabs {
+	margin-bottom: 12px;
+}
+
+.raynet-import__tag input {
+	max-width: 240px;
+}
+
+.raynet-import {
+	margin-top: 8px;
+}
+
+.raynet-import .raynet-import__check {
+	width: 2.2em;
+	padding-left: 10px;
+	vertical-align: top;
+}
+
+.raynet-import__date {
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.raynet-import__message {
+	color: #50575e;
+}
+
+.raynet-import__row td,
+.raynet-import__row th {
+	border-top: 1px solid #f0f0f1;
+}
+
+.raynet-import--spam .raynet-import__verdict {
+	color: #b32d2e;
+	font-weight: 600;
+}
+
+.raynet-import--suspect .raynet-import__verdict {
+	color: #8a6116;
+	font-weight: 600;
+}
+
+.raynet-import--ok .raynet-import__verdict {
+	color: #00702a;
+}
+
+.raynet-import__toggle {
+	margin-top: 4px;
+	color: #2271b1;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.raynet-import__detail td {
+	background: #f6f7f7;
+}
+
+.raynet-import__columns {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 16px 32px;
+}
+
+.raynet-import__columns h4 {
+	margin: 4px 0 8px;
+}
+
+.raynet-import__values {
+	display: grid;
+	grid-template-columns: minmax(120px, max-content) 1fr;
+	gap: 4px 12px;
+	margin: 0;
+}
+
+.raynet-import__values dt {
+	font-weight: 600;
+}
+
+.raynet-import__values dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.raynet-import__note {
+	white-space: pre-wrap;
+}
+
+.raynet-import__result {
+	min-width: 140px;
+}
+
+.raynet-import__row.is-sent .raynet-import__result {
+	color: #00702a;
+	font-weight: 600;
+}
+
+.raynet-import__row.is-warning .raynet-import__result,
+.raynet-import__row.is-unknown .raynet-import__result {
+	color: #8a6116;
+}
+
+.raynet-import__row.is-error .raynet-import__result {
+	color: #b32d2e;
+}
+
+.raynet-import__footer {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 8px 24px;
+	margin-top: 12px;
+}
+
+.raynet-import__footer .description {
+	flex-basis: 100%;
+	margin-top: 0;
+}
+
+.raynet-import__progress {
+	margin-left: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+.raynet-import__pages a,
+.raynet-import__pages strong {
+	display: inline-block;
+	padding: 0 4px;
+}
+
+.raynet-import__page-links {
+	margin-right: 16px;
+}

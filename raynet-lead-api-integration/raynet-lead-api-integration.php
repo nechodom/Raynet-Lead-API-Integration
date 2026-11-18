@@ -41,6 +41,7 @@ require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-attachments.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-submission-spam-score.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-submissions.php';
+require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-import-admin.php';
 
 /**
  * Boots the plugin once all plugins are loaded.
@@ -64,6 +65,7 @@ function raynet_lead_bootstrap() {
 		( new Raynet_Lead_Admin() )->register();
 		( new Raynet_Lead_Form_Builder_Admin() )->register();
 		( new Raynet_Elementor_Forms_Admin() )->register();
+		Raynet_Elementor_Import_Admin::register();
 	}
 }
 add_action( 'plugins_loaded', 'raynet_lead_bootstrap' );
