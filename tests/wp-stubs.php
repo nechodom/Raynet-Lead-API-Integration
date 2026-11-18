@@ -228,4 +228,5 @@ require_once $raynet_includes . 'class-raynet-api-client.php';
 require_once $raynet_includes . 'class-raynet-lead-fields.php';
 require_once $raynet_includes . 'class-raynet-lead-users.php';
 require_once $raynet_includes . 'elementor/class-raynet-elementor-attachments.php';
+require_once $raynet_includes . 'elementor/class-raynet-submission-spam-score.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';

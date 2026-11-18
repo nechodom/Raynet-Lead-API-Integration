@@ -39,6 +39,7 @@ require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-lead-builder.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-attachments.php';
+require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-submission-spam-score.php';
 
 /**
  * Boots the plugin once all plugins are loaded.
