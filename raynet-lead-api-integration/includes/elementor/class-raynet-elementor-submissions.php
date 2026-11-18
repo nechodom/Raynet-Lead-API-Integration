@@ -38,6 +38,12 @@ class Raynet_Elementor_Submissions {
 	const CACHE_PREFIX = 'raynet_import_idx_';
 
 	/**
+	 * Option holding the generation of every cached index. forget_index()
+	 * replaces it; an index built under an older one is never read.
+	 */
+	const CACHE_GENERATION = 'raynet_import_idx_gen';
+
+	/**
 	 * How long an index stays cached, in seconds.
 	 */
 	const CACHE_TTL = 600;
@@ -94,6 +100,12 @@ class Raynet_Elementor_Submissions {
 	const ATTEMPT_UNLOGGED = 'unlogged';
 
 	/**
+	 * Characters of RAYNET's error text an attempt record keeps at most: a
+	 * refused request may echo submitted values.
+	 */
+	const ATTEMPT_MESSAGE_MAX = 500;
+
+	/**
 	 * Elementor's query class, which owns the action log.
 	 */
 	const QUERY_CLASS = '\\ElementorPro\\Modules\\Forms\\Submissions\\Database\\Query';
@@ -125,7 +137,9 @@ class Raynet_Elementor_Submissions {
 	 * A submission counts under its `post_id` and, when that differs, under
 	 * the page it was sent from (`meta.edit_post_id`), because the scanner
 	 * finds a form either in the page or in the template it lives in.
-	 * Submissions in the trash do not count.
+	 * Submissions in the trash do not count. A submission the plugin created
+	 * a lead from but could not mark in Elementor's log (attempt outcome
+	 * ATTEMPT_UNLOGGED) is in RAYNET, so it is not pending.
 	 *
 	 * @return array<string,array{pending:int,total:int}> "post_id:element_id" =>
 	 *         submissions not yet in RAYNET, and all of them.
@@ -144,12 +158,17 @@ class Raynet_Elementor_Submissions {
 		$groups = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT s.post_id, s.element_id, s.meta, COUNT(*) AS total,
-				SUM( CASE WHEN EXISTS ( SELECT 1 FROM {$log} l WHERE l.submission_id = s.id AND l.action_name = %s AND l.status = %s ) THEN 0 ELSE 1 END ) AS pending
+				SUM( CASE WHEN EXISTS ( SELECT 1 FROM {$log} l WHERE l.submission_id = s.id AND l.action_name = %s AND l.status = %s )
+					OR EXISTS ( SELECT 1 FROM {$wpdb->options} o WHERE o.option_name = CONCAT( %s, s.id ) AND o.option_value LIKE %s )
+					THEN 0 ELSE 1 END ) AS pending
 				FROM {$submissions} s
 				WHERE s.status <> %s
 				GROUP BY s.post_id, s.element_id, s.meta",
 				Raynet_Elementor_Forms::ACTION_NAME,
 				'success',
+				self::ATTEMPT_PREFIX,
+				// The outcome as serialize() writes it in record_attempt()'s array.
+				'%' . $wpdb->esc_like( serialize( 'outcome' ) . serialize( self::ATTEMPT_UNLOGGED ) ) . '%', // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize -- Matching a stored option value.
 				'trash'
 			),
 			ARRAY_A
@@ -512,7 +531,8 @@ class Raynet_Elementor_Submissions {
 	 * Cached for a few minutes: judging needs two passes over all of them.
 	 * The cache is dropped when the form's settings or the number of its
 	 * submissions change, and by every import that changes a row's state
-	 * (see forget_index()). It is stored compactly, in chunks of
+	 * (see forget_index()), also when that import runs while this index is
+	 * being built. It is stored compactly, in chunks of
 	 * CACHE_CHUNK submissions, so that no single row grows past what a
 	 * database packet or an object cache item can hold. A cached reason keeps
 	 * only its id and count.
@@ -526,6 +546,10 @@ class Raynet_Elementor_Submissions {
 			return array();
 		}
 
+		// Read before anything the index is built from: an import that drops
+		// the cache while this build runs replaces the generation, so what this
+		// build stores is never read.
+		$generation    = (string) get_option( self::CACHE_GENERATION, '' );
 		$post_id       = (int) $post_id;
 		$widget_id     = (string) $widget_id;
 		$form_settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
@@ -548,7 +572,7 @@ class Raynet_Elementor_Submissions {
 		 * @param array<string,mixed> $config Thresholds, word lists, allowed scripts and disabled signals.
 		 */
 		$config      = (array) apply_filters( 'raynet_import_spam_config', Raynet_Submission_Spam_Score::default_config() );
-		$fingerprint = md5( wp_json_encode( array( $form_settings, $config, self::count_submissions( $post_id, $widget_id ) ) ) );
+		$fingerprint = md5( wp_json_encode( array( $generation, $form_settings, $config, self::count_submissions( $post_id, $widget_id ) ) ) );
 		$cache_key   = self::cache_key( $post_id, $widget_id );
 		$cached      = self::read_cache( $cache_key, $fingerprint );
 
@@ -576,17 +600,26 @@ class Raynet_Elementor_Submissions {
 	}
 
 	/**
-	 * Drops the cached index of a form, head and chunks.
+	 * Drops the cached index of a form, head and chunks, and replaces the
+	 * cache generation.
 	 *
 	 * The next index() recomputes it, so a row an import changed is judged
 	 * again together with the rest: a copy of a submission just sent becomes
-	 * its duplicate.
+	 * its duplicate. An index() that was already running read its rows
+	 * before the change and would store them after this delete; the new
+	 * generation makes what it stores unreadable, and it expires with the
+	 * transients' TTL. The generation is a fresh unique value rather than a
+	 * counter, so two imports that replace it at once cannot both write the
+	 * value such a build read. It is shared by all forms: replacing it makes
+	 * every form's index be computed again once.
 	 *
 	 * @param int    $post_id   Post the form lives in.
 	 * @param string $widget_id Form widget id.
 	 * @return void
 	 */
 	public static function forget_index( $post_id, $widget_id ) {
+		update_option( self::CACHE_GENERATION, uniqid( '', true ), false );
+
 		$cache_key = self::cache_key( (int) $post_id, (string) $widget_id );
 		$head      = get_transient( $cache_key );
 
@@ -775,7 +808,9 @@ class Raynet_Elementor_Submissions {
 	 * `unknown` (RAYNET timed out or failed on its side: the lead may exist),
 	 * `refused`, or `unlogged` (the lead exists, Elementor's log row could not
 	 * be written even on a second try). A submission with such a row is never
-	 * preselected again; see hydrate().
+	 * preselected again; see hydrate(). When the `pending` row cannot be
+	 * written, nothing is sent and the error is `raynet_import_lock_failed`,
+	 * as for a lock that cannot be taken.
 	 *
 	 * Errors besides those of the checks: `raynet_import_unknown` when the
 	 * outcome is unknown, `raynet_api_error` when RAYNET refused, and
@@ -849,9 +884,14 @@ class Raynet_Elementor_Submissions {
 			return $prepared;
 		}
 
-		// From here on a send may happen: say so before it does.
+		// From here on a send may happen: say so before it does. Without that
+		// record an unknown outcome would come back preselected, so nothing
+		// is sent when it cannot be written.
 		$previous = get_option( self::ATTEMPT_PREFIX . $submission_id, null );
-		self::record_attempt( $submission_id, self::ATTEMPT_PENDING );
+
+		if ( ! self::record_attempt( $submission_id, self::ATTEMPT_PENDING ) ) {
+			return new WP_Error( 'raynet_import_lock_failed', __( 'Import se nepodařilo spustit kvůli chybě databáze. Do RAYNETu se nic neodeslalo.', 'raynet-lead-api-integration' ) );
+		}
 
 		$form   = new Raynet_Lead_Form();
 		$result = $form->submit_lead( $prepared['values'], $prepared['settings'], $prepared['context'] );
@@ -902,7 +942,8 @@ class Raynet_Elementor_Submissions {
 	 * Records what a failed send means and turns it into import()'s error.
 	 *
 	 * Nothing left the site (the plugin is not configured, or the payload
-	 * could not be encoded): the attempt is dropped. RAYNET did not answer, or
+	 * could not be encoded): the attempt record from before this send is put
+	 * back, or removed when there was none. RAYNET did not answer, or
 	 * answered with a 5xx: the lead may exist, so the outcome is unknown. Any
 	 * other answer is a refusal, kept with its reason.
 	 *
@@ -949,23 +990,36 @@ class Raynet_Elementor_Submissions {
 	/**
 	 * Writes the attempt record of one submission, replacing any earlier one.
 	 *
+	 * The message is cut to ATTEMPT_MESSAGE_MAX characters.
+	 *
 	 * @param int    $submission_id Submission id.
 	 * @param string $outcome       One of the ATTEMPT_* outcomes.
 	 * @param string $message       What RAYNET or the connection said; may be empty.
 	 * @param int    $lead_id       Lead id, for ATTEMPT_UNLOGGED only.
-	 * @return void
+	 * @return bool Whether the database holds the record now.
 	 */
 	private static function record_attempt( $submission_id, $outcome, $message = '', $lead_id = 0 ) {
-		update_option(
-			self::ATTEMPT_PREFIX . (int) $submission_id,
-			array(
-				'time'    => time(),
-				'outcome' => (string) $outcome,
-				'message' => (string) $message,
-				'lead_id' => (int) $lead_id,
-			),
-			false
+		global $wpdb;
+
+		$name    = self::ATTEMPT_PREFIX . (int) $submission_id;
+		$message = (string) $message;
+		$record  = array(
+			'time'    => time(),
+			'outcome' => (string) $outcome,
+			'message' => function_exists( 'mb_substr' ) ? mb_substr( $message, 0, self::ATTEMPT_MESSAGE_MAX, 'UTF-8' ) : substr( $message, 0, self::ATTEMPT_MESSAGE_MAX ),
+			'lead_id' => (int) $lead_id,
 		);
+
+		if ( update_option( $name, $record, false ) ) {
+			return true;
+		}
+
+		// update_option() is false also when the same value is stored already,
+		// so ask the database, past the options cache, what it holds.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Checking a write the options cache would hide.
+		$stored = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $name ) );
+
+		return maybe_serialize( $record ) === $stored;
 	}
 
 	/**

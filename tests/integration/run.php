@@ -2425,6 +2425,93 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$index_retried = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
 		check( 'opakovaný import P: index už v RAYNETu', isset( $index_retried[ $sub_p ] ) ? $index_retried[ $sub_p ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
 
+		// The "pending" record cannot be written: nothing may be sent, since an
+		// unknown outcome would then come back preselected.
+		$sub_w         = $add_stored( $import_page, 'Wanda', 'wanda.zapisova@example.cz', 'Dobrý den, prosíme o nabídku na údržbu zeleně kolem firemního areálu.', '192.0.2.25' );
+		$break_attempt = function ( $sql ) {
+			return preg_match( '/^\s*(INSERT|UPDATE)\b/i', $sql ) && false !== strpos( $sql, Raynet_Elementor_Submissions::ATTEMPT_PREFIX ) ? 'INSERT INTO raynet_no_such_table (x) VALUES (1)' : $sql;
+		};
+		$import_unwritable = function () use ( $wpdb, $break_attempt, $import_page, $sub_w ) {
+			update_option( 'raynet_test_http_calls', array() );
+			$suppressed = $wpdb->suppress_errors( true );
+			add_filter( 'query', $break_attempt );
+			$result = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_w, 'import-web' );
+			remove_filter( 'query', $break_attempt );
+			$wpdb->suppress_errors( $suppressed );
+			wp_cache_flush();
+			return $result;
+		};
+		$unwritten = $import_unwritable();
+		check( 'nezapsaný pokus: chyba databáze', is_wp_error( $unwritten ) ? $unwritten->get_error_code() : null, 'raynet_import_lock_failed' );
+		check( 'nezapsaný pokus: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		check( 'nezapsaný pokus: zámek uvolněn', $lock_row( $sub_w ), null );
+		check( 'nezapsaný pokus: žádný záznam', $attempt_row( $sub_w ), null );
+		check( 'nezapsaný pokus: v Elementoru žádný řádek logu', count( (array) $import_query->get_submissions_actions_log( $sub_w ) ), 0 );
+
+		// The same over an earlier record: it stays as it was.
+		$earlier_w = array( 'time' => time() - 60, 'outcome' => 'unknown', 'message' => 'cURL error 28', 'lead_id' => 0 );
+		$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", 'raynet_import_attempt_' . $sub_w, maybe_serialize( $earlier_w ) ) ); // phpcs:ignore WordPress.DB
+		wp_cache_flush();
+		$unwritten = $import_unwritable();
+		check( 'nezapsaný pokus přes starší: chyba databáze', is_wp_error( $unwritten ) ? $unwritten->get_error_code() : null, 'raynet_import_lock_failed' );
+		check( 'nezapsaný pokus přes starší: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		check( 'nezapsaný pokus přes starší: záznam beze změny', $attempt_row( $sub_w ), $earlier_w );
+		check( 'nezapsaný pokus přes starší: zámek uvolněn', $lock_row( $sub_w ), null );
+
+		// update_option() says false for a value that is already stored: that is
+		// a written record, not a failure.
+		$record_attempt = new ReflectionMethod( 'Raynet_Elementor_Submissions', 'record_attempt' );
+		$record_attempt->setAccessible( true );
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . $sub_w ) ); // phpcs:ignore WordPress.DB
+		wp_cache_flush();
+		check( 'záznam pokusu: zápis se povede', $record_attempt->invoke( null, $sub_w, 'pending' ), true );
+		check( 'záznam pokusu: stejná hodnota podruhé je zapsaná', $record_attempt->invoke( null, $sub_w, 'pending' ), true );
+		check( 'záznam pokusu: v databázi pending', is_array( $attempt_row( $sub_w ) ) ? $attempt_row( $sub_w )['outcome'] : null, 'pending' );
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . $sub_w ) ); // phpcs:ignore WordPress.DB
+		wp_cache_flush();
+
+		// RAYNET's reason is kept short: a refused request may echo what was sent.
+		$sub_l       = $add_stored( $import_page, 'Libor', 'libor.dlouhy@example.cz', 'Dobrý den, zajímá nás pravidelný servis kotlů ve dvou provozovnách.', '192.0.2.26' );
+		$long_reason = str_repeat( 'ž', 2000 );
+		$refuse_long = function ( $preempt, $args, $url ) use ( $long_reason ) {
+			return false !== strpos( $url, '/lead/' ) ? array( 'headers' => array(), 'body' => wp_json_encode( array( 'message' => $long_reason ) ), 'response' => array( 'code' => 400, 'message' => 'Bad Request' ), 'cookies' => array(), 'filename' => null ) : $preempt;
+		};
+		add_filter( 'pre_http_request', $refuse_long, 5, 3 );
+		$refused_l = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_l, 'import-web' );
+		remove_filter( 'pre_http_request', $refuse_long, 5 );
+		wp_cache_flush();
+		$long_attempt = $attempt_row( $sub_l );
+		check( 'dlouhý důvod: chyba API vrátí celý', is_wp_error( $refused_l ) && false !== strpos( $refused_l->get_error_message(), $long_reason ), true );
+		check( 'dlouhý důvod: pokus odmítnutý', is_array( $long_attempt ) ? $long_attempt['outcome'] : null, 'refused' );
+		check( 'dlouhý důvod: uloženo nejvýš 500 znaků', is_array( $long_attempt ) ? mb_strlen( $long_attempt['message'], 'UTF-8' ) : null, 500 );
+		check( 'dlouhý důvod: platné UTF-8', is_array( $long_attempt ) && mb_check_encoding( $long_attempt['message'], 'UTF-8' ), true );
+		check( 'dlouhý důvod: začátek zůstane', is_array( $long_attempt ) && 0 === strpos( $long_attempt['message'], 'RAYNET API vrátilo chybu 400: žžž' ), true );
+
+		// --- The count in the link leaves out leads the plugin already created ---
+		$count_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Počítaný import', 'post_status' => 'publish' ) );
+		update_post_meta( $count_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $count_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( $import_map ) ) ) );
+		$count_key = $count_page . ':impform';
+		$sub_n1    = $add_stored( $count_page, 'Nela', 'nela.pocitana@example.cz', 'Dobrý den, poptáváme montáž venkovních žaluzií na šest oken.', '192.0.2.41' );
+		$sub_n2    = $add_stored( $count_page, 'Norbert', 'norbert.pocitany@example.cz', 'Prosíme o nabídku na pokládku zámkové dlažby u garáže.', '192.0.2.42' );
+		$put_attempt = function ( $submission_id, $outcome ) use ( $wpdb ) {
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . $submission_id ) ); // phpcs:ignore WordPress.DB
+			$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", 'raynet_import_attempt_' . $submission_id, maybe_serialize( array( 'time' => time(), 'outcome' => $outcome, 'message' => '', 'lead_id' => 'unlogged' === $outcome ? 4343 : 0 ) ) ) ); // phpcs:ignore WordPress.DB
+			wp_cache_flush();
+		};
+		$put_attempt( $sub_n2, 'unlogged' );
+		$counted = Raynet_Elementor_Submissions::form_counts();
+		check( 'form_counts: lead bez označení nečeká', isset( $counted[ $count_key ] ) ? $counted[ $count_key ] : null, array( 'pending' => 1, 'total' => 2 ) );
+		$put_attempt( $sub_n2, 'unknown' );
+		$counted = Raynet_Elementor_Submissions::form_counts();
+		check( 'form_counts: neznámý výsledek dál čeká', isset( $counted[ $count_key ] ) ? $counted[ $count_key ] : null, array( 'pending' => 2, 'total' => 2 ) );
+		foreach ( array( $sub_n1, $sub_n2 ) as $stored_id ) {
+			$import_query->delete_submission( $stored_id );
+			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . $stored_id ) ); // phpcs:ignore WordPress.DB
+		}
+		$drop_index( $count_key );
+		wp_delete_post( $count_page, true );
+
 		// --- The index cache: compact chunks, dropped by every import -------------
 		$cache_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Kešovaný import', 'post_status' => 'publish' ) );
 		update_post_meta( $cache_page, '_elementor_edit_mode', 'builder' );
@@ -2500,6 +2587,29 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		wp_cache_flush();
 		check( 'po neúspěšném importu žádná keš', array( get_transient( $cache_name ), get_transient( $cache_name . '_0' ) ), array( false, false ) );
 
+		// V2 is imported while an index is being built: the build read V2 as
+		// new before the import dropped the cache, and must not be served after.
+		$generation_before = get_option( 'raynet_import_idx_gen', null );
+		$mid_build_import  = null;
+		$import_mid_build  = function ( $result ) use ( &$mid_build_import, $cache_page, $sub_v2 ) {
+			if ( null === $mid_build_import ) {
+				$mid_build_import = Raynet_Elementor_Submissions::import( $cache_page, 'impform', $sub_v2, 'import-web' );
+			}
+			return $result;
+		};
+		add_filter( 'raynet_import_spam_score', $import_mid_build );
+		$during = Raynet_Elementor_Submissions::index( $cache_page, 'impform' );
+		remove_filter( 'raynet_import_spam_score', $import_mid_build );
+		check( 'souběh: V2 importováno během výpočtu', is_array( $mid_build_import ) ? $mid_build_import['lead_id'] : $mid_build_import, 4242 );
+		check( 'souběh: výpočet ještě viděl V2 jako nové', isset( $during[ $sub_v2 ] ) ? $during[ $sub_v2 ]['state'] : null, Raynet_Elementor_Submissions::STATE_NEW );
+		check( 'souběh: import posunul generaci keše', get_option( 'raynet_import_idx_gen', null ) !== $generation_before, true );
+		$classified = 0;
+		add_filter( 'raynet_import_spam_score', $count_runs );
+		$after_race = Raynet_Elementor_Submissions::index( $cache_page, 'impform' );
+		remove_filter( 'raynet_import_spam_score', $count_runs );
+		check( 'souběh: další čtení počítá znovu', $classified > 0, true );
+		check( 'souběh: V2 už v RAYNETu', isset( $after_race[ $sub_v2 ] ) ? array( $after_race[ $sub_v2 ]['tab'], $after_race[ $sub_v2 ]['preselect'] ) : null, array( Raynet_Elementor_Submissions::TAB_SENT, false ) );
+
 		remove_filter( 'raynet_import_index_chunk_size', $chunk_two );
 		foreach ( $cache_subs as $stored_id ) {
 			$import_query->delete_submission( $stored_id );
@@ -2516,11 +2626,12 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$sub_i = $add_stored( $import_page + 200000, 'Ivo', 'ivo@example.cz', 'Stránka s ID, které jen začíná stejnými číslicemi, sem nepatří.', '192.0.2.9', array( 'meta' => wp_json_encode( array( 'edit_post_id' => (int) ( $import_page . '1' ) ) ) ) );
 		check( 'stránka z meta jako číslo i řetězec, ne předpona', array_keys( Raynet_Elementor_Submissions::load( $import_page, 'impform', array( $sub_g, $sub_h, $sub_i ) ) ), array( $sub_h, $sub_g ) );
 
-		foreach ( array( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f, $sub_g, $sub_h, $sub_i, $sub_t, $sub_u, $sub_r, $sub_p ) as $stored_id ) {
+		foreach ( array( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f, $sub_g, $sub_h, $sub_i, $sub_t, $sub_u, $sub_r, $sub_p, $sub_w, $sub_l ) as $stored_id ) {
 			$import_query->delete_submission( $stored_id );
 			$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s", 'raynet_import_attempt_' . $stored_id ) ); // phpcs:ignore WordPress.DB
 		}
 		$drop_index( $import_key );
+		delete_option( 'raynet_import_idx_gen' );
 		if ( null === $last_error_orig ) {
 			delete_option( 'raynet_lead_last_error' );
 		} else {

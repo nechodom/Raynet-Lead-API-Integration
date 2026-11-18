@@ -41,6 +41,7 @@ $plugin_options = array(
 	'raynet_lead_elementor_templates' => array( 'poptavka' => array() ),
 	'raynet_lead_custom_fields'       => array( 'connection' => 'abc', 'fields' => array() ),
 	'raynet_lead_users'               => array( 'connection' => 'abc', 'people' => array( 11 => array( 'name' => 'Jana', 'login' => 'jana@firma.cz' ) ) ),
+	'raynet_import_idx_gen'           => 3,
 	// Legacy 1.x options.
 	'raynet_username'                 => 'legacy',
 	'raynet_api_key'                  => 'legacy',
