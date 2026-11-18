@@ -458,14 +458,26 @@ class Raynet_Lead_Form {
 	 * @param array<string,string> $values   Sanitized values, keyed by supported field.
 	 * @param array<string,mixed>  $settings Effective settings for this submission.
 	 * @param array<string,mixed>  $context  Optional context: raynet_fixed_topic,
-	 *                                       raynet_source_url, raynet_extras and
-	 *                                       raynet_has_consent.
+	 *                                       raynet_source_url, raynet_extras,
+	 *                                       raynet_has_consent, and for a stored
+	 *                                       submission being imported
+	 *                                       raynet_import, raynet_lead_date,
+	 *                                       raynet_consent_time, raynet_extra_tags
+	 *                                       and raynet_import_note.
 	 * @return array<string,mixed>|WP_Error Result, or an error.
 	 */
 	public function submit_lead( array $values, array $settings, array $context = array() ) {
+		// An import replays old submissions on an administrator's request: no
+		// visitor to cool down, nobody to notify, and the admin sees each
+		// failure on the import screen instead of in a mailbox.
+		$import = ! empty( $context['raynet_import'] );
+
 		if ( ! Raynet_Lead_Settings::is_configured() ) {
 			$this->log_error( 'Plugin is not configured; lead was not sent.' );
-			$this->send_fallback_email( $values, __( 'Plugin není nastaven.', 'raynet-lead-api-integration' ), $context );
+
+			if ( ! $import ) {
+				$this->send_fallback_email( $values, __( 'Plugin není nastaven.', 'raynet-lead-api-integration' ), $context );
+			}
 
 			return new WP_Error(
 				'raynet_not_configured',
@@ -484,15 +496,20 @@ class Raynet_Lead_Form {
 		 */
 		$payload = apply_filters( 'raynet_lead_payload', $payload, $values );
 
-		$this->mark_throttled();
+		if ( ! $import ) {
+			$this->mark_throttled();
+		}
 
 		$client   = Raynet_Lead_Api_Client::from_settings();
 		$response = $client->create_lead( $payload );
 
 		if ( is_wp_error( $response ) ) {
 			$this->log_error( $response->get_error_message() );
-			$this->remember_last_error( $response->get_error_message() );
-			$this->send_fallback_email( $values, $response->get_error_message(), $context );
+
+			if ( ! $import ) {
+				$this->remember_last_error( $response->get_error_message() );
+				$this->send_fallback_email( $values, $response->get_error_message(), $context );
+			}
 
 			/**
 			 * Fires when RAYNET refused or could not receive the lead.
@@ -514,7 +531,8 @@ class Raynet_Lead_Form {
 
 		$lead_id = isset( $response['data']['id'] ) ? (int) $response['data']['id'] : 0;
 
-		if ( $lead_id > 0 && ! empty( $context['raynet_has_consent'] ) && ! empty( $context['raynet_consent_record'] ) ) {
+		// The legal title would start today, not when the visitor consented.
+		if ( ! $import && $lead_id > 0 && ! empty( $context['raynet_has_consent'] ) && ! empty( $context['raynet_consent_record'] ) ) {
 			$this->record_consent( $client, $lead_id, $settings );
 		}
 
@@ -774,6 +792,13 @@ class Raynet_Lead_Form {
 	private function build_payload( array $values, array $settings, array $input ) {
 		$fixed_topic = isset( $input['raynet_fixed_topic'] ) ? sanitize_text_field( (string) $input['raynet_fixed_topic'] ) : '';
 		$source_url  = isset( $input['raynet_source_url'] ) ? esc_url_raw( (string) $input['raynet_source_url'] ) : '';
+		$import      = ! empty( $input['raynet_import'] );
+
+		$lead_date = current_time( 'Y-m-d' );
+
+		if ( isset( $input['raynet_lead_date'] ) && $this->is_valid_date( (string) $input['raynet_lead_date'], 'Y-m-d' ) ) {
+			$lead_date = (string) $input['raynet_lead_date'];
+		}
 
 		$topic = $values['topic'];
 
@@ -792,7 +817,7 @@ class Raynet_Lead_Form {
 		$payload = array(
 			'topic'       => mb_substr( $topic, 0, 255 ),
 			'priority'    => (string) $settings['priority'],
-			'leadDate'    => current_time( 'Y-m-d' ),
+			'leadDate'    => $lead_date,
 			'leadPerson'  => (bool) $settings['lead_person'],
 			'firstName'   => $values['firstName'],
 			'lastName'    => $values['lastName'],
@@ -804,7 +829,9 @@ class Raynet_Lead_Form {
 				isset( $input['raynet_extras'] ) && is_array( $input['raynet_extras'] ) ? $input['raynet_extras'] : array(),
 				! empty( $input['raynet_has_consent'] ),
 				isset( $input['raynet_consent_text'] ) ? sanitize_text_field( (string) $input['raynet_consent_text'] ) : '',
-				isset( $input['raynet_message_label'] ) ? sanitize_text_field( (string) $input['raynet_message_label'] ) : ''
+				isset( $input['raynet_message_label'] ) ? sanitize_text_field( (string) $input['raynet_message_label'] ) : '',
+				isset( $input['raynet_consent_time'] ) ? (string) $input['raynet_consent_time'] : '',
+				isset( $input['raynet_import_note'] ) ? sanitize_textarea_field( (string) $input['raynet_import_note'] ) : ''
 			),
 			'contactInfo' => array_filter(
 				array(
@@ -860,7 +887,14 @@ class Raynet_Lead_Form {
 			$payload['tags'] = (string) $settings['tags'];
 		}
 
-		$notify = Raynet_Lead_Settings::sanitize_email_list( (string) $settings['notify_emails'] );
+		if ( isset( $input['raynet_extra_tags'] ) && '' !== trim( (string) $input['raynet_extra_tags'] ) ) {
+			$tags = explode( ',', (string) $settings['tags'] . ',' . sanitize_text_field( (string) $input['raynet_extra_tags'] ) );
+			$tags = array_unique( array_filter( array_map( 'trim', $tags ), array( $this, 'is_not_empty' ) ) );
+
+			$payload['tags'] = implode( ',', $tags );
+		}
+
+		$notify = $import ? array() : Raynet_Lead_Settings::sanitize_email_list( (string) $settings['notify_emails'] );
 
 		if ( ! empty( $notify ) ) {
 			$payload['notificationEmailAddresses'] = $notify;
@@ -1010,13 +1044,21 @@ class Raynet_Lead_Form {
 	 * @param string               $source_url  URL the form was submitted from.
 	 * @param array<string,string> $extras      Custom field labels and values.
 	 * @param bool                 $has_consent Whether the form carried a consent box.
+	 * @param string               $consent_text  Wording of the consent box.
+	 * @param string               $message_label Label of the message field.
+	 * @param string               $consent_time  When consent was given, as Y-m-d H:i. Empty or invalid means now.
+	 * @param string               $import_note   Paragraph describing an imported submission.
 	 * @return string Note text.
 	 */
-	private function build_notice( array $values, array $settings, $source_url, array $extras = array(), $has_consent = false, $consent_text = '', $message_label = '' ) {
+	private function build_notice( array $values, array $settings, $source_url, array $extras = array(), $has_consent = false, $consent_text = '', $message_label = '', $consent_time = '', $import_note = '' ) {
 		$parts = array();
 
 		if ( '' !== trim( (string) $settings['notice_prefix'] ) ) {
 			$parts[] = trim( (string) $settings['notice_prefix'] );
+		}
+
+		if ( '' !== trim( (string) $import_note ) ) {
+			$parts[] = trim( (string) $import_note );
 		}
 
 		if ( '' !== $values['message'] ) {
@@ -1050,7 +1092,7 @@ class Raynet_Lead_Form {
 			$line = sprintf(
 				/* translators: %s: date and time of the consent. */
 				__( 'Souhlas se zpracováním údajů udělen: %s', 'raynet-lead-api-integration' ),
-				current_time( 'Y-m-d H:i' )
+				$this->is_valid_date( (string) $consent_time, 'Y-m-d H:i' ) ? (string) $consent_time : current_time( 'Y-m-d H:i' )
 			);
 
 			// The wording the visitor ticked is what the consent covers.
@@ -1062,6 +1104,19 @@ class Raynet_Lead_Form {
 		}
 
 		return mb_substr( implode( "\n\n", $parts ), 0, 10000 );
+	}
+
+	/**
+	 * Tells whether a string is a real date in exactly the given format.
+	 *
+	 * @param string $value  Candidate value.
+	 * @param string $format Format understood by DateTime::createFromFormat().
+	 * @return bool Whether the value matches.
+	 */
+	private function is_valid_date( $value, $format ) {
+		$date = DateTime::createFromFormat( '!' . $format, $value );
+
+		return false !== $date && $date->format( $format ) === $value;
 	}
 
 	/**

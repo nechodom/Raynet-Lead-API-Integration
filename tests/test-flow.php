@@ -240,5 +240,64 @@ $inherited = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
 check( 'kategorie zděděna', $inherited['category'], 1 );
 check( 'štítky zděděny',    $inherited['tags'], 'globalni' );
 
+// An imported submission: original date, no notifications, no fallback mail,
+// no GDPR record, no cool down, an extra tag and an extra note paragraph.
+$import_overrides = array(
+	'notify_emails'    => 'a@b.cz',
+	'tags'             => 'web',
+	'throttle_seconds' => '20',
+	'fallback_email'   => 'zaloha@example.cz',
+	'gdpr_template'    => '3',
+);
+$import_values  = $form->collect_values( array( 'email' => 'jan@example.cz', 'message' => 'Mám zájem.' ) );
+$import_context = array(
+	'raynet_import'         => true,
+	'raynet_lead_date'      => '2025-03-12',
+	'raynet_consent_time'   => '2025-03-12 14:10',
+	'raynet_has_consent'    => true,
+	'raynet_consent_record' => true,
+	'raynet_extra_tags'     => 'import-web, web',
+	'raynet_import_note'    => 'Importováno ze starého odeslání.',
+);
+
+configure( $import_overrides );
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":21}}' );
+$r = $form->submit_lead( $import_values, Raynet_Lead_Settings::all(), $import_context );
+check( 'import projde', code( $r ), 'OK' );
+check( 'import: jediný HTTP požadavek, žádné PUT /gdpr/', count( $GLOBALS['wp_requests'] ), 1 );
+$imported = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'import: původní datum leadu',   $imported['leadDate'], '2025-03-12' );
+check( 'import: štítek přidán bez duplicit', $imported['tags'], 'web,import-web' );
+check( 'import: bez notifikačních adres', array_key_exists( 'notificationEmailAddresses', $imported ), false );
+check( 'import: bez notifikační zprávy',  array_key_exists( 'notificationMessage', $imported ), false );
+check( 'import: odstavec importu v poznámce', str_contains( $imported['notice'], 'Importováno ze starého odeslání.' ), true );
+check( 'import: původní čas souhlasu', str_contains( $imported['notice'], 'udělen: 2025-03-12 14:10' ), true );
+check( 'import: pauza nenastavena', count( $GLOBALS['wp_transients'] ), 0 );
+
+configure( $import_overrides );
+update_option( 'raynet_lead_last_error', array( 'message' => 'dřívější', 'time' => 1 ) );
+$GLOBALS['wp_next_response'] = array( 'code' => 500, 'body' => '{"message":"boom"}' );
+$r = $form->submit_lead( $import_values, Raynet_Lead_Settings::all(), $import_context );
+check( 'import: selhání vrací chybu', code( $r ), 'raynet_api_error' );
+check( 'import: bez záložního e-mailu', $GLOBALS['wp_mails'], array() );
+check( 'import: poslední chyba nezměněna', get_option( 'raynet_lead_last_error' ), array( 'message' => 'dřívější', 'time' => 1 ) );
+check( 'import: pauza nenastavena ani po chybě', count( $GLOBALS['wp_transients'] ), 0 );
+
+configure( $import_overrides );
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":22}}' );
+$form->submit_lead( $import_values, Raynet_Lead_Settings::all(), array_merge( $import_context, array( 'raynet_lead_date' => 'včera' ) ) );
+$bad_date = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'import: neplatné datum dá dnešek', $bad_date['leadDate'], current_time( 'Y-m-d' ) );
+
+// Control: without the new keys nothing changes.
+configure( $import_overrides );
+$GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":23}}' );
+$form->submit_lead( $import_values, Raynet_Lead_Settings::all(), array() );
+$live = json_decode( $GLOBALS['wp_requests'][0]['args']['body'], true );
+check( 'bez importu: datum je dnešek',    $live['leadDate'], current_time( 'Y-m-d' ) );
+check( 'bez importu: notifikace zůstává', $live['notificationEmailAddresses'], array( 'a@b.cz' ) );
+check( 'bez importu: štítky z nastavení', $live['tags'], 'web' );
+check( 'bez importu: pauza nastavena',    count( $GLOBALS['wp_transients'] ), 1 );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
