@@ -36,6 +36,7 @@ require_once RAYNET_LEAD_PATH . 'includes/class-raynet-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-builder-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-updater.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms.php';
+require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-lead-builder.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-attachments.php';
 
