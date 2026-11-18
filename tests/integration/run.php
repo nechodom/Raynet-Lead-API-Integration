@@ -1757,6 +1757,201 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$exported = $action->on_export( array( 'settings' => array( 'raynet_crm_owner' => 7, 'jine' => 'zustane' ) ) );
 		check( 'on_export maže pod settings', isset( $exported['settings']['raynet_crm_owner'] ), false );
 		check( 'on_export nechá cizí klíče', $exported['settings']['jine'], 'zustane' );
+
+		echo "\n=== Import uložených odeslání ===\n";
+
+		global $wpdb;
+
+		$import_query = \ElementorPro\Modules\Forms\Submissions\Database\Query::get_instance();
+		$import_page  = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Import poptávek', 'post_status' => 'publish' ) );
+		$import_map   = array(
+			array( 'remote_id' => 'firstName', 'local_id' => 'name' ),
+			array( 'remote_id' => 'email', 'local_id' => 'email' ),
+			array( 'remote_id' => 'message', 'local_id' => 'msg' ),
+		);
+		$import_form  = function ( array $map ) {
+			return array(
+				array(
+					'id'         => 'impform',
+					'elType'     => 'widget',
+					'widgetType' => 'form',
+					'settings'   => array(
+						'form_name'                => 'Import',
+						'submit_actions'           => array( 'save-to-database' ),
+						'form_fields'              => array(
+							array( '_id' => 'name', 'custom_id' => 'name', 'field_type' => 'text', 'field_label' => 'Jméno' ),
+							array( '_id' => 'email', 'custom_id' => 'email', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+							array( '_id' => 'msg', 'custom_id' => 'msg', 'field_type' => 'textarea', 'field_label' => 'Zpráva' ),
+						),
+						'raynet_crm_fields_map'    => $map,
+						'raynet_crm_notify_emails' => 'obchod@example.cz',
+					),
+					'elements'   => array(),
+				),
+			);
+		};
+		update_post_meta( $import_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( $import_map ) ) ) );
+
+		$add_stored = function ( $post_id, $name, $email, $message, $ip, array $extra = array() ) use ( $import_query, $import_page ) {
+			return (int) $import_query->add_submission(
+				array_merge(
+					array(
+						'main_meta_id'            => 0,
+						'post_id'                 => $post_id,
+						'referer'                 => 'http://localhost/import-poptavek/',
+						'referer_title'           => 'Import poptávek',
+						'element_id'              => 'impform',
+						'form_name'               => 'Import',
+						'campaign_id'             => 0,
+						'user_id'                 => 0,
+						'user_ip'                 => $ip,
+						'user_agent'              => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Safari/605.1.15',
+						'actions_count'           => 1,
+						'actions_succeeded_count' => 0,
+						// Elementor saves the page id as the request carried it: a string.
+						'meta'                    => wp_json_encode( array( 'edit_post_id' => (string) $post_id ) ),
+					),
+					$extra
+				),
+				array(
+					array( 'id' => 'name', 'type' => 'text', 'value' => $name ),
+					array( 'id' => 'email', 'type' => 'email', 'value' => $email ),
+					array( 'id' => 'msg', 'type' => 'textarea', 'value' => $message ),
+				)
+			);
+		};
+
+		$sub_a = $add_stored( $import_page, 'Jana', 'jana.importova@example.cz', 'Dobrý den, poptávám nabídku na rekonstrukci koupelny v rodinném domě.', '192.0.2.1', array( 'created_at' => '2025-03-12 14:10:00', 'created_at_gmt' => '2025-03-12 13:10:00' ) );
+		$sub_b = $add_stored( $import_page, 'Ivan', 'ivan@example.ru', 'Здравствуйте, предлагаем продвижение вашего сайта в поисковых системах.', '192.0.2.2' );
+		$sub_c = $add_stored( $import_page, 'Petr', 'petr.importovany@example.cz', 'Prosím o cenovou nabídku na zateplení fasády bytového domu v Brně.', '192.0.2.3' );
+		$sub_d = $add_stored( $import_page, 'Eva', 'eva.importova@example.cz', 'Měli bychom zájem o pravidelný servis klimatizace ve třech kancelářích.', '192.0.2.4' );
+		$sub_e = $add_stored( $import_page, 'Karel', 'karel.kos@example.cz', 'Tohle odeslání je v koši a nesmí se nabídnout ani importovat.', '192.0.2.5' );
+		$sub_f = $add_stored( $import_page + 100000, 'Cizí', 'cizi@example.cz', 'Stejné ID widgetu na jiné stránce, odeslání sem nepatří vůbec.', '192.0.2.6' );
+
+		$import_query->add_action_log( $sub_c, $action, 'success', 'Lead 77' );
+		$import_query->add_action_log( $sub_d, $action, 'failed', 'Connection timed out' );
+		$import_query->move_to_trash_submission( $sub_e );
+
+		$import_key = $import_page . ':impform';
+
+		check( 'odeslání vložena', 0 < min( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f ), true );
+		check( 'import je dostupný', Raynet_Elementor_Submissions::available(), true );
+
+		$pending = Raynet_Elementor_Submissions::pending_counts();
+		check( 'k importu čekají A, B a D', isset( $pending[ $import_key ] ) ? $pending[ $import_key ] : null, 3 );
+
+		$index = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		check( 'index: A k posouzení', isset( $index[ $sub_a ] ) ? $index[ $sub_a ]['tab'] : null, Raynet_Elementor_Submissions::TAB_REVIEW );
+		check( 'index: A předvybrané', isset( $index[ $sub_a ] ) ? $index[ $sub_a ]['preselect'] : null, true );
+		check( 'index: B spam', isset( $index[ $sub_b ] ) ? $index[ $sub_b ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SPAM );
+		check( 'index: C už v RAYNETu', isset( $index[ $sub_c ] ) ? $index[ $sub_c ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
+		check( 'index: D k posouzení', isset( $index[ $sub_d ] ) ? $index[ $sub_d ]['tab'] : null, Raynet_Elementor_Submissions::TAB_REVIEW );
+		check( 'index: D nepředvybrané', isset( $index[ $sub_d ] ) ? $index[ $sub_d ]['preselect'] : null, false );
+		check( 'index: D ve stavu selhalo', isset( $index[ $sub_d ] ) ? $index[ $sub_d ]['state'] : null, Raynet_Elementor_Submissions::STATE_FAILED );
+		check( 'index: koš a cizí stránka chybí', isset( $index[ $sub_e ] ) || isset( $index[ $sub_f ] ), false );
+		check( 'index: nejnovější první', array_keys( $index ), array( $sub_d, $sub_c, $sub_b, $sub_a ) );
+
+		$loaded_d = Raynet_Elementor_Submissions::load( $import_page, 'impform', array( $sub_d, $sub_e, $sub_f ) );
+		check( 'load: jen D', array_keys( $loaded_d ), array( $sub_d ) );
+		check( 'load: D nese původní chybu', isset( $loaded_d[ $sub_d ] ) ? $loaded_d[ $sub_d ]['log'] : null, 'Connection timed out' );
+		check( 'load: D nese hodnoty', isset( $loaded_d[ $sub_d ] ) ? $loaded_d[ $sub_d ]['values']['email'] : null, 'eva.importova@example.cz' );
+
+		$succeeded_before = (int) $wpdb->get_var( $wpdb->prepare( "SELECT actions_succeeded_count FROM {$wpdb->prefix}e_submissions WHERE id = %d", $sub_a ) ); // phpcs:ignore WordPress.DB
+		$last_error_orig  = get_option( 'raynet_lead_last_error', null );
+		$last_error_mark  = array( 'message' => 'značka testu importu', 'time' => 1 );
+		update_option( 'raynet_lead_last_error', $last_error_mark, false );
+		update_option( 'raynet_test_http_calls', array() );
+		update_option( 'raynet_test_mails', array() );
+
+		$imported = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_a, Raynet_Elementor_Submissions::DEFAULT_TAG );
+		wp_cache_flush();
+
+		check( 'import A vrátí lead', is_array( $imported ) ? $imported['lead_id'] : $imported->get_error_code(), 4242 );
+
+		$import_payload = null;
+		foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+			if ( false !== strpos( $call['url'], '/lead/' ) ) {
+				$import_payload = json_decode( $call['body'], true );
+			}
+		}
+
+		check( 'import A zavolal RAYNET', null !== $import_payload, true );
+		check( 'leadDate je den uložení A', isset( $import_payload['leadDate'] ) ? $import_payload['leadDate'] : null, '2025-03-12' );
+		check( 'štítek importu', isset( $import_payload['tags'] ) && in_array( 'import-web', explode( ',', $import_payload['tags'] ), true ), true );
+		check( 'bez notifikačních e-mailů', is_array( $import_payload ) && ! isset( $import_payload['notificationEmailAddresses'] ), true );
+		check( 'poznámka o importu', isset( $import_payload['notice'] ) && false !== strpos( $import_payload['notice'], 'Původně odesláno: 12. 3. 2025 14:10' ), true );
+		check( 'žádný e-mail', get_option( 'raynet_test_mails', array() ), array() );
+
+		$log_a       = $import_query->get_submissions_actions_log( $sub_a );
+		$log_a_found = false;
+		foreach ( (array) $log_a as $entry ) {
+			if ( 'raynet_crm' === $entry['action_name'] && 'success' === $entry['status'] && false !== strpos( (string) $entry['log'], 'Importováno, lead' ) ) {
+				$log_a_found = true;
+			}
+		}
+		check( 'log A nese úspěšný import', $log_a_found, true );
+		check( 'počitadlo úspěchů A beze změny', (int) $wpdb->get_var( $wpdb->prepare( "SELECT actions_succeeded_count FROM {$wpdb->prefix}e_submissions WHERE id = %d", $sub_a ) ), $succeeded_before ); // phpcs:ignore WordPress.DB
+		check( 'poslední chyba API beze změny po úspěchu', get_option( 'raynet_lead_last_error' ), $last_error_mark );
+
+		$index_after = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
+		check( 'index po importu: A už v RAYNETu', isset( $index_after[ $sub_a ] ) ? $index_after[ $sub_a ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
+		check( 'po importu čekají B a D', Raynet_Elementor_Submissions::pending_counts()[ $import_key ], 2 );
+
+		update_option( 'raynet_test_http_calls', array() );
+		$again = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_a, 'import-web' );
+		wp_cache_flush();
+		check( 'druhý import A odmítnut', is_wp_error( $again ) ? $again->get_error_code() : null, 'raynet_import_already_sent' );
+		check( 'druhý import A nic neposlal', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+
+		$trashed = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_e, 'import-web' );
+		check( 'import z koše odmítnut', is_wp_error( $trashed ) ? $trashed->get_error_code() : null, 'raynet_import_not_found' );
+		$foreign = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_f, 'import-web' );
+		check( 'import cizího odeslání odmítnut', is_wp_error( $foreign ) ? $foreign->get_error_code() : null, 'raynet_import_not_found' );
+		$sent_c = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_c, 'import-web' );
+		check( 'import odeslaného C odmítnut', is_wp_error( $sent_c ) ? $sent_c->get_error_code() : null, 'raynet_import_already_sent' );
+
+		// Without a mapped contact the form cannot make a lead at all.
+		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( array( $import_map[0], $import_map[2] ) ) ) ) );
+		update_option( 'raynet_test_http_calls', array() );
+		$log_d_before = count( (array) $import_query->get_submissions_actions_log( $sub_d ) );
+		$no_contact   = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_d, 'import-web' );
+		wp_cache_flush();
+		check( 'bez mapování kontaktu odmítnuto', is_wp_error( $no_contact ) ? $no_contact->get_error_code() : null, 'raynet_import_no_form' );
+		check( 'bez mapování kontaktu log D beze změny', count( (array) $import_query->get_submissions_actions_log( $sub_d ) ), $log_d_before );
+		check( 'bez mapování kontaktu nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		update_post_meta( $import_page, '_elementor_data', wp_slash( wp_json_encode( $import_form( $import_map ) ) ) );
+
+		// RAYNET refuses: the error comes back, nothing is marked or remembered.
+		update_option( 'raynet_test_refuse_leads', 1 );
+		$log_b_before = count( (array) $import_query->get_submissions_actions_log( $sub_b ) );
+		$refused      = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_b, 'import-web' );
+		delete_option( 'raynet_test_refuse_leads' );
+		wp_cache_flush();
+		check( 'odmítnutí RAYNETem vrátí chybu API', is_wp_error( $refused ) ? $refused->get_error_code() : null, 'raynet_api_error' );
+		check( 'chyba API nese diagnostiku', is_wp_error( $refused ) && '' !== $refused->get_error_message(), true );
+		check( 'odmítnutí nezapsalo do logu B', count( (array) $import_query->get_submissions_actions_log( $sub_b ) ), $log_b_before );
+		check( 'poslední chyba API beze změny po odmítnutí', get_option( 'raynet_lead_last_error' ), $last_error_mark );
+		check( 'odmítnutí neposlalo e-mail', get_option( 'raynet_test_mails', array() ), array() );
+
+		// A form in a template is stored under the template's id, with the page
+		// it was sent from in meta, as a number or as a string.
+		$sub_g = $add_stored( $import_page + 200000, 'Gita', 'gita@example.cz', 'Odesláno z formuláře v šabloně, stránka je jen v meta údajích.', '192.0.2.7', array( 'meta' => wp_json_encode( array( 'edit_post_id' => $import_page ) ) ) );
+		$sub_h = $add_stored( $import_page + 200000, 'Hana', 'hana@example.cz', 'Odesláno z šablony na stránce, jejíž ID je řetězec v meta údajích.', '192.0.2.8' );
+		$wpdb->update( $wpdb->prefix . 'e_submissions', array( 'meta' => wp_json_encode( array( 'edit_post_id' => (string) $import_page ) ) ), array( 'id' => $sub_h ) ); // phpcs:ignore WordPress.DB
+		$sub_i = $add_stored( $import_page + 200000, 'Ivo', 'ivo@example.cz', 'Stránka s ID, které jen začíná stejnými číslicemi, sem nepatří.', '192.0.2.9', array( 'meta' => wp_json_encode( array( 'edit_post_id' => (int) ( $import_page . '1' ) ) ) ) );
+		check( 'stránka z meta jako číslo i řetězec, ne předpona', array_keys( Raynet_Elementor_Submissions::load( $import_page, 'impform', array( $sub_g, $sub_h, $sub_i ) ) ), array( $sub_h, $sub_g ) );
+
+		foreach ( array( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f, $sub_g, $sub_h, $sub_i ) as $stored_id ) {
+			$import_query->delete_submission( $stored_id );
+		}
+		delete_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $import_key ) );
+		if ( null === $last_error_orig ) {
+			delete_option( 'raynet_lead_last_error' );
+		} else {
+			update_option( 'raynet_lead_last_error', $last_error_orig, false );
+		}
+		wp_delete_post( $import_page, true );
 	}
 }
 

@@ -93,6 +93,8 @@ check( 'smaže formuláře', isset( $GLOBALS['wp_posts'][1] ), false );
 check( 'nechá jiné příspěvky', isset( $GLOBALS['wp_posts'][2] ), true );
 check( 'smaže zálohy rozvržení', (bool) preg_grep( "/DELETE FROM wp_postmeta WHERE meta_key = '_raynet_elementor_backup'/", $deleted->queries ), true );
 check( 'smaže omezovače odesílání', (bool) preg_grep( '/raynet\\\\_lead\\\\_throttle\\\\_%/', $deleted->queries ), true );
+check( 'smaže uložené indexy importu', (bool) preg_grep( '/\'\\\\_transient\\\\_raynet\\\\_import\\\\_idx\\\\_%\'/', $deleted->queries ), true );
+check( 'smaže expirace indexů importu', (bool) preg_grep( '/\'\\\\_transient\\\\_timeout\\\\_raynet\\\\_import\\\\_idx\\\\_%\'/', $deleted->queries ), true );
 
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
