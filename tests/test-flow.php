@@ -13,6 +13,14 @@ function process( Raynet_Lead_Form $form, array $input ) {
 	return $m->invoke( $form, $input );
 }
 function code( $r ) { return is_wp_error( $r ) ? $r->get_error_code() : 'OK'; }
+// Arguments of the last call of an action, or null.
+function fired( $hook ) {
+	$last = null;
+	foreach ( isset( $GLOBALS['wp_did_actions'] ) ? $GLOBALS['wp_did_actions'] : array() as $call ) {
+		if ( $hook === $call[0] ) { $last = array_slice( $call, 1 ); }
+	}
+	return $last;
+}
 
 function configure( array $overrides = array() ) {
 	$GLOBALS['wp_options']    = array();
@@ -285,6 +293,9 @@ check( 'import: bez notifikační zprávy',  array_key_exists( 'notificationMess
 check( 'import: odstavec importu v poznámce', str_contains( $imported['notice'], 'Importováno ze starého odeslání.' ), true );
 check( 'import: původní čas souhlasu', str_contains( $imported['notice'], 'udělen: 2025-03-12 14:10' ), true );
 check( 'import: pauza nenastavena', count( $GLOBALS['wp_transients'] ), 0 );
+$created = fired( 'raynet_lead_created' );
+check( 'import: raynet_lead_created dostane lead, payload a kontext', is_array( $created ) ? array( count( $created ), $created[0], $created[2] ) : null, array( 3, 21, $import_context ) );
+check( 'import: kontext pozná import', ! empty( $created[2]['raynet_import'] ), true );
 
 configure( $import_overrides );
 update_option( 'raynet_lead_last_error', array( 'message' => 'dřívější', 'time' => 1 ) );
@@ -294,6 +305,8 @@ check( 'import: selhání vrací chybu', code( $r ), 'raynet_api_error' );
 check( 'import: bez záložního e-mailu', $GLOBALS['wp_mails'], array() );
 check( 'import: poslední chyba nezměněna', get_option( 'raynet_lead_last_error' ), array( 'message' => 'dřívější', 'time' => 1 ) );
 check( 'import: pauza nenastavena ani po chybě', count( $GLOBALS['wp_transients'] ), 0 );
+$failed_hook = fired( 'raynet_lead_failed' );
+check( 'import: raynet_lead_failed dostane chybu, payload a kontext', is_array( $failed_hook ) ? array( count( $failed_hook ), $failed_hook[0] instanceof WP_Error, $failed_hook[2] ) : null, array( 3, true, $import_context ) );
 
 configure( $import_overrides );
 $GLOBALS['wp_next_response'] = array( 'code' => 201, 'body' => '{"success":true,"data":{"id":22}}' );
@@ -310,6 +323,7 @@ check( 'bez importu: datum je dnešek',    $live['leadDate'], current_time( 'Y-m
 check( 'bez importu: notifikace zůstává', $live['notificationEmailAddresses'], array( 'a@b.cz' ) );
 check( 'bez importu: štítky z nastavení', $live['tags'], 'web' );
 check( 'bez importu: pauza nastavena',    count( $GLOBALS['wp_transients'] ), 1 );
+check( 'bez importu: kontext v raynet_lead_created bez importu', empty( fired( 'raynet_lead_created' )[2]['raynet_import'] ) && 3 === count( (array) fired( 'raynet_lead_created' ) ), true );
 
 // The preview is exactly what is sent, and sending nothing on the way.
 foreach ( array( 'import' => $import_context, 'živé' => array() ) as $preview_label => $preview_context ) {

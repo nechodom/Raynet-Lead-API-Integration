@@ -176,7 +176,8 @@ function is_admin() { return false; }
 function add_filter( ...$a ) {}
 function add_shortcode( ...$a ) {}
 function apply_filters( $tag, $value, ...$rest ) { return $value; }
-function do_action( ...$a ) {}
+// Records each call: hook name, then the arguments.
+function do_action( ...$a ) { $GLOBALS['wp_did_actions'][] = $a; }
 function register_rest_route( ...$a ) {}
 
 function wp_json_encode( $data, $flags = 0 ) { return json_encode( $data, $flags | JSON_UNESCAPED_UNICODE ); }

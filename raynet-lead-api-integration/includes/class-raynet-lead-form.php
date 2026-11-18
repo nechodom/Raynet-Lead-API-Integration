@@ -512,8 +512,11 @@ class Raynet_Lead_Form {
 			 *
 			 * @param WP_Error            $response Error returned by the client.
 			 * @param array<string,mixed> $payload  Payload that was attempted.
+			 * @param array<string,mixed> $context  Context of the submission;
+			 *                                      `! empty( $context['raynet_import'] )`
+			 *                                      means an import of a stored one.
 			 */
-			do_action( 'raynet_lead_failed', $response, $payload );
+			do_action( 'raynet_lead_failed', $response, $payload, $context );
 
 			$error_data = $response->get_error_data();
 
@@ -545,8 +548,11 @@ class Raynet_Lead_Form {
 		 *
 		 * @param int                 $lead_id New lead id.
 		 * @param array<string,mixed> $payload Payload that was sent.
+		 * @param array<string,mixed> $context Context of the submission;
+		 *                                     `! empty( $context['raynet_import'] )`
+		 *                                     means an import of a stored one.
 		 */
-		do_action( 'raynet_lead_created', $lead_id, $payload );
+		do_action( 'raynet_lead_created', $lead_id, $payload, $context );
 
 		$message = '' !== trim( (string) $settings['success_message'] )
 			? $settings['success_message']

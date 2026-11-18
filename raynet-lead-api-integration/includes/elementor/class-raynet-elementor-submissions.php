@@ -120,22 +120,6 @@ class Raynet_Elementor_Submissions {
 	}
 
 	/**
-	 * Submissions not yet in RAYNET, per form, for the whole site.
-	 *
-	 * @return array<string,int> "post_id:element_id" => count, only forms with one or more.
-	 */
-	public static function pending_counts() {
-		return array_filter(
-			array_map(
-				static function ( $counts ) {
-					return $counts['pending'];
-				},
-				self::form_counts()
-			)
-		);
-	}
-
-	/**
 	 * Stored submissions per form, for the whole site, in one query.
 	 *
 	 * A submission counts under its `post_id` and, when that differs, under

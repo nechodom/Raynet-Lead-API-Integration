@@ -1853,8 +1853,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'odeslání vložena', 0 < min( $sub_a, $sub_b, $sub_c, $sub_d, $sub_e, $sub_f ), true );
 		check( 'import je dostupný', Raynet_Elementor_Submissions::available(), true );
 
-		$pending = Raynet_Elementor_Submissions::pending_counts();
-		check( 'k importu čekají A, B a D', isset( $pending[ $import_key ] ) ? $pending[ $import_key ] : null, 3 );
+		$pending = Raynet_Elementor_Submissions::form_counts();
+		check( 'k importu čekají A, B a D', isset( $pending[ $import_key ] ) ? $pending[ $import_key ]['pending'] : null, 3 );
 
 		$index = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
 		check( 'index: A k posouzení', isset( $index[ $sub_a ] ) ? $index[ $sub_a ]['tab'] : null, Raynet_Elementor_Submissions::TAB_REVIEW );
@@ -1903,7 +1903,6 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$all_counts = Raynet_Elementor_Submissions::form_counts();
 		check( 'form_counts: vše odeslané', isset( $all_counts[ $sent_page . ':sentform' ] ) ? $all_counts[ $sent_page . ':sentform' ] : null, array( 'pending' => 0, 'total' => 1 ) );
 		check( 'form_counts: import', isset( $all_counts[ $import_key ] ) ? $all_counts[ $import_key ] : null, array( 'pending' => 5, 'total' => 6 ) );
-		check( 'pending_counts bez formuláře s nulou', isset( Raynet_Elementor_Submissions::pending_counts()[ $sent_page . ':sentform' ] ), false );
 
 		$review = req( $import_url, null, true );
 		$row_a  = $import_row( $review['body'], $sub_a );
@@ -2178,7 +2177,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 
 		$index_after = Raynet_Elementor_Submissions::index( $import_page, 'impform' );
 		check( 'index po importu: A už v RAYNETu', isset( $index_after[ $sub_a ] ) ? $index_after[ $sub_a ]['tab'] : null, Raynet_Elementor_Submissions::TAB_SENT );
-		check( 'po importu čekají B a D', Raynet_Elementor_Submissions::pending_counts()[ $import_key ], 2 );
+		check( 'po importu čekají B a D', Raynet_Elementor_Submissions::form_counts()[ $import_key ]['pending'], 2 );
 
 		update_option( 'raynet_test_http_calls', array() );
 		$again = Raynet_Elementor_Submissions::import( $import_page, 'impform', $sub_a, 'import-web' );

@@ -234,10 +234,6 @@ class Raynet_Elementor_Import_Admin {
 			return;
 		}
 
-		$form = array(
-			'post_id'   => $post_id,
-			'widget_id' => $widget_id,
-		);
 		$name = isset( $settings['form_name'] ) && '' !== (string) $settings['form_name'] ? (string) $settings['form_name'] : __( 'bez názvu', 'raynet-lead-api-integration' );
 		?>
 		<h2>
