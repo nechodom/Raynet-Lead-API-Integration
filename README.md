@@ -422,7 +422,7 @@ Server před každým odesláním znovu ověří, že odeslání patří k formu
 - **RAYNET odmítl** — RAYNET lead nepřijal (třeba neplatná data nebo chybějící oprávnění). Řádek se vrátí odškrtnutý s důvodem.
 - **lead založen, ale neoznačen** — lead v RAYNETu je, jen se ani na druhý pokus nepodařilo zapsat řádek do logu Elementoru. Řádek je na záložce **Už v RAYNETu** s číslem leadu a znovu se neodešle.
 
-Řádek s takovým záznamem jde zaškrtnout a odeslat znovu; je to vědomé rozhodnutí, proto plugin nic nepředvybírá. Při úspěchu záznam zmizí.
+Řádek s výsledkem neznámým nebo odmítnutý RAYNETem jde zaškrtnout a odeslat znovu; je to vědomé rozhodnutí, proto plugin nic nepředvybírá. Při úspěchu záznam zmizí. Řádek „lead založen, ale neoznačen“ je jen pro informaci: lead v RAYNETu už je, proto ho zaškrtnout ani odeslat znovu nejde a do počtu N v odkazu se nepočítá.
 
 Co se může u řádku objevit místo čísla leadu:
 
@@ -633,6 +633,7 @@ Import starších odeslání z Elementoru má vlastní hodnocení spamu, nezávi
 - Soubory nahrané přes formulář Elementoru ukládá Elementor sám do `uploads/elementor/forms/` (a u režimu příloha e-mailu je po odeslání maže). Plugin si dělá jen dočasné kopie v dočasném adresáři serveru, čitelné jen pro systémového uživatele, pod kterým běží PHP, a na konci požadavku je maže. Kopie po přerušeném požadavku smaže nejpozději další odeslání formuláře po hodině.
 - IP adresa se používá jen pro omezení frekvence, ukládá se jako hash v transientu a do CRM se neposílá.
 - Import starších odeslání čte odeslání, která uložil Elementor. Sám si z nich na 10 minut drží v transientu jen verdikty a stav, ne hodnoty. IP adresu a user agent uložené Elementorem použije jen pro hodnocení spamu a ukáže je v detailu řádku; do RAYNETu je neposílá.
+- Záznamy pokusů o import (volby `raynet_import_attempt_<ID odeslání>`) drží výsledek pokusu a text chyby z RAYNETu, nejvýš 500 znaků. U odmítnutého požadavku v něm mohou být i odeslané hodnoty. Odinstalace se zaškrtnutým mazáním dat je smaže.
 - Do poznámky leadu jde URL stránky, ze které poptávka přišla.
 
 ---
