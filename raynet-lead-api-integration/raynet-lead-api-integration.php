@@ -37,6 +37,7 @@ require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-builder-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-updater.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-atomic-forms.php';
+require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-atomic-form-integration.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-lead-builder.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms-admin.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-attachments.php';
@@ -61,6 +62,8 @@ function raynet_lead_bootstrap() {
 	( new Raynet_Lead_Form() )->register();
 	( new Raynet_Lead_Updater() )->register();
 	Raynet_Elementor_Attachments::register();
+	// Hooks only; the action class is read from Elementor Pro's own hook.
+	Raynet_Atomic_Form_Integration::register();
 
 	if ( is_admin() ) {
 		( new Raynet_Lead_Admin() )->register();

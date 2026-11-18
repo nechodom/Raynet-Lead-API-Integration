@@ -2858,6 +2858,275 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		}
 		wp_delete_post( $import_page, true );
 	}
+
+	// --- Elementor 4 atomic form: the RAYNET CRM action ---------------------------
+	echo "\n=== Atomový formulář: akce RAYNET CRM ===\n";
+
+	$runner_class = '\\ElementorPro\\Modules\\AtomicForm\\Actions\\Action_Runner';
+
+	if ( ! class_exists( $runner_class ) ) {
+		echo "     přeskočeno, Elementor Pro nemá registr akcí atomového formuláře\n";
+	} else {
+		check( 'akce v registru atomového formuláře', $runner_class::has_action( 'raynet_crm' ), true );
+		check( 'akce je naše', get_class( $runner_class::create_action( 'raynet_crm' ) ), 'Raynet_Atomic_Form_Action' );
+		check( 'popisek v logu akcí', apply_filters( 'elementor_pro/atomic_forms/action_log_label', 'Raynet Crm', 'raynet_crm' ), 'RAYNET CRM' );
+		check( 'cizí popisek v logu beze změny', apply_filters( 'elementor_pro/atomic_forms/action_log_label', 'Webhook', 'webhook' ), 'Webhook' );
+
+		// A runner name that is not the registry does nothing and does not fail.
+		Raynet_Atomic_Form_Integration::register_action( 'stdClass' );
+		check( 'cizí registr nic nezaregistruje', $runner_class::has_action( 'raynet_crm' ), true );
+
+		$at   = function ( $type, $value ) {
+			return array( '$$type' => $type, 'value' => $value );
+		};
+		$as   = function ( $value ) use ( $at ) {
+			return $at( 'string', $value );
+		};
+		$aw2  = function ( $id, $type, array $settings = array() ) {
+			return array( 'id' => $id, 'elType' => 'widget', 'widgetType' => $type, 'settings' => $settings, 'elements' => array(), 'isInner' => false );
+		};
+		$al2  = function ( $id, $text, $input ) use ( $aw2, $at, $as ) {
+			return $aw2( $id, 'e-form-label', array( 'text' => $at( 'html-v3', array( 'content' => $as( $text ), 'children' => array() ) ), 'input-id' => $as( $input ) ) );
+		};
+		$aform = function ( $id, array $actions ) use ( $at, $as, $aw2, $al2 ) {
+			$settings = array(
+				'form-name' => $as( 'Atomová poptávka' ),
+				'email'     => $at( 'email', array( 'to' => $as( 'obchod@example.cz' ) ) ),
+			);
+
+			if ( null !== $actions ) {
+				$settings['actions-after-submit'] = $at( 'string-array', array_map( $as, $actions ) );
+			}
+
+			return array(
+				'id'       => $id,
+				'elType'   => 'e-form',
+				'isInner'  => false,
+				'settings' => $settings,
+				'elements' => array(
+					$al2( 'xl1', 'E-mail', 'mail' ),
+					$aw2( 'xf1', 'e-form-input', array( 'type' => $as( 'email' ), '_cssid' => $as( 'mail' ) ) ),
+					$al2( 'xl2', 'Jméno', 'name' ),
+					$aw2( 'xf2', 'e-form-input', array( '_cssid' => $as( 'name' ) ) ),
+					$al2( 'xl3', 'Zpráva', 'msg' ),
+					$aw2( 'xf3', 'e-form-textarea', array( '_cssid' => $as( 'msg' ) ) ),
+					$aw2( 'xf4', 'e-form-checkbox', array( '_cssid' => $as( 'gdpr' ) ) ),
+					$al2( 'xl4', 'Souhlasím se zpracováním osobních údajů', 'gdpr' ),
+					$al2( 'xl5', 'Služba', 'svc' ),
+					$aw2( 'xf5', 'e-form-select', array( '_cssid' => $as( 'svc' ) ) ),
+					$al2( 'xl6', 'Příloha', 'file' ),
+					$aw2( 'xf6', 'e-form-file-upload', array( '_cssid' => $as( 'file' ) ) ),
+					$aw2( 'xf7', 'e-form-input', array( 'type' => $as( 'password' ), 'placeholder' => $as( 'Heslo' ) ) ),
+					$aw2( 'xsb', 'e-form-submit-button' ),
+				),
+			);
+		};
+
+		$aform_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Atomová akce', 'post_status' => 'publish' ) );
+		update_post_meta( $aform_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $aform_page, '_elementor_data', wp_slash( wp_json_encode( array( $aform( 'aform2', array( 'raynet_crm' ) ), $aform( 'aform3', array( 'email' ) ) ) ) ) );
+
+		$aform_map = array(
+			'raynet_crm_fields_map'    => array(
+				array( 'remote_id' => 'email', 'local_id' => 'xf1' ),
+				array( 'remote_id' => 'firstName', 'local_id' => 'xf2' ),
+				array( 'remote_id' => 'message', 'local_id' => 'xf3' ),
+				array( 'remote_id' => 'gdprConsent', 'local_id' => 'xf4' ),
+				// An old mapping of the password field: it must not leave the site.
+				array( 'remote_id' => 'lastName', 'local_id' => 'xf7' ),
+			),
+			'raynet_crm_notice_fields' => array( 'xf5' ),
+			'raynet_crm_topic'         => 'Z atomového formuláře',
+			'raynet_crm_source_url'    => 'yes',
+		);
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform2', $aform_map );
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform3', $aform_map );
+
+		check( 'formulář nalezen ve stromu', null !== Raynet_Atomic_Form_Integration::form_element( $aform_page, 'aform2' ), true );
+		check( 'jiný prvek než e-form se nenajde', Raynet_Atomic_Form_Integration::form_element( $aform_page, 'xf1' ), null );
+
+		$aform_gdpr_before = get_option( Raynet_Lead_Settings::OPTION );
+		update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array_merge( (array) $aform_gdpr_before, array( 'gdpr_template' => '5', 'gdpr_form_agreement' => '2', 'throttle_seconds' => 0 ) ) ) );
+
+		$aform_data    = array(
+			'xf1'    => 'eva@example.cz',
+			'xf2'    => 'Eva',
+			'xf3'    => 'Chci nabídku zateplení.',
+			'xf4'    => 'on',
+			'xf5'    => 'web',
+			'xf6'    => array( content_url( 'uploads/elementor/forms/nabidka.pdf' ) ),
+			'xf7'    => 'tajneheslo',
+			'podvrh' => 'podvržená hodnota',
+		);
+		$aform_context = function ( $form_id ) use ( $aform_page ) {
+			return array(
+				'post_id'   => $aform_page,
+				'form_id'   => $form_id,
+				'form_name' => 'Atomová poptávka',
+				'referrer'  => 'https://utocnik.example/podvrh',
+			);
+		};
+		$aform_calls = function () {
+			wp_cache_flush();
+			$out = array( 'lead' => null, 'gdpr' => null, 'count' => 0 );
+			foreach ( get_option( 'raynet_test_http_calls', array() ) as $call ) {
+				if ( false !== strpos( $call['url'], '/lead/' ) ) {
+					$out['lead'] = json_decode( $call['body'], true );
+					$out['count']++;
+				} elseif ( false !== strpos( $call['url'], '/gdpr/' ) ) {
+					$out['gdpr'] = json_decode( $call['body'], true );
+				}
+			}
+			return $out;
+		};
+
+		update_option( 'raynet_test_http_calls', array() );
+		$aform_result = $runner_class::execute_actions( array( 'raynet_crm' ), $aform_data, array(), $aform_context( 'aform2' ) );
+		$aform_sent   = $aform_calls();
+		$aform_lead   = $aform_sent['lead'];
+		$aform_notice = isset( $aform_lead['notice'] ) ? (string) $aform_lead['notice'] : '';
+
+		check( 'akce uspěla', isset( $aform_result['actionResults'][0]['status'] ) ? $aform_result['actionResults'][0]['status'] : '', 'success' );
+		check( 'výsledek nese ID leadu', isset( $aform_result['actionResults'][0]['leadId'] ) ? $aform_result['actionResults'][0]['leadId'] : 0, 4242 );
+		check( 'RAYNET zavolán jednou', $aform_sent['count'], 1 );
+		check( 'namapovaný e-mail', isset( $aform_lead['contactInfo']['email'] ) ? $aform_lead['contactInfo']['email'] : '', 'eva@example.cz' );
+		check( 'namapované jméno', isset( $aform_lead['firstName'] ) ? $aform_lead['firstName'] : '', 'Eva' );
+		check( 'téma z nastavení formuláře', isset( $aform_lead['topic'] ) ? $aform_lead['topic'] : '', 'Z atomového formuláře' );
+		check( 'zpráva v poznámce', false !== strpos( $aform_notice, 'Chci nabídku zateplení.' ), true );
+		check( 'pole vybrané do poznámky', false !== strpos( $aform_notice, 'Služba: web' ), true );
+		check( 'soubor v poznámce jen názvem', false !== strpos( $aform_notice, 'Příloha: nabidka.pdf' ), true );
+		check( 'adresa souboru neodešla', false !== strpos( (string) wp_json_encode( $aform_lead ), 'elementor\\/forms' ) || false !== strpos( (string) wp_json_encode( $aform_lead ), 'elementor/forms' ), false );
+		check( 'heslo neodešlo', false !== strpos( (string) wp_json_encode( $aform_lead ), 'tajneheslo' ) || isset( $aform_lead['lastName'] ), false );
+		check( 'podvržené pole neodešlo', false !== strpos( (string) wp_json_encode( $aform_lead, JSON_UNESCAPED_UNICODE ), 'podvržená' ), false );
+		check( 'zdroj je stránka, ne podvržený odkaz', isset( $aform_lead['notice'] ) && false !== strpos( $aform_notice, get_permalink( $aform_page ) ) && false === strpos( $aform_notice, 'utocnik.example' ), true );
+		check( 'zaškrtnutý souhlas: GDPR záznam', isset( $aform_sent['gdpr']['lead'] ) ? $aform_sent['gdpr']['lead'] : 0, 4242 );
+
+		// Unticked: no GDPR record.
+		update_option( 'raynet_test_http_calls', array() );
+		$runner_class::execute_actions( array( 'raynet_crm' ), array_merge( $aform_data, array( 'xf4' => '' ) ), array(), $aform_context( 'aform2' ) );
+		check( 'nezaškrtnuto: žádný GDPR záznam', $aform_calls()['gdpr'], null );
+
+		// The runner calls only the actions the form lists.
+		update_option( 'raynet_test_http_calls', array() );
+		update_option( 'raynet_test_mails', array() );
+		$aform_off = Raynet_Atomic_Form_Integration::form_element( $aform_page, 'aform3' );
+		$runner_class::execute_actions( Raynet_Elementor_Atomic_Forms::actions( $aform_off ), $aform_data, array(), $aform_context( 'aform3' ) );
+		check( 'formulář bez RAYNETu RAYNET nevolá', $aform_calls()['count'], 0 );
+
+		// A form id the page does not hold.
+		update_option( 'raynet_test_http_calls', array() );
+		$aform_missing = $runner_class::execute_actions( array( 'raynet_crm' ), $aform_data, array(), $aform_context( 'neni' ) );
+		check( 'neznámý formulář selže', isset( $aform_missing['actionResults'][0]['status'] ) ? $aform_missing['actionResults'][0]['status'] : '', 'failed' );
+		check( 'neznámý formulář RAYNET nevolá', $aform_calls()['count'], 0 );
+
+		// RAYNET refuses: failed, the fallback e-mail goes out, and the result
+		// (which Elementor Pro returns to the browser) holds only the public text.
+		delete_option( 'raynet_lead_last_error' );
+		update_option( Raynet_Lead_Settings::OPTION, Raynet_Lead_Settings::sanitize( array_merge( (array) get_option( Raynet_Lead_Settings::OPTION ), array( 'fallback_email' => 'zaloha@example.cz' ) ) ) );
+		update_option( 'raynet_test_refuse_leads', 1 );
+		update_option( 'raynet_test_mails', array() );
+		$aform_refused = $runner_class::execute_actions( array( 'raynet_crm' ), $aform_data, array(), $aform_context( 'aform2' ) );
+		delete_option( 'raynet_test_refuse_leads' );
+		wp_cache_flush();
+		$aform_last  = get_option( 'raynet_lead_last_error' );
+		$aform_diag  = is_array( $aform_last ) && isset( $aform_last['message'] ) ? (string) $aform_last['message'] : '';
+		$aform_mails = array_filter( get_option( 'raynet_test_mails', array() ), function ( $mail ) {
+			return 'zaloha@example.cz' === $mail['to'];
+		} );
+
+		check( 'odmítnutí: akce selhala', isset( $aform_refused['actionResults'][0]['status'] ) ? $aform_refused['actionResults'][0]['status'] : '', 'failed' );
+		// Only a thrown failure counts: a returned `failed` result would leave
+		// allActionsSucceeded true and show the visitor the success state.
+		check( 'odmítnutí: runner hlásí selhání', array( $aform_refused['allActionsSucceeded'], $aform_refused['failedActions'] ), array( false, array( 'raynet_crm' ) ) );
+		check( 'odmítnutí: obecná hláška', isset( $aform_refused['actionResults'][0]['error'] ) ? $aform_refused['actionResults'][0]['error'] : '', 'Odeslání formuláře se nezdařilo. Zkuste to prosím znovu později.' );
+		check( 'odmítnutí: důvod zapsaný pro správce', '' !== $aform_diag, true );
+		check( 'odmítnutí: důvod není ve výsledku', '' !== $aform_diag && false !== strpos( (string) wp_json_encode( $aform_refused, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $aform_diag ), false );
+		check( 'odmítnutí: záložní e-mail odešel', count( $aform_mails ), 1 );
+
+		// No e-mail or phone: refused before RAYNET, the reason for admins only.
+		update_option( 'raynet_test_http_calls', array() );
+		$aform_nocontact = $runner_class::execute_actions( array( 'raynet_crm' ), array_merge( $aform_data, array( 'xf1' => '' ) ), array(), $aform_context( 'aform2' ) );
+		wp_cache_flush();
+		$aform_last = get_option( 'raynet_lead_last_error' );
+		check( 'bez kontaktu: selhalo', isset( $aform_nocontact['actionResults'][0]['status'] ) ? $aform_nocontact['actionResults'][0]['status'] : '', 'failed' );
+		check( 'bez kontaktu: RAYNET nevolán', $aform_calls()['count'], 0 );
+		check( 'bez kontaktu: důvod pro správce', is_array( $aform_last ) ? $aform_last['message'] : '', 'Lead neobsahuje e-mail ani telefon.' );
+		check( 'bez kontaktu: návštěvník důvod nevidí', false !== strpos( (string) wp_json_encode( $aform_nocontact, JSON_UNESCAPED_UNICODE ), 'telefon' ), false );
+
+		// The real request, as the browser sends it: admin-ajax.php, anonymous.
+		$aform_post = function () use ( $aform_page ) {
+			wp_set_current_user( 0 );
+			$fields = array(
+				array( 'id' => 'xf1', 'type' => 'email', 'label' => 'E-mail', 'value' => 'eva@example.cz' ),
+				// The browser claims a type and a label; neither is used.
+				array( 'id' => 'xf2', 'type' => 'email', 'label' => 'Podvrh', 'value' => 'Eva' ),
+				array( 'id' => 'xf3', 'type' => 'textarea', 'label' => 'Zpráva', 'value' => 'Přes admin-ajax.' ),
+				array( 'id' => 'xf4', 'type' => 'checkbox', 'label' => 'Souhlas', 'value' => 'on' ),
+			);
+			return array(
+				'action'      => 'elementor_pro_atomic_forms_send_form',
+				'_nonce'      => wp_create_nonce( 'elementor_pro_atomic_forms_send_form' ),
+				'post_id'     => $aform_page,
+				'form_id'     => 'aform2',
+				'form_name'   => 'Atomová poptávka',
+				'form_fields' => $fields,
+			);
+		};
+
+		update_option( 'raynet_test_http_calls', array() );
+		$aform_http = json_decode( req( '/wp-admin/admin-ajax.php', $aform_post() )['body'], true );
+		$aform_sent = $aform_calls();
+		check( 'admin-ajax: odesláno', isset( $aform_http['success'] ) ? $aform_http['success'] : null, true );
+		check( 'admin-ajax: lead založen', isset( $aform_sent['lead']['firstName'] ) ? $aform_sent['lead']['firstName'] : '', 'Eva' );
+		check( 'admin-ajax: typ a popisek ze stromu', false !== strpos( isset( $aform_sent['lead']['notice'] ) ? (string) $aform_sent['lead']['notice'] : '', 'Podvrh' ), false );
+
+		update_option( 'raynet_test_refuse_leads', 1 );
+		delete_option( 'raynet_lead_last_error' );
+		$aform_http = json_decode( req( '/wp-admin/admin-ajax.php', $aform_post() )['body'], true );
+		delete_option( 'raynet_test_refuse_leads' );
+		wp_cache_flush();
+		$aform_last = get_option( 'raynet_lead_last_error' );
+		$aform_diag = is_array( $aform_last ) && isset( $aform_last['message'] ) ? (string) $aform_last['message'] : '';
+		check( 'admin-ajax: odmítnutí je chyba', isset( $aform_http['success'] ) ? $aform_http['success'] : null, false );
+		check( 'admin-ajax: výsledek akce je jen obecný', isset( $aform_http['data']['data']['actionResults'][0]['error'] ) ? $aform_http['data']['data']['actionResults'][0]['error'] : '', 'Odeslání formuláře se nezdařilo. Zkuste to prosím znovu později.' );
+		check( 'admin-ajax: důvod zapsaný', '' !== $aform_diag, true );
+		check( 'admin-ajax: návštěvník důvod nevidí', '' !== $aform_diag && false !== strpos( (string) wp_json_encode( $aform_http, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $aform_diag ), false );
+
+		update_option( Raynet_Lead_Settings::OPTION, $aform_gdpr_before );
+		delete_option( 'raynet_lead_last_error' );
+		update_option( 'raynet_test_mails', array() );
+		wp_delete_post( $aform_page, true );
+
+		// The chip in the editor: on the atomic form, nowhere else.
+		$chips_class = '\\Elementor\\Modules\\AtomicWidgets\\Controls\\Types\\Chips_Control';
+		$chip_values = function ( array $controls ) use ( &$chip_values, $chips_class ) {
+			foreach ( $controls as $control ) {
+				if ( $control instanceof \Elementor\Modules\AtomicWidgets\Controls\Section ) {
+					$found = $chip_values( $control->get_items() );
+					if ( null !== $found ) {
+						return $found;
+					}
+				} elseif ( $control instanceof $chips_class && 'actions-after-submit' === $control->get_bind() ) {
+					return array_column( $control->get_props()['options'], 'label', 'value' );
+				}
+			}
+			return null;
+		};
+
+		$atomic_form_type = \Elementor\Plugin::$instance->elements_manager->get_element_types( 'e-form' );
+		check( 'Elementor zná atomový formulář', is_object( $atomic_form_type ), true );
+
+		if ( is_object( $atomic_form_type ) ) {
+			$form_chips = $chip_values( $atomic_form_type->get_atomic_controls() );
+			check( 'čip RAYNET CRM u formuláře', isset( $form_chips['raynet_crm'] ) ? $form_chips['raynet_crm'] : '', 'RAYNET CRM' );
+			check( 'původní čipy zůstaly', is_array( $form_chips ) ? array_slice( array_keys( $form_chips ), 0, 3 ) : array(), array( 'email', 'collect-submissions', 'webhook' ) );
+			check( 'čip jen jednou', is_array( $form_chips ) ? count( array_keys( array_keys( $form_chips ), 'raynet_crm', true ) ) : 0, 1 );
+		}
+
+		$other_controls = array( $chips_class::bind_to( 'actions-after-submit' )->set_options( array( array( 'label' => 'Email', 'value' => 'email' ) ) ) );
+		$other_heading  = \Elementor\Plugin::$instance->widgets_manager->get_widget_types( 'e-heading' );
+		check( 'jiný prvek čip nedostane', $chip_values( apply_filters( 'elementor/atomic-widgets/controls', $other_controls, $other_heading ? $other_heading : new stdClass() ) ), array( 'email' => 'Email' ) );
+	}
 }
 
 echo "\n=== PHP chyby ===\n";
