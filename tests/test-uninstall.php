@@ -42,7 +42,8 @@ $plugin_options = array(
 	'raynet_lead_custom_fields'       => array( 'connection' => 'abc', 'fields' => array() ),
 	'raynet_lead_users'               => array( 'connection' => 'abc', 'people' => array( 11 => array( 'name' => 'Jana', 'login' => 'jana@firma.cz' ) ) ),
 	'raynet_import_idx_gen'           => 3,
-	'raynet_lead_openai_key'          => 'sk-test-0000',
+	'raynet_import_idx_ai_stamp'      => 'abc.1',
+	'raynet_lead_openai_key'         => 'sk-test-0000',
 	'raynet_lead_openai_model'        => 'gpt-6-luna',
 	'raynet_lead_openai_business'     => 'Střechy.',
 	// Legacy 1.x options.

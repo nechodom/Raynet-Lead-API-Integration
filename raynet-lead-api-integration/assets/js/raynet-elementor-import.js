@@ -184,15 +184,22 @@
 	 *
 	 * @param {Object} settings Localized config.
 	 * @param {number} after    Cursor: only submissions above this id.
+	 * @param {number} size     Smaller batch the server asked for; 0 for its default.
 	 * @return {Object} Data.
 	 */
-	function aiData( settings, after ) {
-		return {
+	function aiData( settings, after, size ) {
+		var data = {
 			action: ( settings.ai || {} ).action,
 			_wpnonce: settings.nonce,
 			form: settings.form,
 			after: after
 		};
+
+		if ( size > 0 ) {
+			data.size = size;
+		}
+
+		return data;
 	}
 
 	window.raynetImportAiData = aiData;
@@ -200,20 +207,29 @@
 	/**
 	 * Has the server judge batch after batch, never two at once.
 	 *
-	 * sendBatch( after ) returns a Promise of { ok, done, judged, remaining,
-	 * import, reject, next, code, message }; a rejected Promise is an error.
-	 * The run ends when the server says done, on the first error, after
-	 * stop() once the batch on its way is back, and when the cursor does not
-	 * move (the same rows would be asked for again).
+	 * sendBatch( after, size ) returns a Promise of { ok, done, judged,
+	 * skipped, remaining, import, reject, next, retry_size, retry_until,
+	 * code, message }; a rejected Promise is an error. size is 0 for the
+	 * server's default batch.
+	 *
+	 * The server answers a batch the model refused as a whole with a smaller
+	 * retry_size and the cursor unmoved: the same rows are asked for again in
+	 * smaller batches until the cursor passes retry_until, then the default
+	 * size is back. The run ends when the server says done, on the first
+	 * error, after stop() once the batch on its way is back, and when the
+	 * cursor does not move without the batch getting smaller (the same rows
+	 * would be asked for again).
 	 *
 	 * @param {Function} sendBatch  Sends one batch.
 	 * @param {Function} onProgress Called with the totals after each batch.
-	 * @param {Function} onDone     Called once with { status: done|stopped|error, code, message, judged, import, reject, remaining }.
+	 * @param {Function} onDone     Called once with { status: done|stopped|error, code, message, judged, skipped, import, reject, remaining }.
 	 * @return {Object} { stop() }.
 	 */
 	function aiRun( sendBatch, onProgress, onDone ) {
-		var totals = { status: '', code: '', message: '', judged: 0, import: 0, reject: 0, remaining: 0 };
+		var totals = { status: '', code: '', message: '', judged: 0, skipped: 0, import: 0, reject: 0, remaining: 0 };
 		var stopped = false;
+		var size = 0;
+		var until = 0;
 
 		function end( status, code, message ) {
 			totals.status = status;
@@ -226,7 +242,7 @@
 			var request;
 
 			try {
-				request = Promise.resolve( sendBatch( after ) );
+				request = Promise.resolve( sendBatch( after, size ) );
 			} catch ( error ) {
 				request = Promise.reject( error );
 			}
@@ -244,20 +260,37 @@
 					}
 
 					totals.judged += parseInt( result.judged, 10 ) || 0;
+					totals.skipped += parseInt( result.skipped, 10 ) || 0;
 					totals.import += parseInt( result.import, 10 ) || 0;
 					totals.reject += parseInt( result.reject, 10 ) || 0;
 					totals.remaining = parseInt( result.remaining, 10 ) || 0;
 					onProgress( totals );
 
 					var cursor = parseInt( result.next, 10 ) || 0;
+					var retry = parseInt( result.retry_size, 10 ) || 0;
 
 					if ( result.done ) {
 						end( 'done' );
 					} else if ( stopped ) {
 						end( 'stopped' );
+					} else if ( retry > 0 ) {
+						// Only ever smaller: a retry that does not shrink would loop.
+						if ( size > 0 && retry >= size ) {
+							end( 'error', 'raynet_ai_no_progress', '' );
+							return;
+						}
+
+						size = retry;
+						until = parseInt( result.retry_until, 10 ) || 0;
+						next( after );
 					} else if ( cursor <= after ) {
 						end( 'error', 'raynet_ai_no_progress', '' );
 					} else {
+						if ( cursor >= until ) {
+							size = 0;
+							until = 0;
+						}
+
 						next( cursor );
 					}
 				} );
@@ -288,7 +321,10 @@
 				ok: true,
 				done: !! data.done,
 				judged: data.judged,
+				skipped: data.skipped,
 				remaining: data.remaining,
+				retry_size: data.retry_size,
+				retry_until: data.retry_until,
 				import: data.import,
 				reject: data.reject,
 				next: data.next,
@@ -368,18 +404,22 @@
 			$progress.text( format( ai.progress, [ 0, count ] ) );
 
 			run = aiRun(
-				function ( after ) {
-					return postAi( aiData( config, after ) );
+				function ( after, size ) {
+					return postAi( aiData( config, after, size ) );
 				},
 				function ( totals ) {
-					$progress.text( format( ai.progress, [ totals.judged, count ] ) );
+					$progress.text( format( ai.progress, [ totals.judged + totals.skipped, count ] ) );
 				},
 				function ( end ) {
 					$stop.prop( 'hidden', true );
 
 					if ( 'error' === end.status ) {
+						// What was judged before the error is stored: the
+						// count on the button must not offer it again.
+						var left = Math.max( 0, count - end.judged - end.skipped );
+
 						run = null;
-						$start.prop( 'disabled', false );
+						$start.attr( 'data-count', String( left ) ).text( format( ai.label, [ left ] ) ).prop( 'disabled', 0 === left );
 						$forget.prop( 'disabled', false );
 						fail( end.message );
 						return;

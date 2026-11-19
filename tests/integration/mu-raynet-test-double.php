@@ -88,6 +88,11 @@ add_filter(
 				$results = array_merge( $results, $script['extra'] );
 			}
 
+			// `refuse_if`: the model refuses any batch holding this id.
+			if ( isset( $script['refuse_if'] ) && in_array( (int) $script['refuse_if'], array_map( 'intval', array_column( isset( $batch['submissions'] ) && is_array( $batch['submissions'] ) ? $batch['submissions'] : array(), 'id' ) ), true ) ) {
+				$mode = 'refusal';
+			}
+
 			if ( 'refusal' === $mode ) {
 				$part = array( 'type' => 'refusal', 'refusal' => 'I can not help with that.' );
 			} elseif ( 'text' === $mode ) {

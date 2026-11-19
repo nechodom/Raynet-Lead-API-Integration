@@ -529,6 +529,24 @@ foreach ( array( 'reject' => $reject, 'import' => $import, 'null' => null ) as $
 }
 check( 'zamítnutí dvakrát: jeden ai_reject', count( array_keys( array_column( Raynet_Import_Ai::merge( Raynet_Import_Ai::merge( $ok_rules, $reject ), $reject )['reasons'], 'id' ), 'ai_reject', true ) ), 1 );
 
+echo "\n=== Značka „neposouzeno“ ===\n";
+
+$none_hash = 'otisk-none';
+Raynet_Import_Ai::set( 61, array( 'verdict' => 'none', 'reason' => 'nic' ), $none_hash );
+check( 'značka: get() ji vrátí', Raynet_Import_Ai::get( 61, $none_hash )['verdict'], 'none' );
+check( 'značka: bez důvodu', Raynet_Import_Ai::get( 61, $none_hash )['reason'], '' );
+check( 'značka: jiný otisk nic', Raynet_Import_Ai::get( 61, 'jiny' ), null );
+$m = Raynet_Import_Ai::merge( $classified, array( 'verdict' => 'none', 'reason' => '' ) );
+check( 'značka: pravidla platí beze změny', array( $m['verdict'], $m['reasons'], $m['tab'], $m['preselect'] ), array( 'ok', array(), 'review', true ) );
+check( 'značka: ai nese none', $m['ai'], array( 'verdict' => 'none', 'reason' => '' ) );
+check( 'vynechání poprvé: ještě bez značky', Raynet_Import_Ai::note_missing( 62, $none_hash ), false );
+check( 'vynechání poprvé: není verdikt', Raynet_Import_Ai::get( 62, $none_hash ), null );
+check( 'vynechání podruhé: značka', Raynet_Import_Ai::note_missing( 62, $none_hash ), true );
+check( 'vynechání podruhé: get() vrátí none', Raynet_Import_Ai::get( 62, $none_hash )['verdict'], 'none' );
+check( 'vynechání s jiným otiskem začne znovu', array( Raynet_Import_Ai::note_missing( 63, 'a' ), Raynet_Import_Ai::note_missing( 63, 'b' ) ), array( false, false ) );
+check( 'zapomenout smaže i značky a vynechání', Raynet_Import_Ai::forget( array( 61, 62, 63 ) ), 3 );
+check( 'fronta: označený řádek se nepošle', Raynet_Elementor_Submissions::ai_candidates( array( 5 => array( 'state' => 'new', 'tab' => 'review', 'verdict' => 'ok', 'reasons' => array(), 'ai' => 'none' ) ) ), array() );
+
 echo "\n=== Co odejde z uloženého odeslání ===\n";
 
 $ai_form = array(

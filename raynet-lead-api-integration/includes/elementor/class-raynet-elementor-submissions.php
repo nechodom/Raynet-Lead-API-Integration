@@ -66,7 +66,7 @@ class Raynet_Elementor_Submissions {
 	 * with 0 for "unknown" / "none".
 	 */
 	const CACHE_STRENGTHS = array( '', 'strong', 'medium', 'weak' );
-	const CACHE_AI        = array( '', 'import', 'reject' );
+	const CACHE_AI        = array( '', 'import', 'reject', 'none' );
 
 	/**
 	 * Tag added to every imported lead unless the screen says otherwise.
@@ -82,6 +82,18 @@ class Raynet_Elementor_Submissions {
 	 * Age in seconds after which a lock counts as left behind.
 	 */
 	const LOCK_TTL = 300;
+
+	/**
+	 * Age in seconds after which a form's AI review lock counts as left behind.
+	 */
+	const AI_LOCK_TTL = 90;
+
+	/**
+	 * Option bumped whenever AI verdicts are stored. An index build that saw
+	 * it change while it ran does not cache what it built: it read the
+	 * verdict rows before the change.
+	 */
+	const AI_STAMP = 'raynet_import_idx_ai_stamp';
 
 	/**
 	 * Outcomes of taking the import lock.
@@ -553,7 +565,8 @@ class Raynet_Elementor_Submissions {
 	 * @param int    $post_id   Post the form lives in.
 	 * @param string $widget_id Form widget id.
 	 * @return array<int,array<string,mixed>> Submission id => classify() result
-	 *         merged with the AI verdict, plus `ai` (null, "import" or "reject").
+	 *         merged with the AI verdict, plus `ai` (null, "import", "reject",
+	 *         or "none" for a row the model could not judge).
 	 */
 	public static function index( $post_id, $widget_id ) {
 		if ( ! self::available() ) {
@@ -599,22 +612,29 @@ class Raynet_Elementor_Submissions {
 			return $cached;
 		}
 
+		// Read before the verdict rows: see AI_STAMP.
+		$stamp  = self::ai_stamp();
 		$stats  = self::stats( $post_id, $widget_id, $form_settings );
 		$packed = array();
+		// Without a key and without a single stored row there is nothing to
+		// lay over the rules: the classic screen does no AI work at all.
+		$ai_on = Raynet_OpenAI_Client::configured() || Raynet_Import_Ai::any_stored();
 
 		self::each_batch(
 			$post_id,
 			$widget_id,
-			static function ( array $rows ) use ( $form_settings, $stats, $config, &$packed ) {
-				self::prime_ai( array_keys( $rows ) );
+			static function ( array $rows ) use ( $form_settings, $stats, $config, $ai_on, &$packed ) {
+				$stored = $ai_on ? Raynet_Import_Ai::stored_rows( array_keys( $rows ) ) : array();
 
 				foreach ( $rows as $id => $row ) {
-					$packed[ (int) $id ] = self::pack( self::with_ai( $row, self::classify( $row, $form_settings, $stats, $config ), $form_settings ) );
+					$packed[ (int) $id ] = self::pack( self::with_ai( $row, self::classify( $row, $form_settings, $stats, $config ), $form_settings, $stored ) );
 				}
 			}
 		);
 
-		self::write_cache( $cache_key, $fingerprint, $packed );
+		if ( $stamp === self::ai_stamp() ) {
+			self::write_cache( $cache_key, $fingerprint, $packed );
+		}
 
 		// What a cached read would give, so callers see one shape.
 		return array_map( array( __CLASS__, 'unpack' ), $packed );
@@ -692,13 +712,18 @@ class Raynet_Elementor_Submissions {
 	 * Only rows on the two judged tabs are looked at: a row in RAYNET or one
 	 * that cannot be imported keeps what the rules said.
 	 *
+	 * The payload is hashed only for a row that has a verdict row at all.
+	 *
 	 * @param array<string,mixed> $row           Stored submission.
 	 * @param array<string,mixed> $item          classify() result.
 	 * @param array<string,mixed> $form_settings Form settings.
+	 * @param array<int,mixed>    $stored        Verdict rows of the batch, from Raynet_Import_Ai::stored_rows().
 	 * @return array<string,mixed> Result with `ai` set.
 	 */
-	private static function with_ai( array $row, array $item, array $form_settings ) {
-		if ( ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true ) ) {
+	private static function with_ai( array $row, array $item, array $form_settings, array $stored ) {
+		$id = (int) $row['id'];
+
+		if ( ! isset( $stored[ $id ] ) || ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true ) ) {
 			$item['ai'] = null;
 
 			return $item;
@@ -706,30 +731,29 @@ class Raynet_Elementor_Submissions {
 
 		$payload = self::ai_payload( $row, $form_settings );
 
-		return Raynet_Import_Ai::merge( $item, Raynet_Import_Ai::get( (int) $row['id'], Raynet_Import_Ai::hash( $payload ) ) );
+		return Raynet_Import_Ai::merge( $item, Raynet_Import_Ai::from_stored( $stored[ $id ], Raynet_Import_Ai::hash( $payload ) ) );
 	}
 
 	/**
-	 * Loads the verdict rows of a batch in one query where WordPress can.
+	 * Says that AI verdicts were stored or dropped: an index build running
+	 * now does not cache what it built (see AI_STAMP).
 	 *
-	 * They are not autoloaded, so without this every row of a form would be
-	 * a query of its own when the index is built.
-	 *
-	 * @param int[] $ids Submission ids.
 	 * @return void
 	 */
-	private static function prime_ai( array $ids ) {
-		if ( empty( $ids ) || ! function_exists( 'wp_prime_option_caches' ) ) {
-			return;
-		}
+	public static function verdicts_changed() {
+		update_option( self::AI_STAMP, uniqid( '', true ), false );
+	}
 
-		$names = array();
+	/**
+	 * The AI stamp, read past every cache: another request changes it.
+	 *
+	 * @return string Stamp, or an empty string.
+	 */
+	private static function ai_stamp() {
+		global $wpdb;
 
-		foreach ( $ids as $id ) {
-			$names[] = Raynet_Import_Ai::OPTION_PREFIX . (int) $id;
-		}
-
-		wp_prime_option_caches( $names );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Must see another request's write.
+		return (string) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::AI_STAMP ) );
 	}
 
 	/**
@@ -743,9 +767,14 @@ class Raynet_Elementor_Submissions {
 	 * next index() computes everything again. Anything unexpected drops the
 	 * cache, so the verdicts are then read from their option rows.
 	 *
-	 * @param int                                $post_id   Post the form lives in.
-	 * @param string                             $widget_id Form widget id.
-	 * @param array<int,array<string,string>>    $verdicts  Submission id => verdict and reason.
+	 * Two AI runs of one form cannot interleave (lock_ai_run()). An index
+	 * build running meanwhile in a page view read the verdict rows before
+	 * they were stored; the AI_STAMP bumped here, before patching, keeps it
+	 * from caching that result. Called after the verdicts are stored.
+	 *
+	 * @param int                             $post_id   Post the form lives in.
+	 * @param string                          $widget_id Form widget id.
+	 * @param array<int,array<string,string>> $verdicts  Submission id => verdict and reason.
 	 * @return void
 	 */
 	public static function apply_ai( $post_id, $widget_id, array $verdicts ) {
@@ -757,6 +786,8 @@ class Raynet_Elementor_Submissions {
 		if ( empty( $verdicts ) || null === $form_settings ) {
 			return;
 		}
+
+		self::verdicts_changed();
 
 		$fingerprint = self::fingerprint( array( $generation, $form_settings, self::spam_config(), self::count_submissions( $post_id, $widget_id ), Raynet_Import_Ai::context() ) );
 		$cache_key   = self::cache_key( $post_id, $widget_id );
@@ -793,10 +824,16 @@ class Raynet_Elementor_Submissions {
 					return;
 				}
 
+				unset( $left[ $id ] );
+
+				// As with_ai(): a row in RAYNET or one that cannot be imported
+				// keeps what the rules said.
+				if ( ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true ) ) {
+					continue;
+				}
+
 				$chunk['items'][ $id ] = self::pack( Raynet_Import_Ai::merge( $item, $ai ) );
 				$changed               = true;
-
-				unset( $left[ $id ] );
 			}
 
 			if ( $changed ) {
@@ -920,10 +957,10 @@ class Raynet_Elementor_Submissions {
 	/**
 	 * One classify() result as the cache stores it.
 	 *
-	 * @param array<string,mixed> $item classify() result.
 	 * The strength of each reason is kept, so the AI layer can tell a strong
 	 * rule signal from a cached entry (see apply_ai(), ai_candidates()).
 	 *
+	 * @param array<string,mixed> $item classify() result, with `ai` merged in.
 	 * @return array<int,mixed> Tab, verdict, preselect, state, block, reasons
 	 *                          (id, count and strength, or a plain text),
 	 *                          number warning, AI verdict.
@@ -961,7 +998,7 @@ class Raynet_Elementor_Submissions {
 	 * The AI verdict of an index entry or a merge() result.
 	 *
 	 * @param array<string,mixed> $item Entry.
-	 * @return string import, reject, or empty.
+	 * @return string import, reject, none, or empty.
 	 */
 	private static function ai_verdict( array $item ) {
 		$ai = isset( $item['ai'] ) ? $item['ai'] : null;
@@ -970,7 +1007,7 @@ class Raynet_Elementor_Submissions {
 			$ai = isset( $ai['verdict'] ) ? $ai['verdict'] : null;
 		}
 
-		return is_string( $ai ) && in_array( $ai, array( 'import', 'reject' ), true ) ? $ai : '';
+		return is_string( $ai ) && in_array( $ai, array( 'import', 'reject', Raynet_Import_Ai::NONE ), true ) ? $ai : '';
 	}
 
 	/**
@@ -1301,9 +1338,63 @@ class Raynet_Elementor_Submissions {
 	 *                database error.
 	 */
 	private static function lock( $submission_id, $token ) {
+		return self::lock_row( self::LOCK_PREFIX . (int) $submission_id, $token, self::LOCK_TTL );
+	}
+
+	/**
+	 * Takes the AI review lock of a form: one run per form at a time, so two
+	 * windows never pay for the same rows.
+	 *
+	 * Same mechanism as lock(), with a shorter expiry: one batch takes an
+	 * index read and one OpenAI call of at most 30 s.
+	 *
+	 * @param int    $post_id   Post the form lives in.
+	 * @param string $widget_id Form widget id.
+	 * @param string $token     This request's token, "<unix time>:<random>".
+	 * @return string LOCK_HELD, LOCK_BUSY or LOCK_FAILED.
+	 */
+	public static function lock_ai_run( $post_id, $widget_id, $token ) {
+		return self::lock_row( self::ai_lock_name( $post_id, $widget_id ), $token, self::AI_LOCK_TTL );
+	}
+
+	/**
+	 * Releases the AI review lock of a form, if it is still this token's.
+	 *
+	 * @param int    $post_id   Post the form lives in.
+	 * @param string $widget_id Form widget id.
+	 * @param string $token     Token the lock was taken with.
+	 * @return void
+	 */
+	public static function unlock_ai_run( $post_id, $widget_id, $token ) {
 		global $wpdb;
 
-		$name     = self::LOCK_PREFIX . (int) $submission_id;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- See lock().
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name = %s AND option_value = %s", self::ai_lock_name( $post_id, $widget_id ), $token ) );
+	}
+
+	/**
+	 * Option name of a form's AI review lock. It shares the import locks'
+	 * prefix, so uninstall removes it with them.
+	 *
+	 * @param int    $post_id   Post the form lives in.
+	 * @param string $widget_id Form widget id.
+	 * @return string Option name.
+	 */
+	private static function ai_lock_name( $post_id, $widget_id ) {
+		return self::LOCK_PREFIX . 'ai_' . md5( (int) $post_id . ':' . (string) $widget_id );
+	}
+
+	/**
+	 * Takes a lock row: see lock().
+	 *
+	 * @param string $name  Option name.
+	 * @param string $token Token, "<unix time>:<random>".
+	 * @param int    $ttl   Age in seconds after which the row counts as left behind.
+	 * @return string LOCK_HELD, LOCK_BUSY or LOCK_FAILED.
+	 */
+	private static function lock_row( $name, $token, $ttl ) {
+		global $wpdb;
+
 		$inserted = self::insert_lock( $name, $token );
 
 		if ( 1 === $inserted ) {
@@ -1317,7 +1408,7 @@ class Raynet_Elementor_Submissions {
 			return false === $inserted ? self::LOCK_FAILED : self::LOCK_BUSY;
 		}
 
-		if ( (int) strtok( (string) $current, ':' ) > time() - self::LOCK_TTL ) {
+		if ( (int) strtok( (string) $current, ':' ) > time() - (int) $ttl ) {
 			return self::LOCK_BUSY;
 		}
 

@@ -3325,7 +3325,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 			$stored = array();
 			foreach ( $ai_subs as $id ) {
 				$verdict = get_option( 'raynet_import_ai_' . $id, null );
-				if ( is_array( $verdict ) ) {
+				// A first omission is a note, not a verdict.
+				if ( is_array( $verdict ) && 'missed' !== $verdict['verdict'] ) {
 					$stored[ $id ] = $verdict['verdict'];
 				}
 			}
@@ -3333,7 +3334,23 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 			return $stored;
 		};
 		$ai_settings = Raynet_Elementor_Forms::form_settings( $ai_page, 'impform' );
-		$ai_index    = Raynet_Elementor_Submissions::index( $ai_page, 'impform' );
+		// Without a key and without a single verdict row the index build does
+		// no AI work: the existence check (once per request, made here) finds
+		// nothing, and the build reads no verdict row.
+		delete_option( 'raynet_lead_openai_key' );
+		check( 'AI vypnuté: žádný řádek verdiktu', Raynet_Import_Ai::any_stored( true ), false );
+		$ai_queries = array();
+		$ai_watch   = function ( $sql ) use ( &$ai_queries ) {
+			if ( false !== strpos( $sql, 'raynet_import_ai_' ) ) {
+				$ai_queries[] = $sql;
+			}
+			return $sql;
+		};
+		add_filter( 'query', $ai_watch );
+		$ai_index = Raynet_Elementor_Submissions::index( $ai_page, 'impform' );
+		remove_filter( 'query', $ai_watch );
+		check( 'AI vypnuté: výpočet indexu nečte žádný verdikt', $ai_queries, array() );
+		check( 'AI vypnuté: index se opravdu počítal', count( $ai_index ) > 0, true );
 		check( 'AI import: předpoklad, prostřední spam bez silného signálu', array( $ai_index[ $ai_med ]['tab'], in_array( 'strong', array_column( $ai_index[ $ai_med ]['reasons'], 'strength' ), true ) ), array( 'spam', false ) );
 		check( 'AI import: předpoklad, azbuka silný signál', array( $ai_index[ $ai_strg ]['tab'], in_array( 'strong', array_column( $ai_index[ $ai_strg ]['reasons'], 'strength' ), true ) ), array( 'spam', true ) );
 		check( 'AI import: předpoklad, odmítnutý pokus a blokovaný', array( $ai_index[ $ai_fail ]['state'], $ai_index[ $ai_blck ]['tab'], $ai_index[ $ai_sent ]['tab'] ), array( 'failed', 'blocked', 'sent' ) );
@@ -3371,10 +3388,32 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'AI bez nonce: 403', $ai_forged['status'], 403 );
 		$ai_bad = $ai_post( 'raynet_elm_import_ai', 'spatny-nonce' );
 		check( 'AI se špatným nonce: 403', $ai_bad['status'], 403 );
+		// Logged out: WordPress itself answers, as no nopriv handler exists.
 		$ai_anon = $ai_post( 'raynet_elm_import_ai', $ai_nonce, false );
-		check( 'AI nepřihlášený: neúspěch', false !== strpos( $ai_anon['body'], '"success":true' ), false );
+		check( 'AI nepřihlášený: bez obsluhy (400, „0“)', array( $ai_anon['status'], $ai_anon['body'] ), array( 400, '0' ) );
 		$ai_forget_forged = $ai_post( 'raynet_elm_import_ai_forget', null );
 		check( 'AI zahození bez nonce: 403', $ai_forget_forged['status'], 403 );
+
+		// Logged in without manage_options: refused by every action of the screen.
+		$ai_sub_user = wp_insert_user( array( 'user_login' => 'ai_odberatel', 'user_pass' => wp_generate_password( 20 ), 'user_email' => 'ai.odberatel@example.cz', 'role' => 'subscriber' ) );
+		$ai_sub_cookie = AUTH_COOKIE . '=' . rawurlencode( wp_generate_auth_cookie( $ai_sub_user, time() + 3600, 'auth' ) );
+		foreach ( array( 'raynet_elm_import_one', 'raynet_elm_import_ai', 'raynet_elm_import_ai_forget' ) as $ai_action ) {
+			$ch = curl_init( $base . '/wp-admin/admin-ajax.php' );
+			curl_setopt_array(
+				$ch,
+				array(
+					CURLOPT_RETURNTRANSFER => true,
+					CURLOPT_POST           => true,
+					CURLOPT_COOKIE         => $ai_sub_cookie,
+					CURLOPT_POSTFIELDS     => http_build_query( array( 'action' => $ai_action, 'form' => $ai_key, 'submission' => $ai_ok1, '_wpnonce' => $ai_nonce ) ),
+				)
+			);
+			$ai_sub_body   = json_decode( (string) curl_exec( $ch ), true );
+			$ai_sub_status = (int) curl_getinfo( $ch, CURLINFO_HTTP_CODE );
+			check( 'AI bez oprávnění (' . $ai_action . '): 403 raynet_import_forbidden', array( $ai_sub_status, isset( $ai_sub_body['data']['code'] ) ? $ai_sub_body['data']['code'] : '' ), array( 403, 'raynet_import_forbidden' ) );
+		}
+		require_once ABSPATH . 'wp-admin/includes/user.php';
+		wp_delete_user( $ai_sub_user );
 		$ai_aimp_page = $atomic_page_with( 'Atomový AI', array( 'aform1' => array( 'raynet_crm_fields_map' => array( array( 'remote_id' => 'email', 'local_id' => 'af1' ) ) ) ) );
 		$ai_atomic    = $ai_post( 'raynet_elm_import_ai', $ai_nonce, true, $ai_aimp_page . ':aform1' );
 		check( 'AI atomový formulář: odmítne', isset( $ai_atomic['json']['data']['code'] ) ? $ai_atomic['json']['data']['code'] : '', 'raynet_import_no_form' );
@@ -3393,24 +3432,64 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'AI 401: klíč není v odpovědi', false !== strpos( $ai_401['body'], '7777lmno' ) || false !== strpos( $ai_401['body'], 'sk-int' ), false );
 		check( 'AI 401: nic neuloženo', $ai_stored(), array( $ai_strg => 'import' ) );
 
-		// The run: three recommended, two rejected, one batch.
+		// A verdict stored while the cached index says nothing of it (a page
+		// view rebuilt the index during a batch): the cache says OK and
+		// pre-ticked, the option row says reject. The row is not ticked, shows
+		// the rejection, and the index is dropped so the next view is right.
+		$ai_payload_of = function ( $id ) use ( $ai_page, $ai_settings ) {
+			return Raynet_Elementor_Submissions::ai_payload( Raynet_Elementor_Submissions::load( $ai_page, 'impform', array( $id ) )[ $id ], $ai_settings );
+		};
+		Raynet_Elementor_Submissions::index( $ai_page, 'impform' );
+		check( 'AI živě: předpoklad, keš říká OK a předvybrané', array( Raynet_Elementor_Submissions::index( $ai_page, 'impform' )[ $ai_rej1 ]['preselect'], Raynet_Elementor_Submissions::index( $ai_page, 'impform' )[ $ai_rej1 ]['ai'] ), array( true, null ) );
+		Raynet_Import_Ai::set( $ai_rej1, array( 'verdict' => 'reject', 'reason' => 'Cena < 5 "SEO" & spol.' ), Raynet_Import_Ai::hash( $ai_payload_of( $ai_rej1 ) ) );
+		$ai_live_row = $import_row( req( $ai_url, null, true )['body'], $ai_rej1 );
+		check( 'AI živě: zamítnutý řádek ze staré keše nezaškrtnutý', '' !== $ai_live_row && false === strpos( $ai_live_row, 'checked' ), true );
+		check( 'AI živě: ukáže zamítnutí', false !== strpos( $ai_live_row, 'AI: zamítá' ), true );
+		wp_cache_flush();
+		check( 'AI živě: nesoulad zahodí index', get_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $ai_key ) ), false );
+		check( 'AI živě: další zobrazení na Spamu', '' !== $import_row( req( $ai_url . '&zalozka=spam', null, true )['body'], $ai_rej1 ), true );
+
+		// A second run of the same form is refused while one holds the lock.
+		$ai_lock_name = 'raynet_import_lock_ai_' . md5( $ai_key );
+		$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", $ai_lock_name, time() . ':jine-okno' ) ); // phpcs:ignore WordPress.DB
+		update_option( 'raynet_test_http_calls', array() );
+		$ai_busy = $ai_post( 'raynet_elm_import_ai', $ai_nonce );
+		check( 'AI souběh: druhý běh odmítnut', isset( $ai_busy['json']['data']['code'] ) ? $ai_busy['json']['data']['code'] : $ai_busy['body'], 'raynet_ai_busy' );
+		check( 'AI souběh: hláška o jiném okně', isset( $ai_busy['json']['data']['message'] ) && false !== strpos( $ai_busy['json']['data']['message'], 'už běží v jiném okně' ), true );
+		check( 'AI souběh: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		$ai_busy_forget = $ai_post( 'raynet_elm_import_ai_forget', $ai_nonce );
+		check( 'AI souběh: zahození také odmítnuto', isset( $ai_busy_forget['json']['data']['code'] ) ? $ai_busy_forget['json']['data']['code'] : '', 'raynet_ai_busy' );
+		// A lock left behind by a request that died is taken over.
+		$wpdb->update( $wpdb->options, array( 'option_value' => ( time() - 200 ) . ':mrtvy' ), array( 'option_name' => $ai_lock_name ) ); // phpcs:ignore WordPress.DB
+
+		// The run: rej1 is judged already and not paid for again; three
+		// recommended, one rejected, one batch.
+		Raynet_Elementor_Submissions::index( $ai_page, 'impform' );
 		update_option( 'raynet_test_http_calls', array() );
 		update_option(
 			'raynet_test_openai',
 			array(
 				'verdicts' => array( $ai_ok1 => 'import', $ai_ok2 => 'import', $ai_med => 'import', $ai_rej1 => 'reject', $ai_rej2 => 'reject' ),
-				'reasons'  => array( $ai_rej1 => '<script>alert("ai")</script>Nabídka obsahu, ne poptávka.' ),
 			)
 		);
 		$ai_run = $ai_post( 'raynet_elm_import_ai', $ai_nonce );
 		$ai_data = isset( $ai_run['json']['data'] ) ? $ai_run['json']['data'] : array();
-		check( 'AI běh: úspěch', isset( $ai_run['json']['success'] ) ? $ai_run['json']['success'] : null, true );
-		check( 'AI běh: odpověď', array_intersect_key( $ai_data, array_flip( array( 'done', 'judged', 'remaining', 'import', 'reject' ) ) ), array( 'done' => true, 'judged' => 5, 'remaining' => 0, 'import' => 3, 'reject' => 2 ) );
-		$ai_expected = $ai_five;
+		check( 'AI běh: úspěch', isset( $ai_run['json']['success'] ) ? $ai_run['json']['success'] : $ai_run['body'], true );
+		check( 'AI běh: odpověď', array_intersect_key( $ai_data, array_flip( array( 'done', 'judged', 'skipped', 'remaining', 'import', 'reject' ) ) ), array( 'done' => true, 'judged' => 4, 'skipped' => 0, 'remaining' => 0, 'import' => 3, 'reject' => 1 ) );
+		$ai_expected = array( $ai_ok1, $ai_ok2, $ai_med, $ai_rej2 );
 		sort( $ai_expected );
-		check( 'AI běh: odešlo jen pět nových řádků', $ai_sent_ids(), $ai_expected );
+		check( 'AI běh: odešly jen nové řádky bez verdiktu', $ai_sent_ids(), $ai_expected );
 		check( 'AI běh: jeden požadavek', count( get_option( 'raynet_test_http_calls', array() ) ), 1 );
 		check( 'AI běh: verdikty uložené', $ai_stored(), array( $ai_ok1 => 'import', $ai_ok2 => 'import', $ai_med => 'import', $ai_rej1 => 'reject', $ai_rej2 => 'reject', $ai_strg => 'import' ) );
+		check( 'AI běh: zámek uvolněn', $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $ai_lock_name ) ), null ); // phpcs:ignore WordPress.DB
+		// The verdicts were laid into the cached chunk itself, not rebuilt.
+		wp_cache_flush();
+		$ai_chunk = get_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $ai_key ) . '_0' );
+		check(
+			'AI keš: verdikty zapsané přímo do dílu keše',
+			is_array( $ai_chunk ) ? array( $ai_chunk['items'][ $ai_ok1 ][7], $ai_chunk['items'][ $ai_med ][7], $ai_chunk['items'][ $ai_rej2 ][7], $ai_chunk['items'][ $ai_med ][0] ) : null,
+			array( 1, 1, 2, 0 )
+		);
 
 		// The screen shows the verdicts at once, from the patched cache.
 		$ai_review_tab = req( $ai_url, null, true )['body'];
@@ -3423,7 +3502,9 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'AI obrazovka: doporučený nový řádek zaškrtnutý', false !== strpos( $ai_row_ok1, 'checked' ), true );
 		check( 'AI obrazovka: zachráněný spam je k posouzení a zaškrtnutý', '' !== $ai_row_med && false !== strpos( $ai_row_med, 'checked' ), true );
 		check( 'AI obrazovka: zamítnutý není k posouzení', $import_row( $ai_review_tab, $ai_rej1 ), '' );
-		check( 'AI obrazovka: zamítnutý na Spamu se štítkem', false !== strpos( $ai_row_rej1, 'AI: zamítá' ) && false !== strpos( $ai_row_rej1, 'Nabídka obsahu, ne poptávka.' ), true );
+		check( 'AI obrazovka: zamítnutý na Spamu se štítkem', false !== strpos( $ai_row_rej1, 'AI: zamítá' ), true );
+		// "<", '"' and "&" survive storage; the output layer escapes them.
+		check( 'AI obrazovka: důvod escapovaný na výstupu', false !== strpos( $ai_row_rej1, 'Cena &lt; 5 &quot;SEO&quot; &amp; spol.' ) && false === strpos( $ai_row_rej1, '"SEO"' ), true );
 		check( 'AI obrazovka: zamítnutý nezaškrtnutý', '' !== $ai_row_rej1 && false === strpos( $ai_row_rej1, 'checked' ), true );
 		check( 'AI obrazovka: důvod zamítnutí česky', false !== strpos( $ai_row_rej1, 'zamítnuto AI' ), true );
 		check( 'AI obrazovka: silný signál zůstane na Spamu s doporučením', false !== strpos( $ai_row_strg, 'AI: doporučuje' ) && false === strpos( $ai_row_strg, 'checked' ), true );
@@ -3434,7 +3515,15 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 			check( 'AI z keše (' . $ai_view . '. zobrazení): silný signál na Spamu, nezaškrtnutý', '' !== $ai_cached_row && false !== strpos( $ai_cached_row, 'AI: doporučuje' ) && false === strpos( $ai_cached_row, 'checked' ), true );
 		}
 		check( 'AI z keše: silný signál zůstane spam i v indexu', array( Raynet_Elementor_Submissions::index( $ai_page, 'impform' )[ $ai_strg ]['tab'], Raynet_Elementor_Submissions::index( $ai_page, 'impform' )[ $ai_strg ]['preselect'] ), array( 'spam', false ) );
-		check( 'AI obrazovka: žádný skript z důvodu', false !== strpos( $ai_spam_tab, '<script>alert("ai")' ), false );
+		// The renderer itself, with a reason storage would have cleaned.
+		$ai_label_method = new ReflectionMethod( 'Raynet_Elementor_Import_Admin', 'ai_label' );
+		ob_start();
+		$ai_label_method->invoke( null, array( 'verdict' => 'reject', 'reason' => '<script>alert("ai")</script><b onmouseover=x>' ) );
+		$ai_label_html = ob_get_clean();
+		check( 'AI štítek: nepřátelský důvod escapovaný', array( false !== strpos( $ai_label_html, '&lt;script&gt;alert(&quot;ai&quot;)&lt;/script&gt;&lt;b onmouseover=x&gt;' ), false !== strpos( $ai_label_html, '<script' ) || false !== strpos( $ai_label_html, '<b ' ) ), array( true, false ) );
+		ob_start();
+		$ai_label_method->invoke( null, array( 'verdict' => '"><script>', 'reason' => 'x' ) );
+		check( 'AI štítek: neznámý verdikt nic nevypíše', ob_get_clean(), '' );
 		check( 'AI obrazovka: počty záložek', (bool) preg_match( '~Spam \(3\)~', $ai_review_tab ) && (bool) preg_match( '~V pořádku \+ podezřelé \(4\)~', $ai_review_tab ), true );
 		check( 'AI obrazovka: tlačítko s nulou', (bool) preg_match( '~id="raynet-import-ai"[^>]*data-count="0"~', $ai_review_tab ), true );
 		check( 'AI obrazovka: odkaz na zahození', false !== strpos( $ai_review_tab, 'id="raynet-import-ai-forget"' ), true );
@@ -3466,13 +3555,97 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$ai_cursor = $ai_post( 'raynet_elm_import_ai', $ai_nonce, true, null, max( $ai_subs ) );
 		check( 'AI za kurzorem: hotovo bez požadavku', isset( $ai_cursor['json']['data'] ) ? array( $ai_cursor['json']['data']['done'], $ai_cursor['json']['data']['judged'], $ai_cursor['json']['data']['remaining'], count( get_option( 'raynet_test_http_calls', array() ) ) ) : null, array( true, 0, 2, 1 ) );
 
-		// A batch the model returns nothing for ends the run with an error.
-		// The client already reports it (raynet_ai_bad_answer); the screen's
-		// own raynet_ai_no_verdicts stays as a guard behind it.
-		update_option( 'raynet_test_openai', array( 'default' => 'skip' ) );
-		$ai_none = $ai_post( 'raynet_elm_import_ai', $ai_nonce );
-		check( 'AI nic nevráceno: chyba', isset( $ai_none['json']['success'], $ai_none['json']['data']['code'] ) ? array( $ai_none['json']['success'], $ai_none['json']['data']['code'] ) : $ai_none['body'], array( false, 'raynet_ai_bad_answer' ) );
-		check( 'AI nic nevráceno: nic dalšího neuloženo', array_keys( $ai_stored() ), array( $ai_ok1, $ai_ok2, $ai_med ) );
+		// Left out a second time, in an answer that judged another row: marked.
+		delete_option( 'raynet_import_ai_' . $ai_ok1 );
+		$drop_index( $ai_key );
+		update_option( 'raynet_test_http_calls', array() );
+		$ai_twice = $ai_post( 'raynet_elm_import_ai', $ai_nonce );
+		check( 'AI podruhé vynechané: odpověď', isset( $ai_twice['json']['data'] ) ? array_intersect_key( $ai_twice['json']['data'], array_flip( array( 'done', 'judged', 'skipped', 'remaining' ) ) ) : $ai_twice['body'], array( 'done' => true, 'judged' => 1, 'skipped' => 2, 'remaining' => 0 ) );
+		check( 'AI podruhé vynechané: značka uložená', $ai_stored(), array( $ai_ok1 => 'import', $ai_ok2 => 'import', $ai_med => 'import', $ai_rej1 => 'none', $ai_rej2 => 'none' ) );
+		update_option( 'raynet_test_http_calls', array() );
+		$ai_after_marks = $ai_post( 'raynet_elm_import_ai', $ai_nonce );
+		check( 'AI po značce: hotovo bez požadavku', isset( $ai_after_marks['json']['data'] ) ? array( $ai_after_marks['json']['data']['done'], $ai_after_marks['json']['data']['judged'], count( get_option( 'raynet_test_http_calls', array() ) ) ) : $ai_after_marks['body'], array( true, 0, 0 ) );
+		check( 'AI po značce: neposouzeno na obrazovce', false !== strpos( $import_row( req( $ai_url, null, true )['body'], $ai_rej1 ), 'AI: neposouzeno' ), true );
+
+		// One row the model refuses to judge: the batch is halved, cursor
+		// unmoved, until that row stands alone; it is marked, the run goes on.
+		// The loop below is the screen's: size and cursor as the JS sends them.
+		$ai_post( 'raynet_elm_import_ai_forget', $ai_nonce );
+		update_option( 'raynet_test_http_calls', array() );
+		update_option( 'raynet_test_openai', array( 'refuse_if' => $ai_med ) );
+		$ai_after  = 0;
+		$ai_size   = 0;
+		$ai_until  = 0;
+		$ai_trace  = array();
+		$ai_end    = null;
+		for ( $ai_step = 0; $ai_step < 20 && null === $ai_end; $ai_step++ ) {
+			$ai_req  = array( 'action' => 'raynet_elm_import_ai', '_wpnonce' => $ai_nonce, 'form' => $ai_key, 'after' => $ai_after );
+			if ( $ai_size > 0 ) {
+				$ai_req['size'] = $ai_size;
+			}
+			$ai_step_answer = json_decode( req( '/wp-admin/admin-ajax.php', $ai_req, true )['body'], true );
+			wp_cache_flush();
+			if ( empty( $ai_step_answer['success'] ) ) {
+				$ai_end = 'error: ' . ( isset( $ai_step_answer['data']['code'] ) ? $ai_step_answer['data']['code'] : '?' );
+				break;
+			}
+			$ai_d       = $ai_step_answer['data'];
+			$ai_trace[] = array( $ai_size, $ai_d['judged'], $ai_d['skipped'], $ai_d['retry_size'] );
+			if ( $ai_d['done'] ) {
+				$ai_end = 'done';
+			} elseif ( $ai_d['retry_size'] > 0 ) {
+				$ai_size  = $ai_d['retry_size'];
+				$ai_until = $ai_d['retry_until'];
+				check( 'AI půlení: kurzor stojí', $ai_d['next'], $ai_after );
+			} else {
+				$ai_after = $ai_d['next'];
+				if ( $ai_after >= $ai_until ) {
+					$ai_size  = 0;
+					$ai_until = 0;
+				}
+			}
+		}
+		$ai_refusals = count( array_filter( $ai_trace, function ( $t ) { return $t[3] > 0 || 1 === $t[2]; } ) );
+		check( 'AI půlení: běh doběhl', $ai_end, 'done' );
+		check( 'AI půlení: průběh', $ai_trace, array( array( 0, 0, 0, 2 ), array( 2, 2, 0, 0 ), array( 2, 0, 0, 1 ), array( 1, 0, 1, 0 ), array( 1, 1, 0, 0 ), array( 0, 1, 0, 0 ) ) );
+		check( 'AI půlení: odmítnutých volání nejvýš log2(5)+1', $ai_refusals <= (int) floor( log( 5, 2 ) ) + 1, true );
+		check( 'AI půlení: požadavků celkem', count( get_option( 'raynet_test_http_calls', array() ) ), 6 );
+		check( 'AI půlení: odmítaný řádek označený, ostatní posouzené', $ai_stored(), array( $ai_ok1 => 'import', $ai_ok2 => 'import', $ai_med => 'none', $ai_rej1 => 'import', $ai_rej2 => 'import' ) );
+		update_option( 'raynet_test_http_calls', array() );
+		$ai_rerun = $ai_post( 'raynet_elm_import_ai', $ai_nonce );
+		check( 'AI půlení: další běh označený řádek nepošle', isset( $ai_rerun['json']['data'] ) ? array( $ai_rerun['json']['data']['done'], count( get_option( 'raynet_test_http_calls', array() ) ) ) : $ai_rerun['body'], array( true, 0 ) );
+
+		// 401 in the middle of a run marks nothing.
+		$ai_post( 'raynet_elm_import_ai_forget', $ai_nonce );
+		update_option( 'raynet_test_openai', array( 'status' => 401 ) );
+		$ai_401b = $ai_post( 'raynet_elm_import_ai', $ai_nonce, true, null, 0 );
+		check( 'AI 401: chyba a nic neoznačeno', array( isset( $ai_401b['json']['data']['code'] ) ? $ai_401b['json']['data']['code'] : '', $ai_stored() ), array( 'raynet_ai_unauthorized', array() ) );
+		update_option( 'raynet_test_openai', array() );
+		$ai_post( 'raynet_elm_import_ai', $ai_nonce );
+
+		// An attempt record written after the run: never pre-ticked.
+		update_option( 'raynet_import_attempt_' . $ai_ok1, array( 'time' => time(), 'outcome' => 'unknown', 'message' => 'Timeout', 'lead_id' => 0 ), false );
+		check( 'AI: řádek s pokusem po posouzení nezaškrtnutý', false !== strpos( $import_row( req( $ai_url, null, true )['body'], $ai_ok1 ), 'checked' ), false );
+		delete_option( 'raynet_import_attempt_' . $ai_ok1 );
+
+		// An old seven-part cache entry is rebuilt, and apply_ai() drops it.
+		$drop_index( $ai_key );
+		Raynet_Elementor_Submissions::index( $ai_page, 'impform' );
+		$ai_old_shape = function () use ( $ai_key ) {
+			$name  = Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $ai_key ) . '_0';
+			$chunk = get_transient( $name );
+			foreach ( $chunk['items'] as $id => $packed ) {
+				$chunk['items'][ $id ] = array_slice( $packed, 0, 7 );
+			}
+			set_transient( $name, $chunk, 600 );
+		};
+		$ai_old_shape();
+		$ai_from_old = Raynet_Elementor_Submissions::index( $ai_page, 'impform' );
+		$ai_new_chunk = get_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $ai_key ) . '_0' );
+		check( 'AI stará keš: přepočítaná', array( array_key_exists( 'ai', $ai_from_old[ $ai_ok1 ] ), count( $ai_new_chunk['items'][ $ai_ok1 ] ) ), array( true, 8 ) );
+		$ai_old_shape();
+		Raynet_Elementor_Submissions::apply_ai( $ai_page, 'impform', array( $ai_ok1 => array( 'verdict' => 'import', 'reason' => '' ) ) );
+		check( 'AI stará keš: apply_ai() ji zahodí', get_transient( Raynet_Elementor_Submissions::CACHE_PREFIX . md5( $ai_key ) ), false );
 
 		// Sent to RAYNET after the run, the cached index not yet told: the
 		// recommended row is never ticked again.
@@ -3485,7 +3658,7 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 			delete_option( 'raynet_import_ai_' . $stored_id );
 			delete_option( 'raynet_import_attempt_' . $stored_id );
 		}
-		foreach ( array( 'raynet_lead_openai_key', 'raynet_test_openai' ) as $ai_option ) {
+		foreach ( array( 'raynet_lead_openai_key', 'raynet_test_openai', 'raynet_import_idx_ai_stamp', $ai_lock_name ) as $ai_option ) {
 			delete_option( $ai_option );
 		}
 		update_option( 'raynet_test_http_calls', array() );

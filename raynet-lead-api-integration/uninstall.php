@@ -24,6 +24,7 @@ $raynet_options = array(
 	'raynet_lead_custom_fields',
 	'raynet_lead_users',
 	'raynet_import_idx_gen',
+	'raynet_import_idx_ai_stamp',
 	// AI review of the import: the OpenAI key, model and business text.
 	'raynet_lead_openai_key',
 	'raynet_lead_openai_model',

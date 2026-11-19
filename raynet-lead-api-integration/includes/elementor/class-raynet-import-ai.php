@@ -24,6 +24,24 @@ class Raynet_Import_Ai {
 	const REASON_ID = 'ai_reject';
 
 	/**
+	 * Verdict row of a submission the model could not judge: a batch of it
+	 * alone was refused, or it was left out of two answers.
+	 */
+	const NONE = 'none';
+
+	/**
+	 * Verdict row noting a first omission from an answer; not a verdict.
+	 */
+	const MISSED = 'missed';
+
+	/**
+	 * Whether any verdict row exists, as any_stored() found; null until asked.
+	 *
+	 * @var bool|null
+	 */
+	private static $any = null;
+
+	/**
 	 * Longest message sent, in characters.
 	 */
 	const MESSAGE_MAX = 1500;
@@ -314,13 +332,26 @@ class Raynet_Import_Ai {
 	 * @return array{verdict:string,reason:string,model:string,hash:string,time:int}|null Verdict, or null.
 	 */
 	public static function get( $id, $hash ) {
-		$stored = get_option( self::OPTION_PREFIX . (int) $id, null );
+		return self::from_stored( get_option( self::OPTION_PREFIX . (int) $id, null ), $hash );
+	}
 
+	/**
+	 * A stored verdict row, validated as get() does.
+	 *
+	 * Besides import and reject a row can hold NONE: the model could not
+	 * judge the submission, so it is not sent again until the verdicts are
+	 * dropped. A row noting a first omission (MISSED) is no verdict.
+	 *
+	 * @param mixed  $stored Value of the option row.
+	 * @param string $hash   Hash of the payload as it would be sent now.
+	 * @return array{verdict:string,reason:string,model:string,hash:string,time:int}|null Verdict, or null.
+	 */
+	public static function from_stored( $stored, $hash ) {
 		if ( ! is_array( $stored ) || ! isset( $stored['verdict'], $stored['hash'] ) ) {
 			return null;
 		}
 
-		if ( ! in_array( $stored['verdict'], array( 'import', 'reject' ), true ) || ! is_string( $stored['hash'] ) || '' === $hash || ! hash_equals( $stored['hash'], (string) $hash ) ) {
+		if ( ! in_array( $stored['verdict'], array( 'import', 'reject', self::NONE ), true ) || ! is_string( $stored['hash'] ) || '' === $hash || ! hash_equals( $stored['hash'], (string) $hash ) ) {
 			return null;
 		}
 
@@ -342,15 +373,17 @@ class Raynet_Import_Ai {
 	 * @return void
 	 */
 	public static function set( $id, array $verdict, $hash ) {
-		if ( ! isset( $verdict['verdict'] ) || ! in_array( $verdict['verdict'], array( 'import', 'reject' ), true ) ) {
+		if ( ! isset( $verdict['verdict'] ) || ! in_array( $verdict['verdict'], array( 'import', 'reject', self::NONE ), true ) ) {
 			return;
 		}
+
+		self::$any = true;
 
 		update_option(
 			self::OPTION_PREFIX . (int) $id,
 			array(
 				'verdict' => $verdict['verdict'],
-				'reason'  => Raynet_OpenAI_Client::plain_reason( isset( $verdict['reason'] ) ? (string) $verdict['reason'] : '' ),
+				'reason'  => self::NONE === $verdict['verdict'] ? '' : Raynet_OpenAI_Client::plain_reason( isset( $verdict['reason'] ) ? (string) $verdict['reason'] : '' ),
 				'model'   => Raynet_OpenAI_Client::model(),
 				'hash'    => (string) $hash,
 				'time'    => time(),
@@ -360,13 +393,107 @@ class Raynet_Import_Ai {
 	}
 
 	/**
+	 * Notes that the model left a submission out of a valid answer.
+	 *
+	 * The first time only a MISSED row is kept: the submission stays without
+	 * a verdict and is sent again on the next run. The second time (same
+	 * payload) it is marked NONE and no longer sent.
+	 *
+	 * @param int    $id   Submission id.
+	 * @param string $hash Hash of the payload that was sent.
+	 * @return bool True when the submission is now marked NONE.
+	 */
+	public static function note_missing( $id, $hash ) {
+		$stored = get_option( self::OPTION_PREFIX . (int) $id, null );
+
+		if ( is_array( $stored ) && isset( $stored['verdict'], $stored['hash'] ) && self::MISSED === $stored['verdict'] && is_string( $stored['hash'] ) && hash_equals( $stored['hash'], (string) $hash ) ) {
+			self::set( $id, array( 'verdict' => self::NONE ), $hash );
+
+			return true;
+		}
+
+		self::$any = true;
+
+		update_option(
+			self::OPTION_PREFIX . (int) $id,
+			array(
+				'verdict' => self::MISSED,
+				'reason'  => '',
+				'model'   => Raynet_OpenAI_Client::model(),
+				'hash'    => (string) $hash,
+				'tries'   => 1,
+				'time'    => time(),
+			),
+			false
+		);
+
+		return false;
+	}
+
+	/**
+	 * Tells whether any verdict row exists at all, once per request.
+	 *
+	 * The index build skips the whole AI layer when there is neither a key
+	 * nor a stored row.
+	 *
+	 * @param bool $fresh Ask the database again (a long-running process).
+	 * @return bool True when one does.
+	 */
+	public static function any_stored( $fresh = false ) {
+		if ( null === self::$any || $fresh ) {
+			global $wpdb;
+
+			// The pattern is left unescaped: SQLite's LIKE has no default
+			// escape character, and an underscore matching any character
+			// only widens the match.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One existence check per request.
+			self::$any = null !== $wpdb->get_var( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 1", self::OPTION_PREFIX . '%' ) );
+		}
+
+		return self::$any;
+	}
+
+	/**
+	 * The verdict rows of some submissions, in one query.
+	 *
+	 * @param int[] $ids Submission ids.
+	 * @return array<int,mixed> Submission id => stored value, only for rows that exist.
+	 */
+	public static function stored_rows( array $ids ) {
+		global $wpdb;
+
+		$names = array();
+
+		foreach ( $ids as $id ) {
+			$names[] = self::OPTION_PREFIX . (int) $id;
+		}
+
+		if ( empty( $names ) ) {
+			return array();
+		}
+
+		$in = $wpdb->prepare( implode( ',', array_fill( 0, count( $names ), '%s' ) ), $names );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery -- The name list is prepared above.
+		$records = (array) $wpdb->get_results( "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name IN ({$in})", ARRAY_A );
+		$rows    = array();
+
+		foreach ( $records as $record ) {
+			$rows[ (int) substr( (string) $record['option_name'], strlen( self::OPTION_PREFIX ) ) ] = maybe_unserialize( $record['option_value'] );
+		}
+
+		return $rows;
+	}
+
+	/**
 	 * Deletes the stored verdicts of some submissions.
 	 *
 	 * @param int[] $ids Submission ids.
 	 * @return int How many verdicts there were.
 	 */
 	public static function forget( array $ids ) {
-		$deleted = 0;
+		self::$any = null;
+		$deleted   = 0;
 
 		foreach ( array_unique( array_map( 'intval', $ids ) ) as $id ) {
 			if ( false !== get_option( self::OPTION_PREFIX . $id, false ) ) {
@@ -393,6 +520,17 @@ class Raynet_Import_Ai {
 	 */
 	public static function merge( array $classified, $ai ) {
 		$result = $classified;
+
+		// Marked as not judgeable: the rules stand, and the mark keeps the
+		// row out of the next run.
+		if ( is_array( $ai ) && isset( $ai['verdict'] ) && self::NONE === $ai['verdict'] ) {
+			$result['ai'] = array(
+				'verdict' => self::NONE,
+				'reason'  => '',
+			);
+
+			return $result;
+		}
 
 		if ( ! is_array( $ai ) || ! isset( $ai['verdict'] ) || ! in_array( $ai['verdict'], array( 'import', 'reject' ), true ) ) {
 			$result['ai'] = null;
