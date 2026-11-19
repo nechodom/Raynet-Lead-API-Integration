@@ -176,121 +176,7 @@ class Raynet_Elementor_Forms_Admin {
 								</thead>
 								<tbody>
 									<?php foreach ( $forms as $form ) : ?>
-										<?php $key = $form['post_id'] . ':' . $form['widget_id']; ?>
-										<tr<?php echo $form['rendered'] && ! $form['atomic'] ? '' : ' class="raynet-elm__inactive"'; ?>>
-											<th class="check-column">
-												<input type="checkbox" name="targets[]" value="<?php echo esc_attr( $key ); ?>" <?php disabled( ! $form['rendered'] || $form['atomic'] || '' === $form['widget_id'] ); ?> />
-											</th>
-											<td><?php echo esc_html( $form['location'] ); ?></td>
-											<td>
-												<a href="<?php echo esc_url( get_edit_post_link( $form['post_id'] ) ); ?>"><?php echo esc_html( $form['post_title'] ); ?></a>
-											</td>
-											<td><?php echo esc_html( '' !== $form['form_name'] ? $form['form_name'] : __( 'bez názvu', 'raynet-lead-api-integration' ) ); ?></td>
-											<td>
-												<?php
-												$labels = array();
-
-												foreach ( $form['fields'] as $field ) {
-													$labels[] = '' !== $field['label'] ? $field['label'] : $field['id'];
-												}
-
-												echo esc_html( implode( ', ', $labels ) );
-												?>
-											</td>
-											<td>
-												<?php if ( $form['atomic'] ) : ?>
-													<span class="raynet-elm__off"><?php esc_html_e( 'atomový formulář Elementoru 4 — zatím nepodporovaný, RAYNET v něm nejde zapnout', 'raynet-lead-api-integration' ); ?></span>
-												<?php elseif ( ! $form['rendered'] ) : ?>
-													<span class="raynet-elm__off"><?php esc_html_e( 'nevykresluje se — stránka je přepnutá do editoru WordPressu', 'raynet-lead-api-integration' ); ?></span>
-												<?php elseif ( $form['enabled'] ) : ?>
-													<span class="raynet-elm__on">
-														<?php
-														printf(
-															/* translators: %d: number of mapped attributes. */
-															esc_html__( 'zapnuto, namapováno: %d', 'raynet-lead-api-integration' ),
-															(int) $form['mapped']
-														);
-														?>
-													</span>
-													<?php if ( $form['noted'] > 0 ) : ?>
-														<br /><span class="raynet-elm__off">
-															<?php
-															printf(
-																/* translators: %d: number of form fields. */
-																esc_html__( 'do poznámky: %d', 'raynet-lead-api-integration' ),
-																(int) $form['noted']
-															);
-															?>
-														</span>
-													<?php endif; ?>
-													<?php if ( ! $form['has_contact'] ) : ?>
-														<br /><span class="raynet-elm__warn">&#9888; <?php esc_html_e( 'chybí e-mail i telefon — RAYNET lead nepřijme', 'raynet-lead-api-integration' ); ?></span>
-													<?php endif; ?>
-													<?php if ( $form['undecided'] > 0 ) : ?>
-														<br /><a class="raynet-elm__warn" href="<?php echo esc_url( $this->mapping_url( $form ) ); ?>">
-															&#9888;
-															<?php
-															printf(
-																/* translators: %d: number of form fields. */
-																esc_html__( 'polí bez určení: %d — namapovat', 'raynet-lead-api-integration' ),
-																(int) $form['undecided']
-															);
-															?>
-														</a>
-													<?php endif; ?>
-												<?php else : ?>
-													<span class="raynet-elm__off"><?php esc_html_e( 'vypnuto', 'raynet-lead-api-integration' ); ?></span>
-												<?php endif; ?>
-											</td>
-											<td>
-												<?php if ( $form['rendered'] && ! $form['atomic'] && '' !== $form['widget_id'] ) : ?>
-													<a href="<?php echo esc_url( $this->mapping_url( $form ) ); ?>"><strong><?php esc_html_e( 'Namapovat pole', 'raynet-lead-api-integration' ); ?></strong></a>
-													&nbsp;|&nbsp;
-												<?php endif; ?>
-												<a href="<?php echo esc_url( $form['edit_url'] ); ?>"><?php esc_html_e( 'Otevřít v Elementoru', 'raynet-lead-api-integration' ); ?></a>
-												<?php if ( ! $form['atomic'] && '' !== $form['widget_id'] && ! empty( $stored[ $key ]['total'] ) ) : ?>
-													&nbsp;|&nbsp;
-													<a href="<?php echo esc_url( Raynet_Elementor_Import_Admin::url( $form ) ); ?>">
-														<?php
-														printf(
-															/* translators: %d: number of stored submissions not yet in RAYNET. */
-															esc_html__( 'Importovat starší odeslání (%d)', 'raynet-lead-api-integration' ),
-															(int) $stored[ $key ]['pending']
-														);
-														?>
-													</a>
-												<?php endif; ?>
-												<?php if ( Raynet_Elementor_Forms::has_backup( $form['post_id'] ) ) : ?>
-													&nbsp;|&nbsp;
-													<?php
-													$stale            = Raynet_Elementor_Forms::edited_since( $form['post_id'] );
-													$restore_question = $stale
-														? __( 'Stránka byla od nasazení upravena v Elementoru. Vrácení o tyto úpravy připraví a vrátí i ostatní formuláře na stránce. Pokračovat?', 'raynet-lead-api-integration' )
-														: __( 'Vrátit celou stránku do podoby před nasazením šablony? Týká se všech formulářů na ní.', 'raynet-lead-api-integration' );
-
-													// force is raised only when the page changed, and only after the
-													// question was answered, so with scripting off the server refuses
-													// a stale rollback and explains instead of overwriting silently.
-													$restore_click = 'if ( ! confirm( ' . wp_json_encode( $restore_question ) . ' ) ) { return false; }';
-
-													if ( $stale ) {
-														$restore_click .= ' document.getElementById( ' . wp_json_encode( 'raynet-force-' . (int) $form['post_id'] ) . ' ).value = \'1\';';
-													}
-													?>
-													<button
-														type="submit"
-														form="raynet-restore-<?php echo (int) $form['post_id']; ?>"
-														class="button-link raynet-elm__undo"
-														onclick="<?php echo esc_attr( $restore_click ); ?>"
-													>
-														<?php esc_html_e( 'Vrátit stránku zpět', 'raynet-lead-api-integration' ); ?>
-														<?php if ( $stale ) : ?>
-															<span class="raynet-elm__stale" title="<?php esc_attr_e( 'Stránka byla mezitím upravena', 'raynet-lead-api-integration' ); ?>">&#9888;</span>
-														<?php endif; ?>
-													</button>
-												<?php endif; ?>
-											</td>
-										</tr>
+										<?php $this->render_row( $form, $stored ); ?>
 									<?php endforeach; ?>
 								</tbody>
 							</table>
@@ -343,6 +229,136 @@ class Raynet_Elementor_Forms_Admin {
 				</div>
 			</div>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Renders one form's row of the forms table.
+	 *
+	 * @param array<string,mixed>               $form   Row from the scan.
+	 * @param array<string,array<string,int>>   $stored Stored submission counts by "post_id:widget_id".
+	 * @return void
+	 */
+	public function render_row( array $form, array $stored ) {
+		$key = $form['post_id'] . ':' . $form['widget_id'];
+		// An atomic form is configured like a Form widget, as long as
+		// Elementor Pro has the action registry to run the action in.
+		$usable = ! $form['atomic'] || ! empty( $form['supported'] );
+		?>
+		<tr<?php echo $form['rendered'] && $usable ? '' : ' class="raynet-elm__inactive"'; ?>>
+			<th class="check-column">
+				<input type="checkbox" name="targets[]" value="<?php echo esc_attr( $key ); ?>" <?php disabled( ! $form['rendered'] || ! $usable || '' === $form['widget_id'] ); ?> />
+			</th>
+			<td><?php echo esc_html( $form['location'] ); ?></td>
+			<td>
+				<a href="<?php echo esc_url( get_edit_post_link( $form['post_id'] ) ); ?>"><?php echo esc_html( $form['post_title'] ); ?></a>
+			</td>
+			<td><?php echo esc_html( '' !== $form['form_name'] ? $form['form_name'] : __( 'bez názvu', 'raynet-lead-api-integration' ) ); ?></td>
+			<td>
+				<?php
+				$labels = array();
+
+				foreach ( $form['fields'] as $field ) {
+					$labels[] = '' !== $field['label'] ? $field['label'] : $field['id'];
+				}
+
+				echo esc_html( implode( ', ', $labels ) );
+				?>
+			</td>
+			<td>
+				<?php if ( ! $usable ) : ?>
+					<span class="raynet-elm__off"><?php esc_html_e( 'atomový formulář Elementoru 4 — tato verze Elementoru Pro akce atomového formuláře neumí', 'raynet-lead-api-integration' ); ?></span>
+				<?php elseif ( ! $form['rendered'] ) : ?>
+					<span class="raynet-elm__off"><?php esc_html_e( 'nevykresluje se — stránka je přepnutá do editoru WordPressu', 'raynet-lead-api-integration' ); ?></span>
+				<?php elseif ( $form['enabled'] ) : ?>
+					<span class="raynet-elm__on">
+						<?php
+						printf(
+							/* translators: %d: number of mapped attributes. */
+							esc_html__( 'zapnuto, namapováno: %d', 'raynet-lead-api-integration' ),
+							(int) $form['mapped']
+						);
+						?>
+					</span>
+					<?php if ( $form['noted'] > 0 ) : ?>
+						<br /><span class="raynet-elm__off">
+							<?php
+							printf(
+								/* translators: %d: number of form fields. */
+								esc_html__( 'do poznámky: %d', 'raynet-lead-api-integration' ),
+								(int) $form['noted']
+							);
+							?>
+						</span>
+					<?php endif; ?>
+					<?php if ( ! $form['has_contact'] ) : ?>
+						<br /><span class="raynet-elm__warn">&#9888; <?php esc_html_e( 'chybí e-mail i telefon — RAYNET lead nepřijme', 'raynet-lead-api-integration' ); ?></span>
+					<?php endif; ?>
+					<?php if ( $form['undecided'] > 0 ) : ?>
+						<br /><a class="raynet-elm__warn" href="<?php echo esc_url( $this->mapping_url( $form ) ); ?>">
+							&#9888;
+							<?php
+							printf(
+								/* translators: %d: number of form fields. */
+								esc_html__( 'polí bez určení: %d — namapovat', 'raynet-lead-api-integration' ),
+								(int) $form['undecided']
+							);
+							?>
+						</a>
+					<?php endif; ?>
+				<?php else : ?>
+					<span class="raynet-elm__off"><?php esc_html_e( 'vypnuto', 'raynet-lead-api-integration' ); ?></span>
+				<?php endif; ?>
+			</td>
+			<td>
+				<?php if ( $form['rendered'] && $usable && '' !== $form['widget_id'] ) : ?>
+					<a href="<?php echo esc_url( $this->mapping_url( $form ) ); ?>"><strong><?php esc_html_e( 'Namapovat pole', 'raynet-lead-api-integration' ); ?></strong></a>
+					&nbsp;|&nbsp;
+				<?php endif; ?>
+				<a href="<?php echo esc_url( $form['edit_url'] ); ?>"><?php esc_html_e( 'Otevřít v Elementoru', 'raynet-lead-api-integration' ); ?></a>
+				<?php if ( ! $form['atomic'] && '' !== $form['widget_id'] && ! empty( $stored[ $key ]['total'] ) ) : ?>
+					&nbsp;|&nbsp;
+					<a href="<?php echo esc_url( Raynet_Elementor_Import_Admin::url( $form ) ); ?>">
+						<?php
+						printf(
+							/* translators: %d: number of stored submissions not yet in RAYNET. */
+							esc_html__( 'Importovat starší odeslání (%d)', 'raynet-lead-api-integration' ),
+							(int) $stored[ $key ]['pending']
+						);
+						?>
+					</a>
+				<?php endif; ?>
+				<?php if ( Raynet_Elementor_Forms::has_backup( $form['post_id'] ) ) : ?>
+					&nbsp;|&nbsp;
+					<?php
+					$stale            = Raynet_Elementor_Forms::edited_since( $form['post_id'] );
+					$restore_question = $stale
+						? __( 'Stránka byla od nasazení upravena v Elementoru. Vrácení o tyto úpravy připraví a vrátí i ostatní formuláře na stránce. Pokračovat?', 'raynet-lead-api-integration' )
+						: __( 'Vrátit celou stránku do podoby před nasazením šablony? Týká se všech formulářů na ní.', 'raynet-lead-api-integration' );
+
+					// force is raised only when the page changed, and only after the
+					// question was answered, so with scripting off the server refuses
+					// a stale rollback and explains instead of overwriting silently.
+					$restore_click = 'if ( ! confirm( ' . wp_json_encode( $restore_question ) . ' ) ) { return false; }';
+
+					if ( $stale ) {
+						$restore_click .= ' document.getElementById( ' . wp_json_encode( 'raynet-force-' . (int) $form['post_id'] ) . ' ).value = \'1\';';
+					}
+					?>
+					<button
+						type="submit"
+						form="raynet-restore-<?php echo (int) $form['post_id']; ?>"
+						class="button-link raynet-elm__undo"
+						onclick="<?php echo esc_attr( $restore_click ); ?>"
+					>
+						<?php esc_html_e( 'Vrátit stránku zpět', 'raynet-lead-api-integration' ); ?>
+						<?php if ( $stale ) : ?>
+							<span class="raynet-elm__stale" title="<?php esc_attr_e( 'Stránka byla mezitím upravena', 'raynet-lead-api-integration' ); ?>">&#9888;</span>
+						<?php endif; ?>
+					</button>
+				<?php endif; ?>
+			</td>
+		</tr>
 		<?php
 	}
 
@@ -543,6 +559,7 @@ class Raynet_Elementor_Forms_Admin {
 		$count  = isset( $_GET['raynet_count'] ) ? absint( wp_unslash( $_GET['raynet_count'] ) ) : 0;
 		$failed = isset( $_GET['raynet_failed'] ) ? absint( wp_unslash( $_GET['raynet_failed'] ) ) : 0;
 		$bare   = isset( $_GET['raynet_nocontact'] ) ? absint( wp_unslash( $_GET['raynet_nocontact'] ) ) : 0;
+		$atomic = isset( $_GET['raynet_atomic'] ) ? absint( wp_unslash( $_GET['raynet_atomic'] ) ) : 0;
 		$error  = isset( $_GET['raynet_error'] ) ? sanitize_key( wp_unslash( $_GET['raynet_error'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
@@ -597,6 +614,19 @@ class Raynet_Elementor_Forms_Admin {
 							/* translators: %d: number of forms. */
 							_n( '%d formulář se nastavit nepodařilo. Zkontrolujte, jestli stránka pořád obsahuje ten formulář a jestli ji Elementor vykresluje.', '%d formulářů se nastavit nepodařilo. Zkontrolujte, jestli stránky pořád obsahují ty formuláře a jestli je Elementor vykresluje.', $failed, 'raynet-lead-api-integration' ),
 							$failed
+						)
+					)
+				);
+			}
+
+			if ( $atomic > 0 ) {
+				printf(
+					'<div class="notice notice-warning"><p>%s</p></div>',
+					esc_html(
+						sprintf(
+							/* translators: %d: number of forms. */
+							_n( '%d atomový formulář se nenastavil: tato verze Elementoru Pro akce atomového formuláře neumí.', '%d atomových formulářů se nenastavilo: tato verze Elementoru Pro akce atomového formuláře neumí.', $atomic, 'raynet-lead-api-integration' ),
+							$atomic
 						)
 					)
 				);
@@ -704,10 +734,31 @@ class Raynet_Elementor_Forms_Admin {
 		$done    = 0;
 		$failed  = 0;
 		$bare    = 0;
+		$atomic  = 0;
 
 		foreach ( $pages as $post_id => $widget_ids ) {
 			$widget_ids = array_values( array_unique( $widget_ids ) );
-			$result     = Raynet_Elementor_Forms::apply( $post_id, $widget_ids, $templates[ $slug ]['lead'], $automap, $rest );
+
+			// An atomic form is refused here when Elementor Pro has no action
+			// registry, and counted apart, so the notice can say why rather
+			// than ask whether the page still holds the form.
+			foreach ( Raynet_Elementor_Forms::forms_in_post( $post_id ) as $form ) {
+				if ( $form['atomic'] && empty( $form['supported'] ) && in_array( $form['widget_id'], $widget_ids, true ) ) {
+					$widget_ids = array_values( array_diff( $widget_ids, array( $form['widget_id'] ) ) );
+					$atomic++;
+				}
+			}
+
+			if ( empty( $widget_ids ) ) {
+				continue;
+			}
+
+			$result = Raynet_Elementor_Forms::apply( $post_id, $widget_ids, $templates[ $slug ]['lead'], $automap, $rest );
+
+			if ( is_wp_error( $result ) && 'raynet_atomic_unsupported' === $result->get_error_code() ) {
+				$atomic += count( $widget_ids );
+				continue;
+			}
 
 			if ( is_wp_error( $result ) ) {
 				$failed += count( $widget_ids );
@@ -732,6 +783,7 @@ class Raynet_Elementor_Forms_Admin {
 				'raynet_count'     => $done,
 				'raynet_failed'    => $failed,
 				'raynet_nocontact' => $bare,
+				'raynet_atomic'    => $atomic,
 			)
 		);
 	}
@@ -785,6 +837,16 @@ class Raynet_Elementor_Forms_Admin {
 
 			<?php if ( null === $settings ) : ?>
 				<div class="notice notice-error"><p><?php esc_html_e( 'Formulář se nenašel. Stránka ho možná už neobsahuje.', 'raynet-lead-api-integration' ); ?></p></div>
+			</div>
+				<?php
+				return;
+			endif;
+
+			$atomic = Raynet_Elementor_Forms::is_atomic( $settings );
+
+			if ( $atomic && ! Raynet_Elementor_Atomic_Forms::supported() ) :
+				?>
+				<div class="notice notice-error"><p><?php esc_html_e( 'Tato verze Elementoru Pro akce atomového formuláře neumí, proto tento formulář nejde nastavit.', 'raynet-lead-api-integration' ); ?></p></div>
 			</div>
 				<?php
 				return;
@@ -855,9 +917,23 @@ class Raynet_Elementor_Forms_Admin {
 				</div>
 			<?php endif; ?>
 
-			<p class="description">
-				<?php esc_html_e( 'Tohle jsou pole, která formulář teď má. U každého vyberte, kam v RAYNETu patří. Pro pole, které v RAYNETu protějšek nemá, zvolte Zapsat do poznámky — jeho hodnota se připíše do poznámky leadu pod popiskem pole. Soubory z polí pro nahrání se k leadu přiloží jako přílohy. Řádky označené jako návrh plugin odhadl; uloží se až tlačítkem.', 'raynet-lead-api-integration' ); ?>
-			</p>
+			<?php if ( $atomic ) : ?>
+				<p class="description">
+					<?php esc_html_e( 'Tohle jsou pole, která formulář teď má. U každého vyberte, kam v RAYNETu patří. Pro pole, které v RAYNETu protějšek nemá, zvolte Zapsat do poznámky — jeho hodnota se připíše do poznámky leadu pod popiskem pole. U polí pro nahrání se do poznámky zapíše jen název souboru; soubory se do RAYNETu neposílají. Řádky označené jako návrh plugin odhadl; uloží se až tlačítkem.', 'raynet-lead-api-integration' ); ?>
+				</p>
+				<p class="description">
+					<?php esc_html_e( 'Atomový formulář Elementoru 4: nastavení RAYNETu drží plugin, ne Elementor — mapování tady, nastavení leadu šablona. Akci RAYNET CRM zapnete tady, nebo v Elementoru v Actions after submit.', 'raynet-lead-api-integration' ); ?>
+				</p>
+				<?php if ( $enabled && ! Raynet_Elementor_Forms::maps_contact( $settings ) ) : ?>
+					<div class="notice notice-error inline">
+						<p><strong><?php esc_html_e( 'Akce RAYNET CRM je u formuláře zapnutá, ale plugin pro něj zatím nemá namapovaný e-mail ani telefon. Dokud mapování neuložíte, skončí každé odeslání návštěvníkovi chybou (ostatní akce formuláře, třeba e-mail, proběhnou).', 'raynet-lead-api-integration' ); ?></strong></p>
+					</div>
+				<?php endif; ?>
+			<?php else : ?>
+				<p class="description">
+					<?php esc_html_e( 'Tohle jsou pole, která formulář teď má. U každého vyberte, kam v RAYNETu patří. Pro pole, které v RAYNETu protějšek nemá, zvolte Zapsat do poznámky — jeho hodnota se připíše do poznámky leadu pod popiskem pole. Soubory z polí pro nahrání se k leadu přiloží jako přílohy. Řádky označené jako návrh plugin odhadl; uloží se až tlačítkem.', 'raynet-lead-api-integration' ); ?>
+				</p>
+			<?php endif; ?>
 
 			<?php if ( empty( $fields ) ) : ?>
 				<p><?php esc_html_e( 'Formulář nemá žádné pole, které by šlo odeslat.', 'raynet-lead-api-integration' ); ?></p>
@@ -896,7 +972,11 @@ class Raynet_Elementor_Forms_Admin {
 								<td>
 									<?php if ( 'upload' === $field['type'] ) : ?>
 										<select name="target[<?php echo esc_attr( $field['id'] ); ?>]">
-											<option value="<?php echo esc_attr( Raynet_Elementor_Forms::TARGET_ATTACH ); ?>" <?php selected( $selected, Raynet_Elementor_Forms::TARGET_ATTACH ); ?>><?php esc_html_e( 'Přiložit k leadu jako přílohu', 'raynet-lead-api-integration' ); ?></option>
+											<?php if ( $atomic ) : ?>
+												<option value="<?php echo esc_attr( Raynet_Elementor_Forms::TARGET_NOTICE ); ?>" <?php selected( $selected, Raynet_Elementor_Forms::TARGET_NOTICE ); ?>><?php esc_html_e( 'Zapsat do poznámky název souboru', 'raynet-lead-api-integration' ); ?></option>
+											<?php else : ?>
+												<option value="<?php echo esc_attr( Raynet_Elementor_Forms::TARGET_ATTACH ); ?>" <?php selected( $selected, Raynet_Elementor_Forms::TARGET_ATTACH ); ?>><?php esc_html_e( 'Přiložit k leadu jako přílohu', 'raynet-lead-api-integration' ); ?></option>
+											<?php endif; ?>
 											<option value="-" <?php selected( $selected, '-' ); ?>><?php esc_html_e( '— Neodesílat —', 'raynet-lead-api-integration' ); ?></option>
 										</select>
 										<?php $this->extras_note( $extras, $field ); ?>
@@ -970,7 +1050,11 @@ class Raynet_Elementor_Forms_Admin {
 				</p>
 
 				<p class="description">
-					<?php esc_html_e( 'Uložení zapíše do stránky, stejně jako nasazení šablony: předchozí podoba se zálohuje a má-li stránka neuložený koncept, zapíše se i do něj. Nastavení leadu (priorita, kategorie…) tím nezměníte — to dělá šablona nebo sekce RAYNET CRM v Elementoru.', 'raynet-lead-api-integration' ); ?>
+					<?php if ( $atomic ) : ?>
+						<?php esc_html_e( 'Uložení zapíše do stránky, stejně jako nasazení šablony: předchozí podoba se zálohuje a má-li stránka neuložený koncept, zapíše se i do něj. Nastavení leadu (priorita, kategorie…) tím nezměníte — to dělá šablona.', 'raynet-lead-api-integration' ); ?>
+					<?php else : ?>
+						<?php esc_html_e( 'Uložení zapíše do stránky, stejně jako nasazení šablony: předchozí podoba se zálohuje a má-li stránka neuložený koncept, zapíše se i do něj. Nastavení leadu (priorita, kategorie…) tím nezměníte — to dělá šablona nebo sekce RAYNET CRM v Elementoru.', 'raynet-lead-api-integration' ); ?>
+					<?php endif; ?>
 				</p>
 			</form>
 		</div>

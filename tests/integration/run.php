@@ -1302,8 +1302,28 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'obrazovka ukáže panel polí', false !== strpos( $screen['body'], 'Pole z RAYNETu' ), true );
 		check( 'obrazovka vypíše vlastní pole', false !== strpos( $screen['body'], 'Pocet_zam_a1b2c' ), true );
 		check( 'nevykreslovaná stránka nejde vybrat', (bool) preg_match( '/value="' . $classic . ':oldform"[^>]*disabled/', $screen['body'] ), true );
-		check( 'atomový formulář nejde vybrat', (bool) preg_match( '/value="' . $atomic_page . ':atomform"[^>]*disabled/', $screen['body'] ), true );
-		check( 'atomový formulář je vysvětlený', false !== strpos( $screen['body'], 'atomový formulář Elementoru 4' ), true );
+		check( 'atomový formulář jde vybrat', (bool) preg_match( '/value="' . $atomic_page . ':atomform"[^>]*disabled/', $screen['body'] ), false );
+		check( 'atomový formulář má zaškrtávátko', false !== strpos( $screen['body'], 'value="' . $atomic_page . ':atomform"' ), true );
+		check( 'atomový formulář má odkaz na mapování', (bool) preg_match( '/mapovat=' . $atomic_page . '(:|%3A)atomform/', $screen['body'] ), true );
+		check( 'hláška o nepodpoře zmizela', false !== strpos( $screen['body'], 'zatím nepodporovaný' ), false );
+
+		// Without Elementor Pro's action registry the row stays inactive and
+		// says why. The site has the registry, so the row is drawn from a scan
+		// row that says otherwise.
+		$atomic_scan_row = array_values( array_filter( Raynet_Elementor_Forms::forms_in_post( $atomic_page ), function ( $row ) {
+			return 'atomform' === $row['widget_id'];
+		} ) );
+		$unsupported_row = isset( $atomic_scan_row[0] ) ? array_merge( $atomic_scan_row[0], array( 'supported' => false ) ) : array();
+		ob_start();
+		( new Raynet_Elementor_Forms_Admin() )->render_row( $unsupported_row, array() );
+		$unsupported_html = ob_get_clean();
+		check( 'bez registru: řádek neaktivní', false !== strpos( $unsupported_html, 'raynet-elm__inactive' ), true );
+		check( 'bez registru: nejde vybrat', (bool) preg_match( '/value="' . $atomic_page . ':atomform"[^>]*disabled/', $unsupported_html ), true );
+		check( 'bez registru: hláška', false !== strpos( $unsupported_html, 'tato verze Elementoru Pro akce atomového formuláře neumí' ), true );
+		check( 'bez registru: bez mapování', false !== strpos( $unsupported_html, 'mapovat=' ), false );
+		ob_start();
+		( new Raynet_Elementor_Forms_Admin() )->render_row( $atomic_scan_row[0], array() );
+		check( 's registrem: řádek aktivní', false !== strpos( ob_get_clean(), 'raynet-elm__inactive' ), false );
 		check( 'stránka se dvěma formuláři má jediný formulář zálohy', substr_count( $screen['body'], 'id="raynet-restore-' . $twin . '"' ), 1 );
 		check( 'a obě tlačítka na něj míří', substr_count( $screen['body'], 'form="raynet-restore-' . $twin . '"' ), 2 );
 
@@ -1535,6 +1555,96 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'hromadné nasazení nezmění rozhodnuté', array( $after_bulk['mb'], $after_bulk['mg'], $after_bulk['mj'] ), array( '__notice', '-', 'fullName' ) );
 
 		wp_delete_post( $map_page, true );
+
+		// --- Mapping an atomic form on the screen -----------------------------
+		$amap_page = $atomic_page_with( 'Atomové mapování', null );
+		$amap_key  = $amap_page . ':aform1';
+		$amap_path = '/wp-admin/admin.php?page=raynet-elementor-forms&mapovat=' . rawurlencode( $amap_key );
+		$amap_view = req( $amap_path, null, true );
+		$amap_file = preg_match( '~name="target\[af5\]">(.*?)</select>~s', $amap_view['body'], $amap_m ) ? $amap_m[1] : '';
+
+		check( 'atomové mapování se načte', $amap_view['status'], 200 );
+		check( 'atomové mapování vypíše 7 polí', substr_count( $amap_view['body'], 'name="target[' ), 7 );
+		check( 'atomové mapování: nahrávací pole je tam', '' !== $amap_file, true );
+		check( 'atomové mapování: bez přílohy', false !== strpos( $amap_view['body'], Raynet_Elementor_Forms::TARGET_ATTACH ), false );
+		check( 'atomové mapování: soubor do poznámky jako výchozí', (bool) preg_match( '~value="__notice"\s+selected~', $amap_file ), true );
+		check( 'atomové mapování: soubor jde vynechat', false !== strpos( $amap_file, 'value="-"' ), true );
+		check( 'atomové mapování: soubor jen poznámka nebo vynechat', substr_count( $amap_file, '<option' ), 2 );
+		check( 'atomové mapování: kde je nastavení', false !== strpos( $amap_view['body'], 'drží plugin, ne Elementor' ), true );
+		check( 'atomové mapování: příloha se nepřikládá', false !== strpos( $amap_view['body'], 'se k leadu přiloží jako přílohy' ), false );
+
+		$amap_saved = req(
+			'/wp-admin/admin-post.php',
+			array(
+				'action'   => 'raynet_elm_save_mapping',
+				'_wpnonce' => $map_nonce,
+				'form'     => $amap_key,
+				'target'   => array( 'af1' => 'email', 'af2' => 'message', 'af4' => '__notice', 'af5' => '-' ),
+				'enable'   => '1',
+			),
+			true
+		);
+		wp_cache_flush();
+		check( 'atomové uložení přesměruje', $amap_saved['status'], 302 );
+		$amap_stored = Raynet_Elementor_Atomic_Forms::stored( $amap_page, 'aform1' );
+		$amap_map    = Raynet_Elementor_Forms::current_map( Raynet_Elementor_Forms::form_settings( $amap_page, 'aform1' ) );
+		check( 'atomové mapování v meta', isset( $amap_map['email'], $amap_map['message'] ) ? array( $amap_map['email'], $amap_map['message'] ) : null, array( 'af1', 'af2' ) );
+		check( 'vynechaný soubor v meta', isset( $amap_stored['raynet_crm_ignored_fields'] ) ? in_array( 'af5', $amap_stored['raynet_crm_ignored_fields'], true ) : false, true );
+		check( 'služba do poznámky v meta', isset( $amap_stored['raynet_crm_notice_fields'] ) ? $amap_stored['raynet_crm_notice_fields'] : null, array( 'af4' ) );
+		check( 'atomové uložení zapnulo akci', json_decode( get_post_meta( $amap_page, '_elementor_data', true ), true )[0]['settings']['actions-after-submit'], array( '$$type' => 'string-array', 'value' => array( $str( 'email' ), $str( 'raynet_crm' ) ) ) );
+
+		// A hand-made request for an attachment changes nothing.
+		req(
+			'/wp-admin/admin-post.php',
+			array(
+				'action'   => 'raynet_elm_save_mapping',
+				'_wpnonce' => $map_nonce,
+				'form'     => $amap_key,
+				'target'   => array( 'af5' => Raynet_Elementor_Forms::TARGET_ATTACH ),
+			),
+			true
+		);
+		wp_cache_flush();
+		check( 'podvržená příloha nic nezmění', Raynet_Elementor_Atomic_Forms::stored( $amap_page, 'aform1' ), $amap_stored );
+		check( 'příloha není nikde v meta', false !== strpos( (string) wp_json_encode( get_post_meta( $amap_page, Raynet_Elementor_Atomic_Forms::META, true ) ), Raynet_Elementor_Forms::TARGET_ATTACH ), false );
+
+		// Back to the note: nothing is kept for it, the note is the default.
+		req(
+			'/wp-admin/admin-post.php',
+			array(
+				'action'   => 'raynet_elm_save_mapping',
+				'_wpnonce' => $map_nonce,
+				'form'     => $amap_key,
+				'target'   => array( 'af5' => '__notice' ),
+			),
+			true
+		);
+		wp_cache_flush();
+		check( 'soubor zpět do poznámky', Raynet_Elementor_Forms::field_targets( Raynet_Elementor_Forms::form_settings( $amap_page, 'aform1' ) )['af5'], Raynet_Elementor_Forms::TARGET_NOTICE );
+		check( 'soubor už není vynechaný', in_array( 'af5', Raynet_Elementor_Atomic_Forms::stored( $amap_page, 'aform1' )['raynet_crm_ignored_fields'], true ), false );
+
+		// Switched on in Elementor, never mapped here: every submission fails
+		// for the visitor, and both screens say so.
+		$amap_bare      = $atomic_form;
+		$amap_bare['id'] = 'aform9';
+		$amap_bare['settings']['actions-after-submit'] = $typed( 'string-array', array( $str( 'email' ), $str( 'raynet_crm' ) ) );
+		$amap_bare_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Zapnutý v editoru', 'post_status' => 'publish' ) );
+		update_post_meta( $amap_bare_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $amap_bare_page, '_elementor_data', wp_slash( wp_json_encode( array( $amap_bare ) ) ) );
+
+		$amap_bare_row = Raynet_Elementor_Forms::forms_in_post( $amap_bare_page )[0];
+		check( 'zapnutý v editoru je zapnutý', $amap_bare_row['enabled'], true );
+		check( 'zapnutý v editoru nemá kontakt', $amap_bare_row['has_contact'], false );
+		ob_start();
+		( new Raynet_Elementor_Forms_Admin() )->render_row( $amap_bare_row, array() );
+		$amap_bare_html = ob_get_clean();
+		check( 'přehled: varování o chybějícím kontaktu', false !== strpos( $amap_bare_html, 'chybí e-mail i telefon — RAYNET lead nepřijme' ), true );
+		$amap_bare_view = req( '/wp-admin/admin.php?page=raynet-elementor-forms&mapovat=' . rawurlencode( $amap_bare_page . ':aform9' ), null, true )['body'];
+		check( 'mapování: varování o chybě pro návštěvníka', false !== strpos( $amap_bare_view, 'skončí každé odeslání návštěvníkovi chybou' ), true );
+		check( 'namapovaný formulář varování nemá', false !== strpos( req( $amap_path, null, true )['body'], 'skončí každé odeslání návštěvníkovi chybou' ), false );
+
+		wp_delete_post( $amap_page, true );
+		wp_delete_post( $amap_bare_page, true );
 
 		// --- GDPR consent from a ticked box -----------------------------------
 		$gdpr_before = get_option( Raynet_Lead_Settings::OPTION );
@@ -2260,6 +2370,27 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		preg_match( '/raynetElementorImport = \{[^;]*?"nonce":"([^"]+)"/', $review['body'], $import_nonce );
 		$import_nonce = isset( $import_nonce[1] ) ? $import_nonce[1] : '';
 		check( 'nonce importu na stránce', '' !== $import_nonce, true );
+
+		// An atomic form's stored submissions are not offered for import, and a
+		// hand-built key for one is refused like a missing form, although the
+		// form is mapped and exists.
+		$aimp_page = $atomic_page_with( 'Atomový import', array( 'aform1' => array( 'raynet_crm_fields_map' => array( array( 'remote_id' => 'email', 'local_id' => 'af1' ) ) ) ) );
+		$aimp_key  = $aimp_page . ':aform1';
+		$aimp_sub  = $add_stored( $aimp_page, 'Atom', 'atom@example.cz', 'Odeslání atomového formuláře, které se importovat nemá.', '192.0.2.40', array( 'element_id' => 'aform1' ) );
+		check( 'atomový import: formulář má kontakt', Raynet_Elementor_Forms::maps_contact( Raynet_Elementor_Forms::form_settings( $aimp_page, 'aform1' ) ), true );
+		check( 'atomový import: odeslání je v počtech', isset( Raynet_Elementor_Submissions::form_counts()[ $aimp_key ] ), true );
+		check( 'atomový import: přehled bez odkazu', false !== strpos( req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true )['body'], 'import=' . $aimp_key ), false );
+		check( 'atomový import: obrazovka formulář nenajde', false !== strpos( req( '/wp-admin/admin.php?page=raynet-elementor-forms&import=' . rawurlencode( $aimp_key ), null, true )['body'], 'Formulář nebyl nalezen.' ), true );
+		check( 'atomový import: index prázdný', Raynet_Elementor_Submissions::index( $aimp_page, 'aform1' ), array() );
+		$aimp_direct = Raynet_Elementor_Submissions::import( $aimp_page, 'aform1', $aimp_sub, '' );
+		check( 'atomový import: import() odmítne', is_wp_error( $aimp_direct ) ? $aimp_direct->get_error_code() : '', 'raynet_import_no_form' );
+		update_option( 'raynet_test_http_calls', array() );
+		$aimp_ajax = json_decode( req( '/wp-admin/admin-ajax.php', array( 'action' => 'raynet_elm_import_one', 'form' => $aimp_key, 'submission' => $aimp_sub, 'tag' => '', '_wpnonce' => $import_nonce ), true )['body'], true );
+		wp_cache_flush();
+		check( 'atomový import: AJAX odmítne', isset( $aimp_ajax['data']['code'] ) ? $aimp_ajax['data']['code'] : '', 'raynet_import_no_form' );
+		check( 'atomový import: nic neodešlo', count( get_option( 'raynet_test_http_calls', array() ) ), 0 );
+		$import_query->delete_submission( $aimp_sub );
+		wp_delete_post( $aimp_page, true );
 		$ajax_import = function ( $nonce, $as_user, $tag = 'import-web' ) use ( $import_key, $sub_k ) {
 			$post = array(
 				'action'     => 'raynet_elm_import_one',

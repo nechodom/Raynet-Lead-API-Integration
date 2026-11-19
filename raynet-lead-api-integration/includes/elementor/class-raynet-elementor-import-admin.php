@@ -229,7 +229,8 @@ class Raynet_Elementor_Import_Admin {
 			$settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
 		}
 
-		if ( null === $settings ) {
+		// An atomic form has no import yet; a hand-built key is "not found".
+		if ( null === $settings || Raynet_Elementor_Forms::is_atomic( $settings ) ) {
 			self::notice( 'error', __( 'Formulář nebyl nalezen. Stránka ho možná už neobsahuje.', 'raynet-lead-api-integration' ) );
 			return;
 		}

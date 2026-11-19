@@ -232,5 +232,46 @@ check( 'bez přepínačů žádné skupiny', Raynet_Elementor_Atomic_Forms::radi
 
 check( 'bez registru akcí není podpora', Raynet_Elementor_Atomic_Forms::supported(), false );
 
+// --- Upload targets on the mapping screen ------------------------------------
+// An atomic form's upload goes to the note by name or is left out; files are
+// never attached. The classic widget keeps attach or leave out.
+$GLOBALS['wp_meta'][77] = array(
+	'_elementor_edit_mode' => 'builder',
+	'_elementor_data'      => json_encode( array( $form ) ),
+);
+$screen_settings = Raynet_Elementor_Forms::form_settings( 77, 'af1' );
+check( 'nastavení obrazovky jsou označená jako atomová', Raynet_Elementor_Forms::is_atomic( $screen_settings ), true );
+check( 'nahrávací pole atomového formuláře míří do poznámky', Raynet_Elementor_Forms::field_targets( $screen_settings )['f5'], Raynet_Elementor_Forms::TARGET_NOTICE );
+check( 'příloha u atomového formuláře neprojde', Raynet_Elementor_Forms::validate_targets( $screen_settings, array( 'f5' => Raynet_Elementor_Forms::TARGET_ATTACH ) ), array() );
+check( 'atribut u nahrávacího pole neprojde', Raynet_Elementor_Forms::validate_targets( $screen_settings, array( 'f5' => 'email' ) ), array() );
+check( 'poznámka i vynechání projdou', Raynet_Elementor_Forms::validate_targets( $screen_settings, array( 'f5' => '-', 'f1' => Raynet_Elementor_Forms::TARGET_NOTICE ) ), array( 'f5' => '-', 'f1' => Raynet_Elementor_Forms::TARGET_NOTICE ) );
+check( 'do poznámky projde', Raynet_Elementor_Forms::validate_targets( $screen_settings, array( 'f5' => Raynet_Elementor_Forms::TARGET_NOTICE ) ), array( 'f5' => Raynet_Elementor_Forms::TARGET_NOTICE ) );
+
+$upload_off = Raynet_Elementor_Forms::apply_targets( $screen_settings, array( 'f5' => '-' ), false );
+check( 'vynechané nahrávací pole je mezi vynechanými', Raynet_Elementor_Forms::id_list( $upload_off, Raynet_Elementor_Forms::IGNORED_KEY ), array( 'f5' ) );
+check( 'vynechané nahrávací pole na obrazovce', Raynet_Elementor_Forms::field_targets( $upload_off )['f5'], '-' );
+$upload_on = Raynet_Elementor_Forms::apply_targets( $upload_off, array( 'f5' => Raynet_Elementor_Forms::TARGET_NOTICE ), false );
+check( 'vrácené do poznámky už vynechané není', Raynet_Elementor_Forms::id_list( $upload_on, Raynet_Elementor_Forms::IGNORED_KEY ), array() );
+check( 'poznámku nahrávacího pole drží výchozí stav, ne seznam', Raynet_Elementor_Forms::id_list( $upload_on, Raynet_Elementor_Forms::NOTICE_KEY ), array() );
+check( 'značka se do meta neuloží', array_key_exists( Raynet_Elementor_Forms::ATOMIC_KEY, Raynet_Elementor_Atomic_Forms::apply( $form, $upload_on, 0 )['settings'] ), false );
+Raynet_Elementor_Atomic_Forms::store( 78, 'af1', $upload_on );
+check( 'značka není v uloženém nastavení', array_key_exists( Raynet_Elementor_Forms::ATOMIC_KEY, Raynet_Elementor_Atomic_Forms::stored( 78, 'af1' ) ), false );
+
+$classic_upload = array(
+	'form_fields' => array(
+		array( 'custom_id' => 'cu', 'field_type' => 'upload', 'field_label' => 'Soubor' ),
+	),
+);
+check( 'klasický formulář není atomový', Raynet_Elementor_Forms::is_atomic( $classic_upload ), false );
+check( 'klasické nahrávací pole se dál přikládá', Raynet_Elementor_Forms::field_targets( $classic_upload )['cu'], Raynet_Elementor_Forms::TARGET_ATTACH );
+check( 'klasické nahrávací pole poznámku nebere', Raynet_Elementor_Forms::validate_targets( $classic_upload, array( 'cu' => Raynet_Elementor_Forms::TARGET_NOTICE ) ), array() );
+check( 'klasické nahrávací pole přílohu bere', Raynet_Elementor_Forms::validate_targets( $classic_upload, array( 'cu' => Raynet_Elementor_Forms::TARGET_ATTACH ) ), array( 'cu' => Raynet_Elementor_Forms::TARGET_ATTACH ) );
+
+// Without the action registry the mapping is refused before anything is
+// compared or written, with the reason the screen shows.
+$refused_save = Raynet_Elementor_Forms::save_targets( 77, 'af1', array( 'f1' => 'email' ), true );
+check( 'bez registru se mapování odmítne', is_wp_error( $refused_save ) ? $refused_save->get_error_code() : $refused_save, 'raynet_atomic_unsupported' );
+check( 'odmítnutí říká proč', is_wp_error( $refused_save ) ? $refused_save->get_error_message() : '', 'Tato verze Elementoru Pro akce atomového formuláře neumí.' );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

@@ -554,7 +554,8 @@ class Raynet_Elementor_Submissions {
 		$widget_id     = (string) $widget_id;
 		$form_settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
 
-		if ( null === $form_settings ) {
+		// Importing an atomic form's submissions is not supported yet.
+		if ( null === $form_settings || Raynet_Elementor_Forms::is_atomic( $form_settings ) ) {
 			return array();
 		}
 
@@ -832,7 +833,9 @@ class Raynet_Elementor_Submissions {
 		$submission_id = (int) $submission_id;
 		$form_settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
 
-		if ( null === $form_settings || ! Raynet_Elementor_Forms::maps_contact( $form_settings ) ) {
+		// An atomic form is refused as if it were missing: importing its
+		// submissions is not supported yet, and the screen offers no link.
+		if ( null === $form_settings || Raynet_Elementor_Forms::is_atomic( $form_settings ) || ! Raynet_Elementor_Forms::maps_contact( $form_settings ) ) {
 			return new WP_Error( 'raynet_import_no_form', __( 'Formulář nebyl nalezen nebo nemá namapovaný e-mail ani telefon.', 'raynet-lead-api-integration' ) );
 		}
 

@@ -118,6 +118,16 @@ class Raynet_Elementor_Forms {
 	const ATOMIC_TYPE = 'e-form';
 
 	/**
+	 * Key that marks settings read from an atomic form.
+	 *
+	 * Set on the settings this class hands out for an `e-form`, so the
+	 * mapping helpers can tell where an upload may go and the import can
+	 * refuse the form. It lacks the `raynet_crm_` prefix, so
+	 * Raynet_Elementor_Atomic_Forms::store() never writes it.
+	 */
+	const ATOMIC_KEY = '_raynet_atomic_form';
+
+	/**
 	 * Label fragments that identify an attribute, in the order they are tried.
 	 *
 	 * The whole-name entry comes first because "jméno a příjmení" also contains
@@ -367,7 +377,31 @@ class Raynet_Elementor_Forms {
 	 * @return array<string,mixed> Row in the shape forms_in_post() returns.
 	 */
 	private static function atomic_row( $post_id, array $element ) {
-		return self::row( $post_id, $element, Raynet_Elementor_Atomic_Forms::settings( $post_id, $element ), true );
+		return self::row( $post_id, $element, self::atomic_settings( $post_id, $element ), true );
+	}
+
+	/**
+	 * An atomic form's settings in the widget's shape, marked as atomic.
+	 *
+	 * @param int                 $post_id Document holding the form.
+	 * @param array<string,mixed> $element The `e-form` element.
+	 * @return array<string,mixed> Settings.
+	 */
+	private static function atomic_settings( $post_id, array $element ) {
+		$settings                     = Raynet_Elementor_Atomic_Forms::settings( $post_id, $element );
+		$settings[ self::ATOMIC_KEY ] = true;
+
+		return $settings;
+	}
+
+	/**
+	 * Tells whether settings were read from an Elementor 4 atomic form.
+	 *
+	 * @param array<string,mixed> $settings Settings from this class.
+	 * @return bool True for an atomic form.
+	 */
+	public static function is_atomic( array $settings ) {
+		return ! empty( $settings[ self::ATOMIC_KEY ] );
 	}
 
 	/**
@@ -877,7 +911,7 @@ class Raynet_Elementor_Forms {
 						return;
 					}
 
-					$settings                         = $change( Raynet_Elementor_Atomic_Forms::settings( $post_id, $element ) );
+					$settings                         = $change( self::atomic_settings( $post_id, $element ) );
 					$element                          = Raynet_Elementor_Atomic_Forms::apply( $element, $settings, 0 );
 					$atomic[ (string) $element['id'] ] = $settings;
 					$configured[]                     = (string) $element['id'];
@@ -939,7 +973,7 @@ class Raynet_Elementor_Forms {
 				}
 
 				if ( isset( $element['elType'] ) && self::ATOMIC_TYPE === $element['elType'] ) {
-					$found = Raynet_Elementor_Atomic_Forms::settings( $post_id, $element );
+					$found = self::atomic_settings( $post_id, $element );
 				} elseif ( isset( $element['widgetType'] ) && 'form' === $element['widgetType'] ) {
 					$found = isset( $element['settings'] ) ? (array) $element['settings'] : array();
 				}
@@ -994,10 +1028,14 @@ class Raynet_Elementor_Forms {
 		$targets = array_fill_keys( array_column( self::mappable_fields( $settings ), 'id' ), '' );
 		$ignored = self::id_list( $settings, self::IGNORED_KEY );
 
-		// Upload fields attach their files unless someone left them out.
+		// Upload fields attach their files unless someone left them out. An
+		// atomic form sends no files; its upload puts the file names in the
+		// note unless left out, which is what its action does at submit.
+		$upload_default = self::is_atomic( $settings ) ? self::TARGET_NOTICE : self::TARGET_ATTACH;
+
 		foreach ( self::screen_fields( $settings ) as $field ) {
 			if ( 'upload' === $field['type'] ) {
-				$targets[ $field['id'] ] = in_array( (string) $field['id'], $ignored, true ) ? '-' : self::TARGET_ATTACH;
+				$targets[ $field['id'] ] = in_array( (string) $field['id'], $ignored, true ) ? '-' : $upload_default;
 			}
 		}
 
@@ -1103,8 +1141,9 @@ class Raynet_Elementor_Forms {
 			}
 
 			// An upload is attached or left out; its value is a file, not text.
+			// An atomic form's upload is noted by file name or left out.
 			if ( 'upload' === $types[ $field ] ) {
-				if ( self::TARGET_ATTACH === $target || '-' === $target ) {
+				if ( ( self::is_atomic( $settings ) ? self::TARGET_NOTICE : self::TARGET_ATTACH ) === $target || '-' === $target ) {
 					$clean[ $field ] = $target;
 				}
 
@@ -1201,8 +1240,12 @@ class Raynet_Elementor_Forms {
 			}
 
 			// Attach or leave out concerns only an upload's files; a mapping of
-			// the same field made in the editor is left alone.
-			if ( self::TARGET_ATTACH === $target || ( '-' === $target && in_array( $field, $uploads, true ) ) ) {
+			// the same field made in the editor is left alone. On an atomic
+			// form the note plays the part of attach: it is the default, kept
+			// by the field not being left out.
+			$upload_kept = self::is_atomic( $settings ) && self::TARGET_NOTICE === $target && in_array( $field, $uploads, true );
+
+			if ( self::TARGET_ATTACH === $target || $upload_kept || ( '-' === $target && in_array( $field, $uploads, true ) ) ) {
 				$ignored = array_values( array_diff( $ignored, array( $field ) ) );
 
 				if ( '-' === $target ) {
@@ -1306,6 +1349,12 @@ class Raynet_Elementor_Forms {
 
 		if ( null === $settings ) {
 			return new WP_Error( 'raynet_no_form', __( 'Formulář se na stránce nenašel.', 'raynet-lead-api-integration' ) );
+		}
+
+		// Refused before the "nothing changed" shortcut below, which would
+		// otherwise report success for a form whose action cannot run.
+		if ( self::is_atomic( $settings ) && ! Raynet_Elementor_Atomic_Forms::supported() ) {
+			return new WP_Error( 'raynet_atomic_unsupported', __( 'Tato verze Elementoru Pro akce atomového formuláře neumí.', 'raynet-lead-api-integration' ) );
 		}
 
 		$clean = self::validate_targets( $settings, $targets );
