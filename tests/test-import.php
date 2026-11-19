@@ -249,5 +249,14 @@ $whole                       = Raynet_Elementor_Submissions::classify( $whole_ro
 check( 'celé jméno v jednom poli: bez odd_name', in_array( 'odd_name', reason_ids( $whole ), true ), false );
 check( 'celé jméno v jednom poli: předvybrané', $whole['preselect'], true );
 
+// ---------- cache fingerprint ----------
+// Verdicts cached by an older release must not be served after an update
+// that changed the rules.
+$parts = array( 'gen', $form_settings, $config, 12 );
+check( 'otisk keše: jiná verze pluginu, jiný otisk', Raynet_Elementor_Submissions::fingerprint( $parts, '2.11.0' ) === Raynet_Elementor_Submissions::fingerprint( $parts, '2.11.1' ), false );
+check( 'otisk keše: výchozí verze je RAYNET_LEAD_VERSION', Raynet_Elementor_Submissions::fingerprint( $parts ), Raynet_Elementor_Submissions::fingerprint( $parts, RAYNET_LEAD_VERSION ) );
+check( 'otisk keše: stejné vstupy, stejný otisk', Raynet_Elementor_Submissions::fingerprint( $parts, '2.11.1' ), Raynet_Elementor_Submissions::fingerprint( $parts, '2.11.1' ) );
+check( 'otisk keše: jiný počet odeslání, jiný otisk', Raynet_Elementor_Submissions::fingerprint( $parts, '2.11.1' ) === Raynet_Elementor_Submissions::fingerprint( array( 'gen', $form_settings, $config, 13 ), '2.11.1' ), false );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

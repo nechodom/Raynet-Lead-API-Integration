@@ -59,6 +59,12 @@ class Raynet_Submission_Spam_Score {
 	const VOWELS = 'aeiouyáàâäãåāăąéèêëěēęíìîïīįóòôöõőōøúùûüůűūųýÿæœ';
 
 	/**
+	 * Consonants that carry a syllable in Czech and Slovak (prst, vlk,
+	 * scvrkl), so a word holding one is not "without a vowel".
+	 */
+	const SYLLABIC = 'rlŕĺ';
+
+	/**
 	 * Default thresholds, word lists and switches.
 	 *
 	 * @return array<string,mixed> Config.
@@ -68,7 +74,12 @@ class Raynet_Submission_Spam_Score {
 			'strong_to_spam'       => 1,
 			'medium_to_spam'       => 2,
 			'medium_to_suspect'    => 1,
-			'weak_to_suspect'      => 2,
+			// A row is pre-ticked only with no signal at all: one weak
+			// signal already asks for a human look.
+			'weak_to_suspect'      => 1,
+			// Weak signals that tip a single medium one into spam; 0 turns
+			// this off.
+			'medium_weak_to_spam'  => 2,
 			'same_text_senders'    => 3,
 			// Shorter messages ("Prosím o zavolání.") are stock lines real
 			// people share, so repeating them is no sign of spam.
@@ -76,6 +87,10 @@ class Raynet_Submission_Spam_Score {
 			'same_ip_count'        => 5,
 			'min_message_length'   => 10,
 			'min_phone_digits'     => 9,
+			// International prefixes (+420, +421) a site serves. Empty means
+			// the country of a number is never judged: real leads come from
+			// abroad too.
+			'home_phone_prefixes'  => array(),
 			'keywords'             => array( 'seo', 'backlink', 'backlinks', 'casino', 'crypto', 'bitcoin', 'viagra', 'cialis', 'loan', 'loans', 'guest post', 'ranking', 'traffic', 'forex', 'porn' ),
 			'disposable_domains'   => array( 'mailinator.com', 'guerrillamail.com', '10minutemail.com', 'tempmail.com', 'temp-mail.org', 'yopmail.com', 'trashmail.com', 'sharklasers.com', 'getnada.com', 'dispostable.com' ),
 			'allowed_scripts'      => array( 'Latin' ),
@@ -131,6 +146,11 @@ class Raynet_Submission_Spam_Score {
 		$message    = $values['message'];
 		$links      = self::count_links( $message );
 		$same_min   = isset( $config['same_text_min_length'] ) ? (int) $config['same_text_min_length'] : 40;
+		// The message is judged only where the form has one; trimmed, as a
+		// visitor's stray spaces say nothing.
+		$judge_text = ! empty( $submission['has_message_field'] );
+		$trimmed    = trim( $message );
+		$no_words   = $judge_text && self::has_no_words( $trimmed );
 
 		$text_senders = isset( $stats['text_senders'] ) && is_array( $stats['text_senders'] ) ? $stats['text_senders'] : array();
 		$ip_counts    = isset( $stats['ip_counts'] ) && is_array( $stats['ip_counts'] ) ? $stats['ip_counts'] : array();
@@ -156,9 +176,14 @@ class Raynet_Submission_Spam_Score {
 			array( 'same_ip', self::MEDIUM, $ip_count >= (int) $config['same_ip_count'], $ip_count ),
 			array( 'odd_name', self::MEDIUM, self::is_odd_name( $values['firstName'], $values['lastName'] ), 0 ),
 			array( 'bot_agent', self::MEDIUM, null !== $user_agent && ( '' === trim( $user_agent ) || 1 === preg_match( self::BOT_AGENT_PATTERN, $user_agent ) ), 0 ),
-			array( 'bad_phone', self::WEAK, self::is_bad_phone( $values['phone'], (int) $config['min_phone_digits'] ), 0 ),
+			array( 'bad_phone', self::MEDIUM, self::is_bad_phone( $values['phone'], (int) $config['min_phone_digits'] ), 0 ),
+			array( 'home_phone', self::MEDIUM, self::is_foreign_phone( $values['phone'], (array) $config['home_phone_prefixes'] ), 0 ),
 			array( 'disposable_email', self::WEAK, self::is_disposable_email( $values['email'], (array) $config['disposable_domains'] ), 0 ),
-			array( 'short_message', self::WEAK, ! empty( $submission['has_message_field'] ) && self::length( trim( $message ) ) < (int) $config['min_message_length'], 0 ),
+			array( 'short_message', self::MEDIUM, $judge_text && self::length( $trimmed ) < (int) $config['min_message_length'], 0 ),
+			array( 'no_words', self::MEDIUM, $no_words, 0 ),
+			array( 'gibberish', self::MEDIUM, $judge_text && self::is_gibberish( $trimmed ), 0 ),
+			array( 'one_word', self::WEAK, $judge_text && ! $no_words && '' !== $trimmed && 1 !== preg_match( '~\s~u', $trimmed ), 0 ),
+			array( 'message_is_name', self::MEDIUM, $judge_text && self::is_message_name( $trimmed, $values ), 0 ),
 			array( 'duplicate', self::MEDIUM, isset( $submission['duplicate'] ) && true === $submission['duplicate'], 0 ),
 		);
 
@@ -205,7 +230,10 @@ class Raynet_Submission_Spam_Score {
 			}
 		}
 
-		if ( $counts[ self::STRONG ] >= (int) $config['strong_to_spam'] || $counts[ self::MEDIUM ] >= (int) $config['medium_to_spam'] ) {
+		$medium_weak = (int) $config['medium_weak_to_spam'];
+
+		if ( $counts[ self::STRONG ] >= (int) $config['strong_to_spam'] || $counts[ self::MEDIUM ] >= (int) $config['medium_to_spam']
+			|| ( $medium_weak > 0 && $counts[ self::MEDIUM ] >= 1 && $counts[ self::WEAK ] >= $medium_weak ) ) {
 			return self::VERDICT_SPAM;
 		}
 
@@ -369,7 +397,164 @@ class Raynet_Submission_Spam_Score {
 			return false;
 		}
 
-		return strlen( $digits ) < $min_digits || 1 === preg_match( '~^(\d)\1*$~', $digits );
+		return strlen( $digits ) < $min_digits || 1 === preg_match( '~^(\d)\1*$~', $digits ) || self::is_digit_run( $digits );
+	}
+
+	/**
+	 * Whether digits climb or fall by one all the way (123456789, 987654321),
+	 * the number a keyboard gives when someone just wants past the field.
+	 *
+	 * @param string $digits Digits only.
+	 * @return bool Whether the digits are one consecutive run.
+	 */
+	private static function is_digit_run( $digits ) {
+		$length = strlen( $digits );
+
+		if ( $length < 3 ) {
+			return false;
+		}
+
+		foreach ( array( 1, -1 ) as $step ) {
+			$run = true;
+			for ( $i = 1; $i < $length; $i++ ) {
+				if ( (int) $digits[ $i ] - (int) $digits[ $i - 1 ] !== $step ) {
+					$run = false;
+					break;
+				}
+			}
+
+			if ( $run ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a number with an international prefix is from a country the
+	 * site does not serve.
+	 *
+	 * Off until a site lists its prefixes: real leads come from abroad, so
+	 * a country is no sign of spam unless the site says so. A number written
+	 * without + or 00 is never judged, as its country cannot be told.
+	 *
+	 * @param string   $phone    Phone number.
+	 * @param string[] $prefixes Allowed prefixes, such as +420.
+	 * @return bool Whether the number carries a prefix not in the list.
+	 */
+	private static function is_foreign_phone( $phone, array $prefixes ) {
+		$allowed = array();
+		foreach ( $prefixes as $prefix ) {
+			$digits = preg_replace( '~^00~', '', preg_replace( '~[^\d]~', '', (string) $prefix ) );
+			if ( '' !== $digits ) {
+				$allowed[] = $digits;
+			}
+		}
+
+		$compact = preg_replace( '~[\s().\-/]~', '', trim( $phone ) );
+
+		if ( empty( $allowed ) || 1 !== preg_match( '~^(?:\+|00)(\d+)$~', $compact, $match ) ) {
+			return false;
+		}
+
+		foreach ( $allowed as $digits ) {
+			if ( 0 === strpos( $match[1], $digits ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Whether a filled-in message holds fewer than three letters: digits,
+	 * punctuation or emoji only ("199999", "???").
+	 *
+	 * @param string $message Trimmed message.
+	 * @return bool Whether the message has no words.
+	 */
+	private static function has_no_words( $message ) {
+		return '' !== $message && (int) preg_match_all( '~\p{L}~u', $message ) < 3;
+	}
+
+	/**
+	 * Whether a short message is a keyboard mash rather than words.
+	 *
+	 * Only a message of at most three words is judged. It is gibberish when
+	 * one of its Latin-script words (letters only, split at anything else)
+	 * has eight or more letters of which fewer than 20 % are vowels
+	 * ("Mggkgmegvkfv", "Wtssdres"), or five or more letters and neither a
+	 * vowel nor r or l. Czech and Slovak use r and l as syllable carriers
+	 * (prst, vlk, scvrkl), so those words stay clean, and their long words
+	 * (zmrzlina, čtvrthodina) keep a vowel share well above 20 %. Words in
+	 * other scripts are not judged here.
+	 *
+	 * @param string $message Trimmed message.
+	 * @return bool Whether the message looks like gibberish.
+	 */
+	private static function is_gibberish( $message ) {
+		$words = preg_split( '~\s+~u', $message, -1, PREG_SPLIT_NO_EMPTY );
+
+		if ( empty( $words ) || count( $words ) > 3 ) {
+			return false;
+		}
+
+		$parts = preg_split( '~[^\p{L}]+~u', $message, -1, PREG_SPLIT_NO_EMPTY );
+
+		foreach ( (array) $parts as $part ) {
+			if ( 1 !== preg_match( '~^\p{Latin}+$~u', $part ) ) {
+				continue;
+			}
+
+			$letters = self::length( $part );
+			$vowels  = (int) preg_match_all( '~[' . self::VOWELS . ']~iu', $part );
+
+			if ( $letters >= 8 && $vowels * 5 < $letters ) {
+				return true;
+			}
+
+			if ( $letters >= 5 && 0 === $vowels && 1 !== preg_match( '~[' . self::SYLLABIC . ']~iu', $part ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a message only repeats the sender's name, e-mail or phone.
+	 *
+	 * Compared lowercased, with punctuation and whitespace ignored: every
+	 * word of the message must be a word of the first or last name, or the
+	 * whole message the e-mail address or the phone number.
+	 *
+	 * @param string               $message Trimmed message.
+	 * @param array<string,string> $values  Submission values.
+	 * @return bool Whether the message holds nothing but the sender's details.
+	 */
+	private static function is_message_name( $message, array $values ) {
+		if ( '' === $message ) {
+			return false;
+		}
+
+		$lower = self::lower( $message );
+		$email = self::lower( trim( $values['email'] ) );
+
+		if ( '' !== $email && preg_replace( '~\s+~u', '', $lower ) === $email ) {
+			return true;
+		}
+
+		$phone = preg_replace( '~\D~', '', $values['phone'] );
+
+		if ( '' !== $phone && 1 !== preg_match( '~\p{L}~u', $message ) && preg_replace( '~\D~', '', $message ) === $phone ) {
+			return true;
+		}
+
+		$words = preg_split( '~[^\p{L}\p{N}]+~u', $lower, -1, PREG_SPLIT_NO_EMPTY );
+		$names = preg_split( '~[^\p{L}\p{N}]+~u', self::lower( $values['firstName'] . ' ' . $values['lastName'] ), -1, PREG_SPLIT_NO_EMPTY );
+
+		return ! empty( $words ) && ! empty( $names ) && array() === array_diff( $words, $names );
 	}
 
 	/**

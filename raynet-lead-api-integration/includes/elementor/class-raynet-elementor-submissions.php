@@ -563,17 +563,19 @@ class Raynet_Elementor_Submissions {
 		 * Filters the spam scoring config used by the import screen.
 		 *
 		 * Keys (see Raynet_Submission_Spam_Score::default_config()):
-		 * strong_to_spam, medium_to_spam, medium_to_suspect, weak_to_suspect
-		 * (verdict thresholds); same_text_senders (different senders of one
+		 * strong_to_spam, medium_to_spam, medium_to_suspect, weak_to_suspect,
+		 * medium_weak_to_spam (verdict thresholds); same_text_senders (different senders of one
 		 * message for same_text); same_text_min_length (characters a message
 		 * needs before same_text applies, default 40); same_ip_count;
-		 * min_message_length; min_phone_digits; keywords; disposable_domains;
-		 * allowed_scripts (Unicode script names); disabled (signal ids).
+		 * min_message_length; min_phone_digits; home_phone_prefixes
+		 * (international prefixes the site serves, empty = not judged);
+		 * keywords; disposable_domains; allowed_scripts (Unicode script
+		 * names); disabled (signal ids).
 		 *
 		 * @param array<string,mixed> $config Thresholds, word lists, allowed scripts and disabled signals.
 		 */
 		$config      = (array) apply_filters( 'raynet_import_spam_config', Raynet_Submission_Spam_Score::default_config() );
-		$fingerprint = md5( wp_json_encode( array( $generation, $form_settings, $config, self::count_submissions( $post_id, $widget_id ) ) ) );
+		$fingerprint = self::fingerprint( array( $generation, $form_settings, $config, self::count_submissions( $post_id, $widget_id ) ) );
 		$cache_key   = self::cache_key( $post_id, $widget_id );
 		$cached      = self::read_cache( $cache_key, $fingerprint );
 
@@ -1455,6 +1457,26 @@ class Raynet_Elementor_Submissions {
 			'%' . $wpdb->esc_like( '"edit_post_id":"' . $post_id . '"' ) . '%',
 			'trash'
 		);
+	}
+
+	/**
+	 * What a cached index must have been built from.
+	 *
+	 * Carries the plugin version: an update may change the spam rules, and
+	 * verdicts judged by the old ones must not be served from the cache.
+	 *
+	 * @param array<int,mixed> $parts   Generation, form settings, config, submission count.
+	 * @param string|null      $version Plugin version; RAYNET_LEAD_VERSION when left out.
+	 * @return string Fingerprint.
+	 */
+	public static function fingerprint( array $parts, $version = null ) {
+		if ( null === $version ) {
+			$version = defined( 'RAYNET_LEAD_VERSION' ) ? RAYNET_LEAD_VERSION : '';
+		}
+
+		$parts[] = (string) $version;
+
+		return md5( (string) wp_json_encode( $parts ) );
 	}
 
 	/**

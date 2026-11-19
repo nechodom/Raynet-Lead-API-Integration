@@ -654,10 +654,20 @@ class Raynet_Elementor_Import_Admin {
 				return __( 'strojový prohlížeč', 'raynet-lead-api-integration' );
 			case 'bad_phone':
 				return __( 'nevěrohodný telefon', 'raynet-lead-api-integration' );
+			case 'home_phone':
+				return __( 'telefon mimo povolené předvolby', 'raynet-lead-api-integration' );
 			case 'disposable_email':
 				return __( 'jednorázový e-mail', 'raynet-lead-api-integration' );
 			case 'short_message':
 				return __( 'velmi krátká zpráva', 'raynet-lead-api-integration' );
+			case 'no_words':
+				return __( 'zpráva bez slov', 'raynet-lead-api-integration' );
+			case 'gibberish':
+				return __( 'zpráva nedává smysl', 'raynet-lead-api-integration' );
+			case 'one_word':
+				return __( 'jednoslovná zpráva', 'raynet-lead-api-integration' );
+			case 'message_is_name':
+				return __( 'zpráva jen opakuje jméno nebo kontakt', 'raynet-lead-api-integration' );
 			case 'duplicate':
 				return __( 'duplicitní odeslání', 'raynet-lead-api-integration' );
 		}
