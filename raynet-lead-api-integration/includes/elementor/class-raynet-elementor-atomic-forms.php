@@ -90,20 +90,38 @@ class Raynet_Elementor_Atomic_Forms {
 
 		$groups       = self::group_map( $widgets );
 		$group_labels = array();
+		$member_texts = array();
 
-		// A group is labelled by the first label, in tree order, that points
-		// at any of its buttons.
+		// A group is labelled by its group name, as Elementor's own front-end
+		// handler labels it: each button usually has a label of its own
+		// ("Firma", "Fyzická osoba"), and any one of them would contradict the
+		// answer of a visitor who chose another. Only a name without readable
+		// text falls back to the buttons' labels.
 		foreach ( $widgets as $widget ) {
 			$id = isset( $widget['id'] ) ? (string) $widget['id'] : '';
 
-			if ( ! isset( $groups[ $id ] ) || isset( $group_labels[ $groups[ $id ] ] ) ) {
+			if ( ! isset( $groups[ $id ] ) ) {
 				continue;
 			}
 
-			$cssid = self::string( isset( $widget['settings'] ) && is_array( $widget['settings'] ) ? $widget['settings'] : array(), '_cssid' );
+			$group    = $groups[ $id ];
+			$settings = isset( $widget['settings'] ) && is_array( $widget['settings'] ) ? $widget['settings'] : array();
 
-			if ( '' !== $cssid && isset( $labels[ $cssid ] ) ) {
-				$group_labels[ $groups[ $id ] ] = $labels[ $cssid ];
+			if ( $group === $id ) {
+				$group_labels[ $group ] = self::plain( self::string( $settings, 'name' ) );
+				$member_texts[ $group ] = array();
+			}
+
+			$cssid = self::string( $settings, '_cssid' );
+
+			if ( '' !== $cssid && isset( $labels[ $cssid ] ) && ! in_array( $labels[ $cssid ], $member_texts[ $group ], true ) ) {
+				$member_texts[ $group ][] = $labels[ $cssid ];
+			}
+		}
+
+		foreach ( $group_labels as $group => $text ) {
+			if ( '' === $text ) {
+				$group_labels[ $group ] = implode( ' / ', $member_texts[ $group ] );
 			}
 		}
 
@@ -122,7 +140,7 @@ class Raynet_Elementor_Atomic_Forms {
 			$cssid    = self::string( $settings, '_cssid' );
 			$label    = '' !== $cssid && isset( $labels[ $cssid ] ) ? $labels[ $cssid ] : '';
 
-			if ( isset( $group_labels[ $id ] ) ) {
+			if ( isset( $group_labels[ $id ] ) && '' !== $group_labels[ $id ] ) {
 				$label = $group_labels[ $id ];
 			}
 

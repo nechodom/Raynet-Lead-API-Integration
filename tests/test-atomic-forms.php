@@ -209,11 +209,14 @@ $radios = array(
 	'elType'   => 'e-form',
 	'settings' => array(),
 	'elements' => array(
-		widget( 'r1', 'e-form-radio-button', array( 'name' => str( 'typ' ), 'value' => str( 'firma' ) ) ),
+		// Each button has a label of its own, as the editor builds them.
+		label( 'rl1', 'Firma', 'firma' ),
+		widget( 'r1', 'e-form-radio-button', array( 'name' => str( 'Typ zákazníka' ), 'value' => str( 'firma' ), '_cssid' => str( 'firma' ) ) ),
 		label( 'rl2', 'Fyzická osoba', 'fo' ),
-		widget( 'r2', 'e-form-radio-button', array( 'name' => str( 'typ' ), 'value' => str( 'fo' ), '_cssid' => str( 'fo' ) ) ),
+		widget( 'r2', 'e-form-radio-button', array( 'name' => str( 'Typ zákazníka' ), 'value' => str( 'fo' ), '_cssid' => str( 'fo' ) ) ),
 		widget( 'mail', 'e-form-input', array( 'type' => str( 'email' ) ) ),
-		widget( 'r3', 'e-form-radio-button', array( 'name' => 'typ', 'value' => str( 'jine' ) ) ),
+		label( 'rl3', 'Jiné', 'jine' ),
+		widget( 'r3', 'e-form-radio-button', array( 'name' => 'Typ zákazníka', 'value' => str( 'jine' ), '_cssid' => str( 'jine' ) ) ),
 		widget( 'r4', 'e-form-radio-button', array( 'value' => str( 'sam' ) ) ),
 		widget( 'r5', 'e-form-radio-button', array( 'name' => str( '' ) ) ),
 	),
@@ -221,13 +224,22 @@ $radios = array(
 $radio_fields = Raynet_Elementor_Atomic_Forms::fields( $radios );
 check( 'skupina přepínačů je jedno pole', array_column( $radio_fields, 'custom_id' ), array( 'r1', 'mail', 'r4', 'r5' ) );
 check( 'skupina je přepínač', $radio_fields[0]['field_type'], 'radio' );
-check( 'popisek skupiny z kteréhokoli člena', $radio_fields[0]['field_label'], 'Fyzická osoba' );
+// Elementor's own handler labels a grouped radio by its name, and any one
+// button's label would contradict the answer of a visitor who chose another.
+check( 'skupina má popisek podle názvu skupiny', $radio_fields[0]['field_label'], 'Typ zákazníka' );
 check( 'samostatný přepínač má svůj náhradní popisek', $radio_fields[2]['field_label'], 'Pole 3 (radio)' );
 check( 'členové skupiny ukazují na první', Raynet_Elementor_Atomic_Forms::radio_groups( $radios ), array( 'r1' => 'r1', 'r2' => 'r1', 'r3' => 'r1' ) );
 
 $lone_group = $radios;
 $lone_group['elements'] = array( widget( 'q1', 'e-form-radio-button', array( 'name' => str( 'a' ) ) ), widget( 'q2', 'e-form-radio-button', array( 'name' => str( 'b' ) ) ) );
-check( 'různé skupiny zůstanou dvě pole', array_column( Raynet_Elementor_Atomic_Forms::fields( $lone_group ), 'field_label' ), array( 'Pole 1 (radio)', 'Pole 2 (radio)' ) );
+// Two names are two groups, each labelled by its name as the browser does.
+check( 'různé skupiny zůstanou dvě pole', array_column( Raynet_Elementor_Atomic_Forms::fields( $lone_group ), 'field_label' ), array( 'a', 'b' ) );
+// A name with no readable text falls back to the buttons' labels.
+$tagged = $radios;
+foreach ( array( 1, 3, 6 ) as $i ) {
+	$tagged['elements'][ $i ]['settings']['name'] = str( '<b></b>' );
+}
+check( 'název bez textu: popisky tlačítek', Raynet_Elementor_Atomic_Forms::fields( $tagged )[0]['field_label'], 'Firma / Fyzická osoba / Jiné' );
 check( 'bez přepínačů žádné skupiny', Raynet_Elementor_Atomic_Forms::radio_groups( $form ), array() );
 
 check( 'bez registru akcí není podpora', Raynet_Elementor_Atomic_Forms::supported(), false );

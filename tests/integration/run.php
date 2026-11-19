@@ -3053,9 +3053,11 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 					$aw2( 'xf6', 'e-form-file-upload', array( '_cssid' => $as( 'file' ) ) ),
 					$aw2( 'xf7', 'e-form-input', array( 'type' => $as( 'password' ), 'placeholder' => $as( 'Heslo' ) ) ),
 					// A radio group: the browser posts it under the checked button.
-					$al2( 'xl8', 'Typ zákazníka', 'typ1' ),
-					$aw2( 'xr1', 'e-form-radio-button', array( 'name' => $as( 'typ' ), 'value' => $as( 'firma' ), '_cssid' => $as( 'typ1' ) ) ),
-					$aw2( 'xr2', 'e-form-radio-button', array( 'name' => $as( 'typ' ), 'value' => $as( 'fo' ), '_cssid' => $as( 'typ2' ) ) ),
+					// Each button has its own label; the group is named in the editor.
+					$al2( 'xl8', 'Firma', 'typ1' ),
+					$aw2( 'xr1', 'e-form-radio-button', array( 'name' => $as( 'Typ zákazníka' ), 'value' => $as( 'firma' ), '_cssid' => $as( 'typ1' ) ) ),
+					$al2( 'xl9', 'Fyzická osoba', 'typ2' ),
+					$aw2( 'xr2', 'e-form-radio-button', array( 'name' => $as( 'Typ zákazníka' ), 'value' => $as( 'fo' ), '_cssid' => $as( 'typ2' ) ) ),
 					$aw2( 'xsb', 'e-form-submit-button' ),
 				),
 			);
@@ -3141,7 +3143,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'podvržené pole neodešlo', false !== strpos( (string) wp_json_encode( $aform_lead, JSON_UNESCAPED_UNICODE ), 'podvržená' ), false );
 		check( 'zdroj je stránka, ne podvržený odkaz', isset( $aform_lead['notice'] ) && false !== strpos( $aform_notice, get_permalink( $aform_page ) ) && false === strpos( $aform_notice, 'utocnik.example' ), true );
 		check( 'skupina přepínačů je jedno pole', array_column( Raynet_Elementor_Forms::readable_fields( Raynet_Elementor_Forms::form_settings( $aform_page, 'aform2' ) ), 'id' ), array( 'xf1', 'xf2', 'xf3', 'xf4', 'xf5', 'xf6', 'xf7', 'xr1' ) );
-		check( 'vybraný přepínač skupiny v poznámce', false !== strpos( $aform_notice, 'Typ zákazníka: fo' ), true );
+		check( 'skupina se jmenuje podle názvu skupiny', array_column( Raynet_Elementor_Forms::readable_fields( Raynet_Elementor_Forms::form_settings( $aform_page, 'aform2' ) ), 'label', 'id' )['xr1'], 'Typ zákazníka' );
+		check( 'vybraný přepínač skupiny v poznámce pod názvem skupiny', array( false !== strpos( $aform_notice, 'Typ zákazníka: fo' ), false !== strpos( $aform_notice, 'Firma:' ) ), array( true, false ) );
 		check( 'zaškrtnutý souhlas: GDPR záznam', isset( $aform_sent['gdpr']['lead'] ) ? $aform_sent['gdpr']['lead'] : 0, 4242 );
 
 		// Unticked: no GDPR record.

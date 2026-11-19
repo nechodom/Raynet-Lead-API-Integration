@@ -392,7 +392,7 @@ Zapnutí ostatní akce nechá. Formulář, který posílal e-mail Elementoru, ho
 
 **Pole.** ID pole je ID prvku pole v Elementoru. Typ a popisek plugin čte z uložené stránky, nikdy z toho, co poslal prohlížeč. Popisek je text prvku *Label* napojeného na pole, jinak zástupný text, jinak „Pole N (typ)“. Pole, která v uložené stránce nejsou, se zahodí. Heslo se nepošle nikdy.
 
-- **Přepínače** se stejným *názvem skupiny* jsou jedno pole (pod ID prvního z nich). Přepínač bez názvu skupiny je pole samo o sobě a hodnotu má, jen když ho návštěvník vybral.
+- **Přepínače** se stejným *názvem skupiny* jsou jedno pole (pod ID prvního z nich) a jeho popisek je název skupiny, ne popisek jednoho z přepínačů. Přepínač bez názvu skupiny je pole samo o sobě a hodnotu má, jen když ho návštěvník vybral.
 - Několik **zaškrtávátek** se stejným názvem přijde od Elementoru jako jedna hodnota pod ID prvního zaškrtnutého.
 - **Výběr** s vícenásobnou volbou pošle jen první vybranou položku.
 - **Nahrávací pole** nabízí jen **Zapsat do poznámky název souboru** (výchozí) nebo **Neodesílat**. Soubory se do RAYNETu nenahrávají a adresa souboru se nikam neposílá.
