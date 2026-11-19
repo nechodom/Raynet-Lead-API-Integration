@@ -116,6 +116,20 @@ check( 'poznámka: e-mail', $masked['notes'][0]['value'], 'Pište na [e-mail]' )
 check( 'poznámka: krátké číslo zůstane', $masked['notes'][1]['value'], '20 kusů' );
 check( 'sedm číslic je telefon', Raynet_Import_Ai::mask( 'kód 1234567' ), 'kód [telefon]' );
 check( 'šest číslic zůstane', Raynet_Import_Ai::mask( 'cena 200 000 Kč' ), 'cena 200 000 Kč' );
+check( 'nezlomitelná mezera', Raynet_Import_Ai::mask( "tel. 603\u{00A0}123\u{00A0}456" ), 'tel. [telefon]' );
+check( 'úzká nezlomitelná mezera', Raynet_Import_Ai::mask( "tel. 603\u{202F}123\u{202F}456" ), 'tel. [telefon]' );
+check( 'lomítko', Raynet_Import_Ai::mask( 'tel. 602/123 456' ), 'tel. [telefon]' );
+check( 'lomítko s nulou', Raynet_Import_Ai::mask( 'tel. 0602/123456' ), 'tel. [telefon]' );
+check( 'pomlčky s mezerami', Raynet_Import_Ai::mask( 'tel. 603 - 123 - 456' ), 'tel. [telefon]' );
+check( 'tečky', Raynet_Import_Ai::mask( 'tel. 603.123.456' ), 'tel. [telefon]' );
+check( 'závorky', Raynet_Import_Ai::mask( 'tel. (+420) 603 123 456' ), 'tel. [telefon]' );
+check( '20 kusů zůstane', Raynet_Import_Ai::mask( 'chci 20 kusů' ), 'chci 20 kusů' );
+check( 'rok zůstane', Raynet_Import_Ai::mask( 'v roce 2026' ), 'v roce 2026' );
+check( 'e-mail s (at)', Raynet_Import_Ai::mask( 'pište jan (at) example.cz' ), 'pište [e-mail]' );
+check( 'e-mail s [at]', Raynet_Import_Ai::mask( 'pište jan.novak [at] example.cz' ), 'pište [e-mail]' );
+check( 'e-mail s mezerami kolem @', Raynet_Import_Ai::mask( 'pište jan @ example.cz' ), 'pište [e-mail]' );
+check( 'e-mail s (AT) velkými', Raynet_Import_Ai::mask( 'pište jan(AT)example.cz' ), 'pište [e-mail]' );
+check( 'slovo at bez závorek zůstane', Raynet_Import_Ai::mask( 'look at example.cz' ), 'look at example.cz' );
 
 echo "\n=== Předvolba a doména ===\n";
 
@@ -127,6 +141,8 @@ check( 'neznámá předvolba bez mezer nejvýš 4 číslice', Raynet_Import_Ai::
 check( 'bez předvolby', Raynet_Import_Ai::phone_country( '603123456' ), 'bez předvolby' );
 check( 'prázdný telefon', Raynet_Import_Ai::phone_country( '' ), 'bez předvolby' );
 check( '+1 je USA / Kanada', Raynet_Import_Ai::phone_country( '+1 202 555 0100' ), 'USA / Kanada' );
+check( '(+420) je Česko', Raynet_Import_Ai::phone_country( '(+420) 603 123 456' ), 'Česko' );
+check( '(00421) je Slovensko', Raynet_Import_Ai::phone_country( '(00421) 905 123 456' ), 'Slovensko' );
 
 check( 'doména malými písmeny', Raynet_Import_Ai::email_domain( ' Jan@Example.CZ ' ), 'example.cz' );
 check( 'bez zavináče žádná doména', Raynet_Import_Ai::email_domain( 'neplatny' ), '' );
@@ -145,6 +161,14 @@ check( 'otisk se mění se zprávou', Raynet_Import_Ai::hash( $changed ) !== $ha
 $hash_a = Raynet_Import_Ai::hash( Raynet_Import_Ai::prepare( $row, array_merge( $values, array( 'message' => 'volejte 603 123 456' ) ), array() ) );
 $hash_b = Raynet_Import_Ai::hash( Raynet_Import_Ai::prepare( $row, array_merge( $values, array( 'message' => 'volejte 777 888 999' ) ), array() ) );
 check( 'otisk je z maskovaných dat', $hash_a, $hash_b );
+// A new model or business text is a different question to the model.
+$GLOBALS['wp_options']['raynet_lead_openai_model'] = 'gpt-jiny';
+check( 'otisk se mění s modelem', Raynet_Import_Ai::hash( $prepared ) !== $hash, true );
+unset( $GLOBALS['wp_options']['raynet_lead_openai_model'] );
+$GLOBALS['wp_options']['raynet_lead_openai_business'] = 'Nově prodáváme okna.';
+check( 'otisk se mění s popisem firmy', Raynet_Import_Ai::hash( $prepared ) !== $hash, true );
+unset( $GLOBALS['wp_options']['raynet_lead_openai_business'] );
+check( 'otisk se vrátí s nastavením', Raynet_Import_Ai::hash( $prepared ), $hash );
 
 echo "\n=== Požadavek ===\n";
 
@@ -185,6 +209,24 @@ check(
 );
 check( 'tělo bez e-mailu', strpos( $encoded, 'jan.novak@example.cz' ), false );
 check( 'tělo bez telefonu', strpos( $encoded, '+420 603 123 456' ), false );
+
+// Every spelling of the same number, in the phone field and in the text:
+// none of its digits may reach the body, in any grouping.
+$phone_spellings = array( '+420 603 123 456', '+420603123456', '00420 603 123 456', '603 123 456', '603-123-456', '603/123 456', "603\u{00A0}123\u{00A0}456", "603\u{202F}123\u{202F}456", '(+420) 603 123 456', '603.123.456' );
+$phone_items     = array();
+foreach ( $phone_spellings as $n => $spelling ) {
+	$phone_items[] = Raynet_Import_Ai::prepare(
+		array( 'id' => 100 + $n ),
+		array( 'phone' => $spelling, 'message' => 'Volejte ' . $spelling . ' kdykoli.', 'topic' => $spelling, 'companyName' => 'Tel ' . $spelling ),
+		array( 'Telefon' => $spelling )
+	);
+}
+$phone_body = json_encode( Raynet_OpenAI_Client::request_body( $phone_items, $site ), JSON_UNESCAPED_UNICODE );
+check( 'tělo: žádné číslice telefonu v žádném zápisu', strpos( (string) preg_replace( '/\D/', '', $phone_body ), '603123456' ), false );
+foreach ( $phone_spellings as $spelling ) {
+	check( 'tělo bez zápisu ' . $spelling, strpos( $phone_body, $spelling ), false );
+}
+check( 'tělo: všude země', substr_count( $phone_body, 'Česko' ) >= 4, true );
 check( 'tělo nese doménu', false !== strpos( $encoded, 'example.cz' ), true );
 check( 'tělo nese zemi', false !== strpos( $encoded, 'Česko' ), true );
 check( 'pokyn zná web', false !== strpos( $body['input'][0]['content'], 'Střechy Novák' ) && false !== strpos( $body['input'][0]['content'], 'https://strechy.example' ), true );
@@ -255,7 +297,11 @@ $GLOBALS['wp_options']['raynet_lead_openai_key'] = 'sk-ulozeny-0000';
 check( 'uložení: prázdné pole klíč nechá', Raynet_OpenAI_Client::sanitize_key_option( array( 'value' => '  ', 'delete' => '' ) ), 'sk-ulozeny-0000' );
 check( 'uložení: nový klíč', Raynet_OpenAI_Client::sanitize_key_option( array( 'value' => ' sk-novy-1111 ' ) ), 'sk-novy-1111' );
 check( 'uložení: chybějící pole klíč nechá', Raynet_OpenAI_Client::sanitize_key_option( null ), 'sk-ulozeny-0000' );
-check( 'uložení: smazání', Raynet_OpenAI_Client::sanitize_key_option( array( 'value' => 'sk-novy-1111', 'delete' => '1' ) ), '' );
+check( 'uložení: smazání', Raynet_OpenAI_Client::sanitize_key_option( array( 'value' => '', 'delete' => '1' ) ), '' );
+check( 'uložení: nový klíč přebije smazání', Raynet_OpenAI_Client::sanitize_key_option( array( 'value' => 'sk-novy-1111', 'delete' => '1' ) ), 'sk-novy-1111' );
+check( 'uložení: prázdný řetězec klíč nesmaže', Raynet_OpenAI_Client::sanitize_key_option( '' ), 'sk-ulozeny-0000' );
+check( 'uložení: řetězec z mezer klíč nesmaže', Raynet_OpenAI_Client::sanitize_key_option( '   ' ), 'sk-ulozeny-0000' );
+check( 'uložení: řetězec je nový klíč', Raynet_OpenAI_Client::sanitize_key_option( 'sk-cli-2222' ), 'sk-cli-2222' );
 check( 'model: prázdný je výchozí', Raynet_OpenAI_Client::sanitize_model_option( '  ' ), 'gpt-6-luna' );
 check( 'model: text', Raynet_OpenAI_Client::sanitize_model_option( ' gpt-6-luna-mini <b> ' ), 'gpt-6-luna-mini' );
 check( 'popis firmy nejvýš 1000 znaků', mb_strlen( Raynet_OpenAI_Client::sanitize_business_option( str_repeat( 'é', 1200 ) ) ), 1000 );
@@ -299,6 +345,41 @@ $e_text = $error_for( array( 'code' => 200, 'body' => json_encode( answer_with( 
 check( 'ne-JSON: kód', is_wp_error( $e_text ) ? $e_text->get_error_code() : '', 'raynet_ai_bad_answer' );
 $e_html = $error_for( array( 'code' => 200, 'body' => '<html>proxy</html>' ) );
 check( 'HTML místo JSON: kód', is_wp_error( $e_html ) ? $e_html->get_error_code() : '', 'raynet_ai_bad_answer' );
+
+check( 'review: bez přesměrování', isset( $sent['args']['redirection'] ) ? $sent['args']['redirection'] : null, 0 );
+
+$e_empty = $error_for( array( 'code' => 200, 'body' => json_encode( answer_results( array() ) ) ) );
+check( 'prázdné výsledky: kód', is_wp_error( $e_empty ) ? $e_empty->get_error_code() : '', 'raynet_ai_bad_answer' );
+$e_foreign = $error_for( array( 'code' => 200, 'body' => json_encode( answer_results( array( array( 'id' => 999, 'verdict' => 'import', 'reason' => 'Cizí' ) ) ) ) ) );
+check( 'jen cizí id: kód', is_wp_error( $e_foreign ) ? $e_foreign->get_error_code() : '', 'raynet_ai_bad_answer' );
+$e_200_error = $error_for( array( 'code' => 200, 'body' => json_encode( array( 'status' => 'failed', 'error' => array( 'code' => 'server_error', 'message' => 'Upstream broke for sk-test-0123456789abcd' ), 'output' => array() ) ) ) );
+check( '200 s chybou: kód', is_wp_error( $e_200_error ) ? $e_200_error->get_error_code() : '', 'raynet_ai_http' );
+check( '200 s chybou: text OpenAI bez klíče', is_wp_error( $e_200_error ) && false !== strpos( $e_200_error->get_error_message(), 'Upstream broke' ) && false === strpos( $e_200_error->get_error_message(), '0123456789abcd' ), true );
+$e_incomplete = $error_for( array( 'code' => 200, 'body' => json_encode( array( 'status' => 'incomplete', 'incomplete_details' => array( 'reason' => 'max_output_tokens' ), 'error' => null, 'output' => array( array( 'type' => 'message', 'content' => array( array( 'type' => 'output_text', 'text' => '{"results":[{"id":41,' ) ) ) ) ) ) ) );
+check( 'neúplná odpověď: kód', is_wp_error( $e_incomplete ) ? $e_incomplete->get_error_code() : '', 'raynet_ai_bad_answer' );
+check( 'neúplná odpověď: vlastní hláška', is_wp_error( $e_incomplete ) && false !== strpos( $e_incomplete->get_error_message(), 'neúplná' ) && false !== strpos( $e_incomplete->get_error_message(), 'max_output_tokens' ), true );
+$ok_with_null_error = $error_for( array( 'code' => 200, 'body' => json_encode( array_merge( answer_results( array( array( 'id' => 41, 'verdict' => 'import', 'reason' => 'OK' ) ) ), array( 'error' => null ) ) ) ) );
+check( 'error: null není chyba', is_array( $ok_with_null_error ) ? array_keys( $ok_with_null_error ) : $ok_with_null_error, array( 41 ) );
+
+// The key goes wherever the endpoint filter points, so only https counts.
+$GLOBALS['wp_test_filters']['raynet_import_ai_endpoint'] = function () {
+	return 'http://proxy.example/v1/responses';
+};
+$GLOBALS['wp_requests'] = array();
+$error_for( array( 'code' => 200, 'body' => json_encode( answer_results( array( array( 'id' => 41, 'verdict' => 'import', 'reason' => 'OK' ) ) ) ) ) );
+check( 'adresa bez https: výchozí', isset( $GLOBALS['wp_requests'][0]['url'] ) ? $GLOBALS['wp_requests'][0]['url'] : '', 'https://api.openai.com/v1/responses' );
+$GLOBALS['wp_test_filters']['raynet_import_ai_endpoint'] = function () {
+	return 'https://proxy.example/v1/responses';
+};
+$GLOBALS['wp_requests'] = array();
+$error_for( array( 'code' => 200, 'body' => json_encode( answer_results( array( array( 'id' => 41, 'verdict' => 'import', 'reason' => 'OK' ) ) ) ) ) );
+check( 'adresa s https: použita', isset( $GLOBALS['wp_requests'][0]['url'] ) ? $GLOBALS['wp_requests'][0]['url'] : '', 'https://proxy.example/v1/responses' );
+unset( $GLOBALS['wp_test_filters']['raynet_import_ai_endpoint'] );
+
+// The key never travels as a function argument, where a stack trace would
+// print it.
+$client_source = (string) file_get_contents( dirname( __DIR__ ) . '/raynet-lead-api-integration/includes/class-raynet-openai-client.php' );
+check( 'klíč není parametrem funkce', (bool) preg_match( '/function\s+\w+\s*\([^)]*\$key\b/', $client_source ), false );
 
 unset( $GLOBALS['wp_options']['raynet_lead_openai_key'] );
 $GLOBALS['wp_requests'] = array();
@@ -368,6 +449,85 @@ $m = Raynet_Import_Ai::merge( array_merge( $classified, array( 'tab' => 'blocked
 check( 'blokovaný řádek zůstane blokovaný', array( $m['tab'], $m['preselect'] ), array( 'blocked', false ) );
 $m = Raynet_Import_Ai::merge( array_merge( $classified, array( 'verdict' => 'spam', 'tab' => 'spam', 'preselect' => false, 'reasons' => $strong_rules['reasons'] ) ), $import );
 check( 'silný signál: zůstane na Spamu', array( $m['tab'], $m['preselect'] ), array( 'spam', false ) );
+
+echo "\n=== Síla důvodů bez uvedené síly ===\n";
+
+check( 'síla: links_many je silný', Raynet_Submission_Spam_Score::strength_of( 'links_many' ), 'strong' );
+check( 'síla: keywords je střední', Raynet_Submission_Spam_Score::strength_of( 'keywords' ), 'medium' );
+check( 'síla: one_word je slabý', Raynet_Submission_Spam_Score::strength_of( 'one_word' ), 'weak' );
+check( 'síla: neznámé id', Raynet_Submission_Spam_Score::strength_of( 'cizi_id' ), '' );
+
+// Every reason score() can give has the strength strength_of() says, so
+// the two cannot drift apart.
+$spammy = Raynet_Submission_Spam_Score::score(
+	array(
+		'values'            => array( 'firstName' => 'Xqzt', 'lastName' => 'Xqzt', 'email' => 'a@mailinator.com', 'phone' => '111', 'message' => 'Buy SEO http://a.example http://b.example <a href="x">x</a> bit.ly/x', 'topic' => 'casino' ),
+		'texts'             => array(),
+		'ip'                => '192.0.2.1',
+		'user_agent'        => 'curl/8.0',
+		'has_message_field' => true,
+		'duplicate'         => true,
+	),
+	array( 'ip_counts' => array( '192.0.2.1' => 9 ) ),
+	array()
+);
+$drift = array();
+foreach ( $spammy['reasons'] as $reason ) {
+	if ( Raynet_Submission_Spam_Score::strength_of( $reason['id'] ) !== $reason['strength'] ) {
+		$drift[] = $reason['id'];
+	}
+}
+check( 'síla: score() a strength_of() se shodují', array( count( $spammy['reasons'] ) > 5, $drift ), array( true, array() ) );
+
+check( 'silný: s uvedenou silou', Raynet_Import_Ai::has_strong( array( array( 'id' => 'keywords', 'strength' => 'strong', 'count' => 0 ) ) ), true );
+check( 'silný: jen id a počet, silné id', Raynet_Import_Ai::has_strong( array( array( 'id' => 'links_many', 'count' => 0 ) ) ), true );
+check( 'silný: jen id a počet, střední id', Raynet_Import_Ai::has_strong( array( array( 'id' => 'keywords', 'count' => 0 ) ) ), false );
+check( 'silný: prázdná síla podle id', Raynet_Import_Ai::has_strong( array( array( 'id' => 'same_ip', 'strength' => '', 'count' => 3 ) ) ), false );
+check( 'silný: neplatná síla podle id', Raynet_Import_Ai::has_strong( array( array( 'id' => 'markup', 'strength' => 'huge', 'count' => 0 ) ) ), true );
+check( 'silný: prostý text', Raynet_Import_Ai::has_strong( array( 'vlastni_signal' ) ), true );
+check( 'silný: neznámé id', Raynet_Import_Ai::has_strong( array( array( 'id' => 'cizi_id', 'count' => 0 ) ) ), true );
+check( 'silný: bez id', Raynet_Import_Ai::has_strong( array( array( 'count' => 0 ) ) ), true );
+check( 'silný: číslo', Raynet_Import_Ai::has_strong( array( 5 ) ), true );
+check( 'silný: žádné důvody', Raynet_Import_Ai::has_strong( array() ), false );
+
+$cache_shaped = array( 'state' => 'new', 'verdict' => 'spam', 'reasons' => array( array( 'id' => 'links_many', 'count' => 0 ) ), 'tab' => 'spam', 'preselect' => false, 'block' => '', 'number_warning' => false );
+$m            = Raynet_Import_Ai::merge( $cache_shaped, $import );
+check( 'C1: důvod bez síly, AI doporučí: zůstane spam', array( $m['verdict'], $m['tab'], $m['preselect'] ), array( 'spam', 'spam', false ) );
+$m = Raynet_Import_Ai::merge( array_merge( $cache_shaped, array( 'reasons' => array( 'vlastni_<b>signal</b>' ) ) ), $import );
+check( 'C1: prostý text, AI doporučí: zůstane spam', array( $m['verdict'], $m['preselect'] ), array( 'spam', false ) );
+$m = Raynet_Import_Ai::merge( array_merge( $cache_shaped, array( 'reasons' => array( array( 'id' => 'cizi_id', 'count' => 0 ) ) ) ), $import );
+check( 'C1: neznámé id, AI doporučí: zůstane spam', array( $m['verdict'], $m['preselect'] ), array( 'spam', false ) );
+$m = Raynet_Import_Ai::merge( array_merge( $cache_shaped, array( 'verdict' => 'suspect', 'tab' => 'review', 'reasons' => array( array( 'id' => 'keywords', 'count' => 0 ) ) ) ), $import );
+check( 'C1: střední id bez síly, AI doporučí: ok', array( $m['verdict'], $m['preselect'] ), array( 'ok', true ) );
+
+// Through a real cached index entry: packed, stored, read back.
+$pack   = new ReflectionMethod( 'Raynet_Elementor_Submissions', 'pack' );
+$unpack = new ReflectionMethod( 'Raynet_Elementor_Submissions', 'unpack' );
+$pack->setAccessible( true );
+$unpack->setAccessible( true );
+$cached_entry = $unpack->invoke(
+	null,
+	$pack->invoke(
+		null,
+		array( 'state' => 'new', 'verdict' => 'spam', 'reasons' => array( array( 'id' => 'links_many', 'strength' => 'strong', 'count' => 0 ), array( 'id' => 'cizi_id', 'count' => 0 ), 'vlastni signal' ), 'tab' => 'spam', 'preselect' => false, 'block' => '', 'number_warning' => false, 'ai' => null )
+	)
+);
+$m = Raynet_Import_Ai::merge( $cached_entry, $import );
+check( 'C1: záznam z mezipaměti, AI doporučí: zůstane spam', array( $m['verdict'], $m['tab'], $m['preselect'] ), array( 'spam', 'spam', false ) );
+$cached_medium = $unpack->invoke( null, $pack->invoke( null, array_merge( $cached_entry, array( 'verdict' => 'suspect', 'tab' => 'review', 'reasons' => array( array( 'id' => 'keywords', 'count' => 0 ) ) ) ) ) );
+$m             = Raynet_Import_Ai::merge( $cached_medium, $import );
+check( 'záznam z mezipaměti se středním důvodem, AI doporučí: ok', array( $m['verdict'], $m['tab'], $m['preselect'] ), array( 'ok', 'review', true ) );
+
+echo "\n=== Opakované spojení ===\n";
+
+foreach ( array( 'reject' => $reject, 'import' => $import, 'null' => null ) as $ai_name => $ai_verdict ) {
+	foreach ( array( 'ok' => $classified, 'silný' => array_merge( $classified, array( 'verdict' => 'spam', 'tab' => 'spam', 'preselect' => false, 'reasons' => $strong_rules['reasons'] ) ), 'mezipaměť' => $cached_entry ) as $base_name => $base ) {
+		$once  = Raynet_Import_Ai::merge( $base, $ai_verdict );
+		$twice = Raynet_Import_Ai::merge( $once, $ai_verdict );
+		check( 'dvakrát jako jednou: ' . $ai_name . ' nad ' . $base_name, $twice, $once );
+	}
+}
+check( 'zamítnutí dvakrát: jeden ai_reject', count( array_keys( array_column( Raynet_Import_Ai::merge( Raynet_Import_Ai::merge( $ok_rules, $reject ), $reject )['reasons'], 'id' ), 'ai_reject', true ) ), 1 );
 
 echo "\n=== Co odejde z uloženého odeslání ===\n";
 

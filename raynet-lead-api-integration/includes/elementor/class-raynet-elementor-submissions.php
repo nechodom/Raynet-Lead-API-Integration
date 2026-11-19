@@ -589,7 +589,9 @@ class Raynet_Elementor_Submissions {
 		 * @param array<string,mixed> $config Thresholds, word lists, allowed scripts and disabled signals.
 		 */
 		$config      = self::spam_config();
-		$fingerprint = self::fingerprint( array( $generation, $form_settings, $config, self::count_submissions( $post_id, $widget_id ) ) );
+		// The AI context too: a new model or business text makes every stored
+		// verdict stale, and the cached entries carry them.
+		$fingerprint = self::fingerprint( array( $generation, $form_settings, $config, self::count_submissions( $post_id, $widget_id ), Raynet_Import_Ai::context() ) );
 		$cache_key   = self::cache_key( $post_id, $widget_id );
 		$cached      = self::read_cache( $cache_key, $fingerprint );
 
@@ -670,7 +672,8 @@ class Raynet_Elementor_Submissions {
 				|| ! isset( $item['state'], $item['tab'] ) || self::STATE_NEW !== $item['state']
 				|| ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true )
 				|| ! empty( $item['ai'] )
-				|| self::has_strong_reason( isset( $item['reasons'] ) ? (array) $item['reasons'] : array() ) ) {
+				// The rule merge() applies: a row it would keep on Spam whatever the model says.
+				|| Raynet_Import_Ai::has_strong( isset( $item['reasons'] ) ? (array) $item['reasons'] : array() ) ) {
 				continue;
 			}
 
@@ -680,29 +683,6 @@ class Raynet_Elementor_Submissions {
 		sort( $ids );
 
 		return $ids;
-	}
-
-	/**
-	 * Whether the rules found a strong signal.
-	 *
-	 * A reason of unknown strength (a plain string or an id from the
-	 * raynet_import_spam_score filter) counts as strong: skipping a row costs
-	 * nothing, sending it might be paid for nothing.
-	 *
-	 * TODO(task-1-fix): call Raynet_Import_Ai::has_strong() once it is public,
-	 * so the selection and merge() decide by the same rule.
-	 *
-	 * @param array<int,mixed> $reasons Reasons.
-	 * @return bool True when one is strong or of unknown strength.
-	 */
-	private static function has_strong_reason( array $reasons ) {
-		foreach ( $reasons as $reason ) {
-			if ( ! is_array( $reason ) || ! isset( $reason['strength'] ) || '' === (string) $reason['strength'] || Raynet_Submission_Spam_Score::STRONG === $reason['strength'] ) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	/**
@@ -778,7 +758,7 @@ class Raynet_Elementor_Submissions {
 			return;
 		}
 
-		$fingerprint = self::fingerprint( array( $generation, $form_settings, self::spam_config(), self::count_submissions( $post_id, $widget_id ) ) );
+		$fingerprint = self::fingerprint( array( $generation, $form_settings, self::spam_config(), self::count_submissions( $post_id, $widget_id ), Raynet_Import_Ai::context() ) );
 		$cache_key   = self::cache_key( $post_id, $widget_id );
 		$head        = get_transient( $cache_key );
 

@@ -60,6 +60,7 @@ function raynet_lead_bootstrap() {
 	);
 
 	Raynet_Lead_Settings::maybe_migrate();
+	Raynet_OpenAI_Client::register();
 
 	( new Raynet_Lead_Form() )->register();
 	( new Raynet_Lead_Updater() )->register();

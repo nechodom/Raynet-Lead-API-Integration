@@ -464,6 +464,40 @@ $ai_save(
 );
 wp_cache_flush();
 check( 'AI: zaškrtnutí klíč smaže', (string) get_option( 'raynet_lead_openai_key', '' ), '' );
+
+$ai_save(
+	array(
+		'raynet_lead_openai_key'      => array( 'value' => 'sk-int-novy-3333tuvw', 'delete' => '1' ),
+		'raynet_lead_openai_model'    => 'gpt-6-luna',
+		'raynet_lead_openai_business' => 'Pokrývačství.',
+	)
+);
+wp_cache_flush();
+check( 'AI: nový klíč přebije zaškrtnuté smazání', get_option( 'raynet_lead_openai_key' ), 'sk-int-novy-3333tuvw' );
+
+// A crafted post with the key as a plain empty string, not [value].
+$ai_save(
+	array(
+		'raynet_lead_openai_key'      => '',
+		'raynet_lead_openai_model'    => 'gpt-6-luna',
+		'raynet_lead_openai_business' => 'Pokrývačství.',
+	)
+);
+wp_cache_flush();
+check( 'AI: prázdný řetězec klíč nesmaže', get_option( 'raynet_lead_openai_key' ), 'sk-int-novy-3333tuvw' );
+
+// A first save from code (here WP-CLI) also stores the key autoload-off.
+delete_option( 'raynet_lead_openai_key' );
+update_option( 'raynet_lead_openai_key', 'sk-int-cli-4444xyzw' );
+wp_cache_flush();
+check( 'AI: klíč z kódu uložen', get_option( 'raynet_lead_openai_key' ), 'sk-int-cli-4444xyzw' );
+check( 'AI: klíč z kódu se nenačítá automaticky', in_array( $ai_autoload( 'raynet_lead_openai_key' ), array( 'no', 'off' ), true ), true );
+delete_option( 'raynet_lead_openai_key' );
+add_option( 'raynet_lead_openai_key', 'sk-int-add-5555abcd' );
+wp_cache_flush();
+check( 'AI: add_option() také bez automatického načítání', in_array( $ai_autoload( 'raynet_lead_openai_key' ), array( 'no', 'off' ), true ), true );
+check( 'AI: add_option() uloží klíč', get_option( 'raynet_lead_openai_key' ), 'sk-int-add-5555abcd' );
+delete_option( 'raynet_lead_openai_key' );
 check( 'AI: bez klíče není nastaveno', Raynet_OpenAI_Client::configured(), false );
 $ai_page = req( '/wp-admin/admin.php?page=raynet-lead-integration', null, true );
 check( 'AI: bez klíče žádná nápověda', false !== strpos( $ai_page['body'], 'uloženo (' ), false );
@@ -535,8 +569,14 @@ foreach ( $ai_errors as $ai_label => $ai_case ) {
 	update_option( 'raynet_test_openai', $ai_case[0] );
 	$ai_error = Raynet_OpenAI_Client::review( $ai_items, $ai_site );
 	check( 'AI: ' . $ai_label . ' → ' . $ai_case[1], is_wp_error( $ai_error ) ? $ai_error->get_error_code() : 'bez chyby', $ai_case[1] );
-	check( 'AI: ' . $ai_label . ' bez klíče v chybě', is_wp_error( $ai_error ) && false === strpos( $ai_error->get_error_message() . serialize( $ai_error->get_error_data() ), 'qrst' ), true );
+	// The double's 401 text echoes the key's first characters, as OpenAI's
+	// does: neither they nor that text may reach the error.
+	$ai_error_text = is_wp_error( $ai_error ) ? $ai_error->get_error_message() . serialize( $ai_error->get_error_data() ) : '';
+	check( 'AI: ' . $ai_label . ' bez klíče v chybě', is_wp_error( $ai_error ) && false === strpos( $ai_error_text, 'sk-int' ) && false === strpos( $ai_error_text, 'qrst' ) && false === stripos( $ai_error_text, 'Incorrect API key' ), true );
 }
+update_option( 'raynet_test_openai', array( 'default' => 'skip' ) );
+$ai_empty = Raynet_OpenAI_Client::review( $ai_items, $ai_site );
+check( 'AI: odpověď bez platného verdiktu je chyba', is_wp_error( $ai_empty ) ? $ai_empty->get_error_code() : 'bez chyby', 'raynet_ai_bad_answer' );
 
 delete_option( 'raynet_lead_openai_key' );
 update_option( 'raynet_test_http_calls', array() );
@@ -3427,9 +3467,11 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'AI za kurzorem: hotovo bez požadavku', isset( $ai_cursor['json']['data'] ) ? array( $ai_cursor['json']['data']['done'], $ai_cursor['json']['data']['judged'], $ai_cursor['json']['data']['remaining'], count( get_option( 'raynet_test_http_calls', array() ) ) ) : null, array( true, 0, 2, 1 ) );
 
 		// A batch the model returns nothing for ends the run with an error.
+		// The client already reports it (raynet_ai_bad_answer); the screen's
+		// own raynet_ai_no_verdicts stays as a guard behind it.
 		update_option( 'raynet_test_openai', array( 'default' => 'skip' ) );
 		$ai_none = $ai_post( 'raynet_elm_import_ai', $ai_nonce );
-		check( 'AI nic nevráceno: chyba', isset( $ai_none['json']['success'], $ai_none['json']['data']['code'] ) ? array( $ai_none['json']['success'], $ai_none['json']['data']['code'] ) : $ai_none['body'], array( false, 'raynet_ai_no_verdicts' ) );
+		check( 'AI nic nevráceno: chyba', isset( $ai_none['json']['success'], $ai_none['json']['data']['code'] ) ? array( $ai_none['json']['success'], $ai_none['json']['data']['code'] ) : $ai_none['body'], array( false, 'raynet_ai_bad_answer' ) );
 		check( 'AI nic nevráceno: nic dalšího neuloženo', array_keys( $ai_stored() ), array( $ai_ok1, $ai_ok2, $ai_med ) );
 
 		// Sent to RAYNET after the run, the cached index not yet told: the

@@ -175,7 +175,10 @@ function plugin_dir_url( $f ) { return 'https://example.test/wp-content/plugins/
 function is_admin() { return false; }
 function add_filter( ...$a ) {}
 function add_shortcode( ...$a ) {}
-function apply_filters( $tag, $value, ...$rest ) { return $value; }
+// A test may stand in for one filter callback: $GLOBALS['wp_test_filters'][ $tag ].
+function apply_filters( $tag, $value, ...$rest ) {
+	return isset( $GLOBALS['wp_test_filters'][ $tag ] ) ? call_user_func( $GLOBALS['wp_test_filters'][ $tag ], $value, ...$rest ) : $value;
+}
 // Records each call: hook name, then the arguments.
 function do_action( ...$a ) { $GLOBALS['wp_did_actions'][] = $a; }
 function register_rest_route( ...$a ) {}

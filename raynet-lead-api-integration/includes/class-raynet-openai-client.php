@@ -142,44 +142,58 @@ class Raynet_OpenAI_Client {
 	}
 
 	/**
-	 * Sanitizes the key option as the settings form saves it.
+	 * Hooks the key sanitizer on every request, not only where the settings
+	 * screen registers it, so a first save from WP-CLI or code also creates
+	 * the row autoload-off.
+	 *
+	 * @return void
+	 */
+	public static function register() {
+		add_filter( 'sanitize_option_' . self::KEY_OPTION, array( __CLASS__, 'sanitize_key_option' ) );
+	}
+
+	/**
+	 * Sanitizes the key option on every write.
 	 *
 	 * The form posts `value` and `delete`, so the key never has to be
-	 * rendered back: an empty field keeps the stored key, the delete box
-	 * clears it. A field missing from the post (the constant is set and the
-	 * input not rendered) keeps it too. A plain string is a programmatic
-	 * update_option() and is taken as it is.
+	 * rendered back. A newly typed key is stored, also when the delete box is
+	 * ticked with it: what was typed last is what the admin meant. Otherwise
+	 * the delete box clears the key, and everything else keeps it: an empty
+	 * field, a field missing from the post (the constant is set and the input
+	 * not rendered), and an empty plain string, so a crafted post cannot
+	 * clear the key without the box. A non-empty plain string is a
+	 * programmatic update_option() and is the new key.
 	 *
 	 * @param mixed $input Posted value.
 	 * @return string Key to store.
 	 */
 	public static function sanitize_key_option( $input ) {
+		static $adding = false;
+
 		$stored = get_option( self::KEY_OPTION, false );
+		$exists = false !== $stored;
 		$stored = is_string( $stored ) ? $stored : '';
+		$delete = false;
 
-		if ( is_string( $input ) ) {
-			return sanitize_text_field( trim( $input ) );
+		if ( is_array( $input ) ) {
+			$delete = ! empty( $input['delete'] );
+			$input  = isset( $input['value'] ) ? $input['value'] : '';
 		}
 
-		if ( ! is_array( $input ) ) {
-			return $stored;
-		}
-
-		if ( ! empty( $input['delete'] ) ) {
-			return '';
-		}
-
-		$value = isset( $input['value'] ) && is_scalar( $input['value'] ) ? sanitize_text_field( trim( (string) $input['value'] ) ) : '';
+		$value = is_scalar( $input ) ? sanitize_text_field( trim( (string) $input ) ) : '';
 
 		if ( '' === $value ) {
-			return $stored;
+			return $delete ? '' : $stored;
 		}
 
 		// A first save would otherwise create the row autoloaded, and the key
 		// would be read on every request. add_option() runs this sanitizer
-		// again with a string, which returns at once above.
-		if ( false === get_option( self::KEY_OPTION, false ) && function_exists( 'add_option' ) ) {
+		// again; the flag keeps that nested call from adding once more, and
+		// the outer update_option() then finds the value already stored.
+		if ( ! $exists && ! $adding && function_exists( 'add_option' ) ) {
+			$adding = true;
 			add_option( self::KEY_OPTION, $value, '', 'no' );
+			$adding = false;
 		}
 
 		return $value;
@@ -226,9 +240,9 @@ class Raynet_OpenAI_Client {
 	 * @return array<int,array{verdict:string,reason:string}>|WP_Error Valid verdicts by submission id, or an error.
 	 */
 	public static function review( array $items, array $site ) {
-		$key = self::key();
-
-		if ( '' === $key ) {
+		// The key is read only where the header is built and never passed
+		// to a function: an argument would show in a stack trace.
+		if ( ! self::configured() ) {
 			return new WP_Error( 'raynet_ai_no_key', __( 'Není zadaný API klíč OpenAI.', 'raynet-lead-api-integration' ) );
 		}
 
@@ -250,20 +264,16 @@ class Raynet_OpenAI_Client {
 			return new WP_Error( 'raynet_ai_http', __( 'Data pro OpenAI se nepodařilo zakódovat do JSON.', 'raynet-lead-api-integration' ) );
 		}
 
-		/**
-		 * Filters the address the AI review is sent to.
-		 *
-		 * @param string $endpoint Responses API endpoint.
-		 */
-		$endpoint = (string) apply_filters( 'raynet_import_ai_endpoint', self::ENDPOINT );
-
 		$response = wp_remote_post(
-			$endpoint,
+			self::endpoint(),
 			array(
 				'method'      => 'POST',
 				'timeout'     => self::TIMEOUT,
+				// The Authorization header would follow a redirect to
+				// whatever host it names; OpenAI does not redirect here.
+				'redirection' => 0,
 				'headers'     => array(
-					'Authorization' => 'Bearer ' . $key,
+					'Authorization' => 'Bearer ' . self::key(),
 					'Content-Type'  => 'application/json; charset=utf-8',
 					'Accept'        => 'application/json',
 				),
@@ -278,7 +288,7 @@ class Raynet_OpenAI_Client {
 				sprintf(
 					/* translators: %s: transport error message. */
 					__( 'Spojení s OpenAI selhalo: %s', 'raynet-lead-api-integration' ),
-					self::scrub( $response->get_error_message(), $key )
+					self::scrub( $response->get_error_message() )
 				)
 			);
 		}
@@ -286,26 +296,89 @@ class Raynet_OpenAI_Client {
 		$status   = (int) wp_remote_retrieve_response_code( $response );
 		$raw_body = (string) wp_remote_retrieve_body( $response );
 		$decoded  = json_decode( $raw_body, true );
+		$data     = array( 'status' => $status );
 
 		if ( $status < 200 || $status >= 300 ) {
-			return self::http_error( $status, is_array( $decoded ) ? $decoded : array(), $key );
+			return self::http_error( $status, is_array( $decoded ) ? $decoded : array() );
 		}
 
 		if ( ! is_array( $decoded ) ) {
-			return new WP_Error( 'raynet_ai_bad_answer', __( 'OpenAI vrátilo odpověď, která není JSON. Zkontrolujte adresu API.', 'raynet-lead-api-integration' ), array( 'status' => $status ) );
+			return new WP_Error( 'raynet_ai_bad_answer', __( 'OpenAI vrátilo odpověď, která není JSON. Zkontrolujte adresu API.', 'raynet-lead-api-integration' ), $data );
+		}
+
+		// A response that failed on OpenAI's side still arrives as 200, with
+		// the reason under `error` (null when all went well).
+		if ( ! empty( $decoded['error'] ) || ( isset( $decoded['status'] ) && 'failed' === $decoded['status'] ) ) {
+			$detail = isset( $decoded['error']['message'] ) && is_string( $decoded['error']['message'] ) ? self::scrub( $decoded['error']['message'] ) : '';
+
+			return new WP_Error(
+				'raynet_ai_http',
+				sprintf(
+					/* translators: %s: error detail from OpenAI. */
+					__( 'OpenAI odpověď nedokončilo kvůli chybě: %s', 'raynet-lead-api-integration' ),
+					'' === $detail ? __( 'bez dalších údajů.', 'raynet-lead-api-integration' ) : $detail
+				),
+				$data
+			);
+		}
+
+		// Cut off, usually at the output token limit: the JSON is truncated.
+		if ( isset( $decoded['status'] ) && 'incomplete' === $decoded['status'] ) {
+			$why = isset( $decoded['incomplete_details']['reason'] ) && is_string( $decoded['incomplete_details']['reason'] ) ? self::scrub( $decoded['incomplete_details']['reason'] ) : '';
+
+			return new WP_Error(
+				'raynet_ai_bad_answer',
+				sprintf(
+					/* translators: %s: reason OpenAI gives, e.g. max_output_tokens. */
+					__( 'Odpověď modelu je neúplná (%s). Zkuste menší dávku nebo jiný model.', 'raynet-lead-api-integration' ),
+					'' === $why ? '?' : $why
+				),
+				$data
+			);
 		}
 
 		$text = self::answer_text( $decoded );
 
 		if ( null === $text ) {
-			return new WP_Error( 'raynet_ai_bad_answer', __( 'Model dávku odmítl posoudit nebo nevrátil žádný text.', 'raynet-lead-api-integration' ), array( 'status' => $status ) );
+			return new WP_Error( 'raynet_ai_bad_answer', __( 'Model dávku odmítl posoudit nebo nevrátil žádný text.', 'raynet-lead-api-integration' ), $data );
 		}
 
 		if ( ! is_array( json_decode( $text, true ) ) ) {
-			return new WP_Error( 'raynet_ai_bad_answer', __( 'Model nevrátil verdikty v očekávaném tvaru.', 'raynet-lead-api-integration' ), array( 'status' => $status ) );
+			return new WP_Error( 'raynet_ai_bad_answer', __( 'Model nevrátil verdikty v očekávaném tvaru.', 'raynet-lead-api-integration' ), $data );
 		}
 
-		return self::parse( $decoded, $ids );
+		$results = self::parse( $decoded, $ids );
+
+		// Paid for and nothing usable: the caller must not send the same
+		// rows again in this run.
+		if ( empty( $results ) ) {
+			return new WP_Error( 'raynet_ai_bad_answer', __( 'Model nevrátil platný verdikt pro žádné odeslání z dávky.', 'raynet-lead-api-integration' ), $data );
+		}
+
+		return $results;
+	}
+
+	/**
+	 * The address the review is sent to.
+	 *
+	 * @return string An https URL; the default when the filter gives anything else.
+	 */
+	public static function endpoint() {
+		/**
+		 * Filters the address the AI review is sent to.
+		 *
+		 * The OpenAI API key goes to this host in the Authorization header,
+		 * so point it only at a service you trust with the key. Only an
+		 * https address is used; anything else falls back to OpenAI.
+		 *
+		 * @param string $endpoint Responses API endpoint.
+		 */
+		$endpoint = apply_filters( 'raynet_import_ai_endpoint', self::ENDPOINT );
+		$endpoint = is_string( $endpoint ) ? trim( $endpoint ) : '';
+		$scheme   = strtolower( (string) wp_parse_url( $endpoint, PHP_URL_SCHEME ) );
+		$host     = (string) wp_parse_url( $endpoint, PHP_URL_HOST );
+
+		return 'https' === $scheme && '' !== $host ? $endpoint : self::ENDPOINT;
 	}
 
 	/**
@@ -498,10 +571,9 @@ class Raynet_OpenAI_Client {
 	 *
 	 * @param int                 $status  HTTP status.
 	 * @param array<string,mixed> $decoded Decoded body.
-	 * @param string              $key     Key that was sent, to scrub.
 	 * @return WP_Error Error.
 	 */
-	private static function http_error( $status, array $decoded, $key ) {
+	private static function http_error( $status, array $decoded ) {
 		$data = array( 'status' => $status );
 
 		if ( 401 === $status ) {
@@ -511,7 +583,7 @@ class Raynet_OpenAI_Client {
 		$detail = '';
 
 		if ( isset( $decoded['error']['message'] ) && is_string( $decoded['error']['message'] ) ) {
-			$detail = self::scrub( $decoded['error']['message'], $key );
+			$detail = self::scrub( $decoded['error']['message'] );
 		}
 
 		if ( 429 === $status ) {
@@ -535,15 +607,17 @@ class Raynet_OpenAI_Client {
 	/**
 	 * Makes upstream text safe to show: no key, no markup, short.
 	 *
+	 * The key is read here rather than passed in, so it is never a function
+	 * argument a stack trace could print.
+	 *
 	 * @param string $text Text from OpenAI or the transport.
-	 * @param string $key  Key that was sent.
 	 * @return string Clean text.
 	 */
-	private static function scrub( $text, $key ) {
+	private static function scrub( $text ) {
 		$text = (string) $text;
 
-		if ( '' !== $key ) {
-			$text = str_replace( $key, '…', $text );
+		if ( self::configured() ) {
+			$text = str_replace( self::key(), '…', $text );
 		}
 
 		// Whatever else looks like a key or a bearer token, also a partly

@@ -65,6 +65,48 @@ class Raynet_Submission_Spam_Score {
 	const SYLLABIC = 'rlŕĺ';
 
 	/**
+	 * Strength of every signal score() reports, by reason id.
+	 *
+	 * Matches the signal table in score() (tests/test-import-ai.php checks
+	 * it), for code that holds a reason without its strength, such as a
+	 * cached index entry or a reason a filter added.
+	 */
+	const STRENGTHS = array(
+		'link_short'       => self::STRONG,
+		'markup'           => self::STRONG,
+		'foreign_script'   => self::STRONG,
+		'same_text'        => self::STRONG,
+		'links_many'       => self::STRONG,
+		'link_one'         => self::MEDIUM,
+		'keywords'         => self::MEDIUM,
+		'same_ip'          => self::MEDIUM,
+		'odd_name'         => self::MEDIUM,
+		'bot_agent'        => self::MEDIUM,
+		'bad_phone'        => self::MEDIUM,
+		'home_phone'       => self::MEDIUM,
+		'disposable_email' => self::WEAK,
+		'short_message'    => self::MEDIUM,
+		'no_words'         => self::MEDIUM,
+		'gibberish'        => self::MEDIUM,
+		'one_word'         => self::WEAK,
+		'message_is_name'  => self::MEDIUM,
+		'duplicate'        => self::MEDIUM,
+	);
+
+	/**
+	 * Strength of a known reason id.
+	 *
+	 * @param string $id Reason id.
+	 * @return string One of STRONG, MEDIUM, WEAK, or an empty string for an id
+	 *                score() never reports (one added by a filter, say).
+	 */
+	public static function strength_of( $id ) {
+		$id = (string) $id;
+
+		return isset( self::STRENGTHS[ $id ] ) ? self::STRENGTHS[ $id ] : '';
+	}
+
+	/**
 	 * Default thresholds, word lists and switches.
 	 *
 	 * @return array<string,mixed> Config.

@@ -104,13 +104,15 @@ class Raynet_Lead_Admin {
 		// array: the key must not be autoloaded with everything else, and
 		// uninstall and the import screen read them on their own. They share
 		// the group so the one settings form saves them.
+		// The key's sanitizer is hooked on every request by
+		// Raynet_OpenAI_Client::register(), not here, so a save from code or
+		// WP-CLI goes through it too.
 		register_setting(
 			Raynet_Lead_Settings::GROUP,
 			Raynet_OpenAI_Client::KEY_OPTION,
 			array(
-				'type'              => 'string',
-				'sanitize_callback' => array( 'Raynet_OpenAI_Client', 'sanitize_key_option' ),
-				'show_in_rest'      => false,
+				'type'         => 'string',
+				'show_in_rest' => false,
 			)
 		);
 		register_setting(
