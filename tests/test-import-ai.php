@@ -316,7 +316,7 @@ check( 'review: jen platné řádky', $review, array( 41 => array( 'verdict' => 
 $sent = isset( $GLOBALS['wp_requests'][0] ) ? $GLOBALS['wp_requests'][0] : array( 'url' => '', 'args' => array() );
 check( 'review: adresa', $sent['url'], 'https://api.openai.com/v1/responses' );
 check( 'review: metoda POST', isset( $sent['args']['method'] ) ? $sent['args']['method'] : '', 'POST' );
-check( 'review: timeout 30 s', isset( $sent['args']['timeout'] ) ? $sent['args']['timeout'] : 0, 30 );
+check( 'review: timeout 60 s', isset( $sent['args']['timeout'] ) ? $sent['args']['timeout'] : 0, 60 );
 check( 'review: Bearer', isset( $sent['args']['headers']['Authorization'] ) ? $sent['args']['headers']['Authorization'] : '', 'Bearer sk-test-0123456789abcd' );
 check( 'review: tělo bez e-mailu', strpos( (string) ( isset( $sent['args']['body'] ) ? $sent['args']['body'] : '' ), 'jan.novak' ), false );
 
@@ -324,6 +324,11 @@ $error_for = function ( $response ) use ( $prepared, $site ) {
 	$GLOBALS['wp_request_queue'] = array( $response );
 	return Raynet_OpenAI_Client::review( array( $prepared ), $site );
 };
+
+$etimeout = $error_for( new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out after 60001 milliseconds' ) );
+check( 'vypršený čas: vlastní kód', is_wp_error( $etimeout ) ? $etimeout->get_error_code() : '', 'raynet_ai_timeout' );
+$edown = $error_for( new WP_Error( 'http_request_failed', 'cURL error 6: Could not resolve host' ) );
+check( 'jiná chyba spojení: raynet_ai_http', is_wp_error( $edown ) ? $edown->get_error_code() : '', 'raynet_ai_http' );
 
 $e401 = $error_for( array( 'code' => 401, 'body' => json_encode( array( 'error' => array( 'message' => 'Incorrect API key provided: sk-test-0123456789abcd.' ) ) ) ) );
 check( '401: kód', is_wp_error( $e401 ) ? $e401->get_error_code() : '', 'raynet_ai_unauthorized' );
@@ -338,7 +343,7 @@ check( '500: stav v datech', is_wp_error( $e500 ) ? $e500->get_error_data() : nu
 $e_bearer = $error_for( array( 'code' => 400, 'body' => json_encode( array( 'error' => array( 'message' => 'Bad header Bearer sk-test-0123456789abcd here' ) ) ) ) );
 check( '400: klíč vymazán ze zprávy', is_wp_error( $e_bearer ) && false === strpos( $e_bearer->get_error_message(), 'sk-test-0123456789abcd' ), true );
 $e_transport = $error_for( new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out' ) );
-check( 'časový limit: kód', is_wp_error( $e_transport ) ? $e_transport->get_error_code() : '', 'raynet_ai_http' );
+check( 'časový limit: kód', is_wp_error( $e_transport ) ? $e_transport->get_error_code() : '', 'raynet_ai_timeout' );
 $e_refusal = $error_for( array( 'code' => 200, 'body' => json_encode( answer_with( array( array( 'type' => 'refusal', 'refusal' => 'No.' ) ) ) ) ) );
 check( 'odmítnutí: kód', is_wp_error( $e_refusal ) ? $e_refusal->get_error_code() : '', 'raynet_ai_bad_answer' );
 $e_text = $error_for( array( 'code' => 200, 'body' => json_encode( answer_with( array( array( 'type' => 'output_text', 'text' => 'nope' ) ) ) ) ) );
@@ -405,7 +410,7 @@ check( 'zapomenout: počet', Raynet_Import_Ai::forget( array( 41, 45, 46 ) ), 2 
 check( 'zapomenuto', Raynet_Import_Ai::get( 41, $hash ), null );
 check( 'cizí verdikt zůstal', isset( $GLOBALS['wp_options']['raynet_import_ai_44'] ), true );
 unset( $GLOBALS['wp_options']['raynet_import_ai_44'], $GLOBALS['wp_options']['raynet_lead_openai_model'] );
-check( 'velikost dávky', Raynet_Import_Ai::batch_size(), 20 );
+check( 'velikost dávky', Raynet_Import_Ai::batch_size(), 10 );
 
 echo "\n=== Spojení s pravidly ===\n";
 
@@ -428,6 +433,15 @@ check( 'doporučení nad podezřelým: ai', $m['ai'], $import );
 $m = Raynet_Import_Ai::merge( $strong_rules, $import );
 check( 'doporučení nad silným signálem: zůstane spam', $m['verdict'], 'spam' );
 check( 'doporučení nad silným signálem: ai je vidět', $m['ai'], $import );
+
+// AI only confirms: a row the rules call Spam stays Spam by any route.
+$medium_spam = array( 'verdict' => 'spam', 'reasons' => array( array( 'id' => 'keywords', 'strength' => 'medium', 'count' => 0 ), array( 'id' => 'link_one', 'strength' => 'medium', 'count' => 0 ) ) );
+$m           = Raynet_Import_Ai::merge( $medium_spam, $import );
+check( 'doporučení nad spamem ze středních signálů: zůstane spam', array( $m['verdict'], $m['ai'] ), array( 'spam', $import ) );
+$m = Raynet_Import_Ai::merge( array( 'state' => 'new', 'verdict' => 'spam', 'reasons' => $medium_spam['reasons'], 'tab' => 'spam', 'preselect' => false, 'block' => '', 'number_warning' => false ), $import );
+check( 'doporučení nad spamem: zůstane na Spamu, nepředvybrané', array( $m['tab'], $m['preselect'] ), array( 'spam', false ) );
+$m = Raynet_Import_Ai::merge( $ok_rules, $import );
+check( 'doporučení nad OK: zůstane OK', $m['verdict'], 'ok' );
 
 $m = Raynet_Import_Ai::merge( $suspect_rules, null );
 check( 'bez AI: beze změny', array( $m['verdict'], $m['reasons'] ), array( $suspect_rules['verdict'], $suspect_rules['reasons'] ) );
@@ -610,8 +624,8 @@ $ai_index = array(
 	20 => $entry( 'review', 'suspect', 'failed' ),
 	10 => $entry( 'review', 'suspect', 'new' ),
 );
-check( 'fronta: nové bez verdiktu, nejstarší první, spam bez silného signálu ano', Raynet_Elementor_Submissions::ai_candidates( $ai_index ), array( 10, 80, 90 ) );
-check( 'fronta: za kurzorem', Raynet_Elementor_Submissions::ai_candidates( $ai_index, 10 ), array( 80, 90 ) );
+check( 'fronta: nové bez verdiktu, nejstarší první, spam podle pravidel ne', Raynet_Elementor_Submissions::ai_candidates( $ai_index ), array( 10, 90 ) );
+check( 'fronta: za kurzorem', Raynet_Elementor_Submissions::ai_candidates( $ai_index, 10 ), array( 90 ) );
 check( 'fronta: za koncem nic', Raynet_Elementor_Submissions::ai_candidates( $ai_index, 90 ), array() );
 check( 'fronta: prázdný index', Raynet_Elementor_Submissions::ai_candidates( array() ), array() );
 

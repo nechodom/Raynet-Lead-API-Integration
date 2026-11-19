@@ -79,7 +79,7 @@ class Raynet_Import_Ai {
 	/**
 	 * Default number of submissions per OpenAI call.
 	 */
-	const BATCH_SIZE = 20;
+	const BATCH_SIZE = 10;
 
 	/**
 	 * Countries by calling code, for the codes a Czech business mostly sees.
@@ -431,6 +431,48 @@ class Raynet_Import_Ai {
 	}
 
 	/**
+	 * Notes that the model answered usably for a form with the current model
+	 * and business text.
+	 *
+	 * @param string $form "post_id:widget_id".
+	 * @return void
+	 */
+	public static function mark_working( $form ) {
+		$name = self::works_name( $form );
+
+		if ( self::context() !== get_option( $name, '' ) ) {
+			self::$any = true;
+			update_option( $name, self::context(), false );
+		}
+	}
+
+	/**
+	 * Tells whether the model ever answered usably for a form with the
+	 * current model and business text.
+	 *
+	 * Without that, a batch it refuses says nothing about one row: the model
+	 * id may be wrong or the endpoint may not answer as expected, and no row
+	 * should be marked for it.
+	 *
+	 * @param string $form "post_id:widget_id".
+	 * @return bool True when it did.
+	 */
+	public static function works( $form ) {
+		return self::context() === get_option( self::works_name( $form ), '' );
+	}
+
+	/**
+	 * Option name of a form's "the model answers" note. Under the verdict
+	 * prefix, so uninstall removes it with them.
+	 *
+	 * @param string $form "post_id:widget_id".
+	 * @return string Option name.
+	 */
+	private static function works_name( $form ) {
+		return self::OPTION_PREFIX . 'works_' . md5( (string) $form );
+	}
+
+	/**
 	 * Tells whether any verdict row exists at all, once per request.
 	 *
 	 * The index build skips the whole AI layer when there is neither a key
@@ -508,8 +550,9 @@ class Raynet_Import_Ai {
 	/**
 	 * Lays an AI verdict over the rule verdict.
 	 *
-	 * Reject makes the row spam. Import makes it OK unless a rule found a
-	 * strong signal, which the model may simply not have seen. Given a full
+	 * Reject makes the row spam. Import only confirms: it lifts Suspect to OK
+	 * unless a rule found a strong signal, leaves OK as it is, and never
+	 * changes a row the rules call Spam. Given a full
 	 * classify() result, the tab and preselection follow the new verdict; a
 	 * row already sent or blocked keeps its tab, and only a row never sent
 	 * and without an attempt record is preselected.
@@ -556,7 +599,11 @@ class Raynet_Import_Ai {
 					'count'    => 0,
 				);
 			}
-		} elseif ( ! self::has_strong( $reasons ) ) {
+		} elseif ( isset( $result['verdict'] ) && Raynet_Submission_Spam_Score::VERDICT_SUSPECT === $result['verdict'] && ! self::has_strong( $reasons ) ) {
+			// The model may only confirm. A row the rules call Spam stays Spam,
+			// whatever the route (a strong signal or several medium ones): a
+			// submission that talks the model into "import" must not get link
+			// spam pre-ticked. Only Suspect is lifted to OK.
 			$result['verdict'] = Raynet_Submission_Spam_Score::VERDICT_OK;
 		}
 

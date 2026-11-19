@@ -166,8 +166,39 @@ class Raynet_Submission_Spam_Score {
 	 * @return array{verdict:string,reasons:array<int,array{id:string,strength:string,count:int}>} Result.
 	 */
 	public static function score( array $submission, array $stats, array $config ) {
-		$config = $config + self::default_config();
+		$config   = $config + self::default_config();
+		$disabled = array_map( 'strval', (array) $config['disabled'] );
+		$reasons  = array();
 
+		// The strength of each signal comes from STRENGTHS alone, in its order,
+		// so the two cannot drift apart: a test compares the list's ids with it.
+		foreach ( self::signal_list( $submission, $stats, $config ) as $id => $signal ) {
+			list( $fired, $count ) = $signal;
+
+			if ( $fired && ! in_array( $id, $disabled, true ) ) {
+				$reasons[] = array(
+					'id'       => $id,
+					'strength' => self::strength_of( $id ),
+					'count'    => $count,
+				);
+			}
+		}
+
+		return array(
+			'verdict' => self::verdict( $reasons, $config ),
+			'reasons' => $reasons,
+		);
+	}
+
+	/**
+	 * Every signal of one submission, fired or not.
+	 *
+	 * @param array<string,mixed> $submission Values, other texts, IP, user agent and flags.
+	 * @param array<string,mixed> $stats      Counts across all submissions of the form.
+	 * @param array<string,mixed> $config     Full config.
+	 * @return array<string,array{0:bool,1:int}> Signal id => whether it fired and the count it carries, in the order reasons are reported.
+	 */
+	private static function signal_list( array $submission, array $stats, array $config ) {
 		$values = array();
 		$raw    = isset( $submission['values'] ) && is_array( $submission['values'] ) ? $submission['values'] : array();
 		foreach ( self::VALUE_KEYS as $key ) {
@@ -205,48 +236,30 @@ class Raynet_Submission_Spam_Score {
 			$texts
 		);
 
-		// Each signal in the order reasons are reported: id, strength, whether
-		// it fired, and the count it carries.
-		$signals = array(
-			array( 'link_short', self::STRONG, self::has_short_link( $values ), 0 ),
-			array( 'markup', self::STRONG, self::has_markup( array_merge( array_values( $values ), $texts ) ), 0 ),
-			array( 'foreign_script', self::STRONG, self::is_foreign_script( implode( "\n", $free_text ), (array) $config['allowed_scripts'] ), 0 ),
-			array( 'same_text', self::STRONG, $senders >= (int) $config['same_text_senders'] && self::length( trim( $message ) ) >= $same_min, $senders ),
-			array( 'links_many', self::STRONG, $links >= 2, 0 ),
-			array( 'link_one', self::MEDIUM, 1 === $links, 0 ),
-			array( 'keywords', self::MEDIUM, self::has_keyword( implode( "\n", array_merge( array( $message, $values['topic'] ), $texts ) ), (array) $config['keywords'] ), 0 ),
-			array( 'same_ip', self::MEDIUM, $ip_count >= (int) $config['same_ip_count'], $ip_count ),
-			array( 'odd_name', self::MEDIUM, self::is_odd_name( $values['firstName'], $values['lastName'] ), 0 ),
-			array( 'bot_agent', self::MEDIUM, null !== $user_agent && ( '' === trim( $user_agent ) || 1 === preg_match( self::BOT_AGENT_PATTERN, $user_agent ) ), 0 ),
-			array( 'bad_phone', self::MEDIUM, self::is_bad_phone( $values['phone'], (int) $config['min_phone_digits'] ), 0 ),
-			array( 'home_phone', self::MEDIUM, self::is_foreign_phone( $values['phone'], (array) $config['home_phone_prefixes'] ), 0 ),
-			array( 'disposable_email', self::WEAK, self::is_disposable_email( $values['email'], (array) $config['disposable_domains'] ), 0 ),
-			array( 'short_message', self::MEDIUM, $judge_text && self::length( $trimmed ) < (int) $config['min_message_length'], 0 ),
-			array( 'no_words', self::MEDIUM, $no_words, 0 ),
-			array( 'gibberish', self::MEDIUM, $judge_text && self::is_gibberish( $trimmed ), 0 ),
-			array( 'one_word', self::WEAK, $judge_text && ! $no_words && '' !== $trimmed && 1 !== preg_match( '~\s~u', $trimmed ), 0 ),
-			array( 'message_is_name', self::MEDIUM, $judge_text && self::is_message_name( $trimmed, $values ), 0 ),
-			array( 'duplicate', self::MEDIUM, isset( $submission['duplicate'] ) && true === $submission['duplicate'], 0 ),
-		);
-
-		$disabled = array_map( 'strval', (array) $config['disabled'] );
-		$reasons  = array();
-
-		foreach ( $signals as $signal ) {
-			list( $id, $strength, $fired, $count ) = $signal;
-
-			if ( $fired && ! in_array( $id, $disabled, true ) ) {
-				$reasons[] = array(
-					'id'       => $id,
-					'strength' => $strength,
-					'count'    => $count,
-				);
-			}
-		}
-
+		// Each signal in the order reasons are reported: whether it fired, and
+		// the count it carries. Strengths are in STRENGTHS.
 		return array(
-			'verdict' => self::verdict( $reasons, $config ),
-			'reasons' => $reasons,
+			'link_short'       => array( self::has_short_link( $values ), 0 ),
+			'markup'           => array( self::has_markup( array_merge( array_values( $values ), $texts ) ), 0 ),
+			'foreign_script'   => array( self::is_foreign_script( implode( "\n", $free_text ), (array) $config['allowed_scripts'] ), 0 ),
+			'same_text'        => array( $senders >= (int) $config['same_text_senders'] && self::length( trim( $message ) ) >= $same_min, $senders ),
+			'links_many'       => array( $links >= 2, 0 ),
+			'link_one'         => array( 1 === $links, 0 ),
+			'keywords'         => array( self::has_keyword( implode( "\n", array_merge( array( $message, $values['topic'] ), $texts ) ), (array) $config['keywords'] ), 0 ),
+			'same_ip'          => array( $ip_count >= (int) $config['same_ip_count'], $ip_count ),
+			'odd_name'         => array( self::is_odd_name( $values['firstName'], $values['lastName'] ), 0 ),
+			'bot_agent'        => array( null !== $user_agent && ( '' === trim( $user_agent ) || 1 === preg_match( self::BOT_AGENT_PATTERN, $user_agent ) ), 0 ),
+			'bad_phone'        => array( self::is_bad_phone( $values['phone'], (int) $config['min_phone_digits'] ), 0 ),
+			'home_phone'       => array( self::is_foreign_phone( $values['phone'], (array) $config['home_phone_prefixes'] ), 0 ),
+			'disposable_email' => array( self::is_disposable_email( $values['email'], (array) $config['disposable_domains'] ), 0 ),
+			// A message without words is short too; counting both would make
+			// "ok" or "2 ks" spam on its own.
+			'short_message'    => array( $judge_text && ! $no_words && self::length( $trimmed ) < (int) $config['min_message_length'], 0 ),
+			'no_words'         => array( $no_words, 0 ),
+			'gibberish'        => array( $judge_text && self::is_gibberish( $trimmed ), 0 ),
+			'one_word'         => array( $judge_text && ! $no_words && '' !== $trimmed && 1 !== preg_match( '~\s~u', $trimmed ), 0 ),
+			'message_is_name'  => array( $judge_text && self::is_message_name( $trimmed, $values ), 0 ),
+			'duplicate'        => array( isset( $submission['duplicate'] ) && true === $submission['duplicate'], 0 ),
 		);
 	}
 
@@ -545,12 +558,15 @@ class Raynet_Submission_Spam_Score {
 		$parts = preg_split( '~[^\p{L}]+~u', $message, -1, PREG_SPLIT_NO_EMPTY );
 
 		foreach ( (array) $parts as $part ) {
-			if ( 1 !== preg_match( '~^\p{Latin}+$~u', $part ) ) {
+			// What is left of a URL is no word anyone typed: link_one judges it.
+			if ( 1 !== preg_match( '~^\p{Latin}+$~u', $part ) || in_array( self::lower( $part ), array( 'http', 'https', 'www' ), true ) ) {
 				continue;
 			}
 
 			$letters = self::length( $part );
-			$vowels  = (int) preg_match_all( '~[' . self::VOWELS . ']~iu', $part );
+			// r and l carry syllables in Czech and Slovak ("štvrťrok",
+			// "zmrzlina"), and count as vowels for the share.
+			$vowels = (int) preg_match_all( '~[' . self::VOWELS . self::SYLLABIC . ']~iu', $part );
 
 			if ( $letters >= 8 && $vowels * 5 < $letters ) {
 				return true;

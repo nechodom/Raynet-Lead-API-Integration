@@ -349,8 +349,9 @@
 				url: config.ajaxUrl,
 				type: 'POST',
 				dataType: 'json',
-				// One batch is one OpenAI call of up to 30 s, plus the index.
-				timeout: 120000,
+				// One batch is one OpenAI call of up to 60 s, plus the index;
+				// the server's lock expires after 150 s.
+				timeout: 150000,
 				data: data
 			} )
 				.done( function ( json ) {

@@ -241,14 +241,27 @@ foreach ( array( 'Ano', 'Volejte 777 123 456', '' ) as $text ) {
 	$r = score( submission( array( 'message' => $text ) ) );
 	check( "zpráva '$text' no_words nespustí", in_array( 'no_words', ids( $r ), true ), false );
 }
+// A message without words is short too: only no_words counts, so it alone
+// is Suspect, not Spam.
+foreach ( array( 'ok', '2 ks', '120 m2', '199999' ) as $text ) {
+	$r = score( submission( array( 'message' => $text ) ) );
+	check( "zpráva '$text': no_words bez short_message, podezřelé", array( in_array( 'no_words', ids( $r ), true ), in_array( 'short_message', ids( $r ), true ), $r['verdict'] ), array( true, false, 'suspect' ) );
+}
+
+// Every signal score() knows has its strength in STRENGTHS, and nothing
+// else is there: the list itself is compared, whatever fires.
+$signal_list = new ReflectionMethod( $S, 'signal_list' );
+check( 'seznam signálů = STRENGTHS', array_keys( $signal_list->invoke( null, submission( array() ), array(), $S::default_config() ) ), array_keys( $S::STRENGTHS ) );
 
 // gibberish.
-foreach ( array( 'Mggkgmegvkfv', 'Wtssdres.', 'ahoj Hgkrtmnb', 'xqwzt' ) as $text ) {
+foreach ( array( 'Mggkgmegvkfv', 'ahoj Hgkrtmnb', 'xqwzt' ) as $text ) {
 	$r = score( submission( array( 'message' => $text ) ) );
 	check( "zpráva '$text' -> gibberish", in_array( 'gibberish', ids( $r ), true ), true );
 }
 check( 'gibberish je středně silný', score( submission( array( 'message' => 'Mggkgmegvkfv Mggkgmegvkfv' ) ) )['reasons'], array( array( 'id' => 'gibberish', 'strength' => 'medium', 'count' => 0 ) ) );
-foreach ( array( 'čtvrtek', 'zmrzlina', 'scvrkl', 'čtvrthodina', 'smrt', 'prst', 'Brno', 'krk', 'vlk', 'Strč prst skrz krk', 'Prosím o zavolání', 'Potřebuji cenovou nabídku', 'Dobrý den', 'Hello, please call me', 'Ppotttřebuju vššechhno', 'Rajashthan', 'Mggkgmegvkfv a ještě pár dalších slov' ) as $text ) {
+// r and l count as vowels for the share, and URL scraps are not words:
+// "Wtssdres" (one vowel and an r in eight letters) no longer fires.
+foreach ( array( 'https', 'https://example.cz', 'www', 'strengths', 'Your strengths', 'štvrťrok', 'Wtssdres.', 'čtvrtek', 'zmrzlina', 'scvrkl', 'čtvrthodina', 'smrt', 'prst', 'Brno', 'krk', 'vlk', 'Strč prst skrz krk', 'Prosím o zavolání', 'Potřebuji cenovou nabídku', 'Dobrý den', 'Hello, please call me', 'Ppotttřebuju vššechhno', 'Rajashthan', 'Mggkgmegvkfv a ještě pár dalších slov' ) as $text ) {
 	$r = score( submission( array( 'message' => $text ) ) );
 	check( "zpráva '$text' gibberish nespustí", in_array( 'gibberish', ids( $r ), true ), false );
 }
@@ -317,11 +330,13 @@ $rows = array(
 	array( 'Musalimkhan Musalimkhan', 'musahibkhan10@gmail.com', '8005564803', 'Mggkgmegvkfv', 'spam' ),
 	array( 'Savan Damor', 'damorsavan90@gmail.com', '919265133608', 'Savan Damor', 'not ok' ),
 	array( 'Ghulam Hazrat Sarwari Saf', 'ghulam@example.com', '+93730067643', 'Hgu', 'not ok' ),
-	array( 'Manuek', 'manuek@example.com', '972753307', 'Wtssdres.', 'spam' ),
+	// gibberish counts r and l as vowels now: short_message + one_word.
+	array( 'Manuek', 'manuek@example.com', '972753307', 'Wtssdres.', 'not ok' ),
 	array( '061 9907530', 'aljeria@example.com', '+252619907530', 'Aljeria', 'spam' ),
 	array( 'Bantibhargav', 'b7446807@gmail.com', '9610998312', 'Rajashthan', 'not ok' ),
 	array( '11065551392', 'x11065551392@example.com', '11065551392', '999999 ❤❤❤❤', 'spam' ),
-	array( 'Erer Retr', 'erer@example.com', '11065551392', '199999', 'spam' ),
+	// no_words no longer comes with short_message: no_words alone.
+	array( 'Erer Retr', 'erer@example.com', '11065551392', '199999', 'not ok' ),
 	array( 'buca lumbala', 'buca@example.com', '939993476', 'Cahilo09', 'not ok' ),
 	array( 'Kehkasha', 'nwnnwnnwnw8@gmail.com', '123456', 'Mujhe I phone chahiye', 'not ok' ),
 	array( 'Voloju yashwanth', 'yashu@example.com', '6300791290', 'Yashu@123', 'not ok' ),

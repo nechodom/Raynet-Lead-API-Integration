@@ -51,7 +51,7 @@ class Raynet_OpenAI_Client {
 	/**
 	 * Request timeout in seconds.
 	 */
-	const TIMEOUT = 30;
+	const TIMEOUT = 60;
 
 	/**
 	 * Longest reason kept from an answer, in characters.
@@ -181,22 +181,61 @@ class Raynet_OpenAI_Client {
 		}
 
 		$value = is_scalar( $input ) ? sanitize_text_field( trim( (string) $input ) ) : '';
+		$value = '' === $value ? ( $delete ? '' : $stored ) : $value;
 
-		if ( '' === $value ) {
-			return $delete ? '' : $stored;
-		}
-
-		// A first save would otherwise create the row autoloaded, and the key
-		// would be read on every request. add_option() runs this sanitizer
-		// again; the flag keeps that nested call from adding once more, and
-		// the outer update_option() then finds the value already stored.
-		if ( ! $exists && ! $adding && function_exists( 'add_option' ) ) {
+		// Without this, a first save creates the row autoloaded, also a save
+		// with the field left empty, and every later update keeps that: the
+		// key would be read on every request and sit in a persistent object
+		// cache. add_option() runs this sanitizer again; the flag keeps that
+		// nested call from adding once more, and the outer update_option()
+		// then finds the value already stored.
+		if ( ! $adding && function_exists( 'add_option' ) ) {
 			$adding = true;
-			add_option( self::KEY_OPTION, $value, '', 'no' );
+
+			if ( ! $exists ) {
+				add_option( self::KEY_OPTION, $value, '', 'no' );
+			} else {
+				self::autoload_off( $stored );
+			}
+
 			$adding = false;
 		}
 
 		return $value;
+	}
+
+	/**
+	 * Turns autoload off for an existing key row that has it on.
+	 *
+	 * A row created before this guard, or by core on an earlier save, can
+	 * carry autoload on; update_option() keeps whatever the row has.
+	 *
+	 * @param string $stored Value the row holds now.
+	 * @return void
+	 */
+	private static function autoload_off( $stored ) {
+		global $wpdb;
+
+		if ( ! isset( $wpdb ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- Reading the autoload flag, which no API returns.
+		$autoload = $wpdb->get_var( $wpdb->prepare( "SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", self::KEY_OPTION ) );
+
+		if ( null === $autoload || in_array( $autoload, array( 'no', 'off' ), true ) ) {
+			return;
+		}
+
+		if ( function_exists( 'wp_set_option_autoload' ) ) {
+			wp_set_option_autoload( self::KEY_OPTION, false );
+
+			return;
+		}
+
+		// WordPress before 6.4: the row again, the same value, autoload off.
+		delete_option( self::KEY_OPTION );
+		add_option( self::KEY_OPTION, $stored, '', 'no' );
 	}
 
 	/**
@@ -283,8 +322,10 @@ class Raynet_OpenAI_Client {
 		);
 
 		if ( is_wp_error( $response ) ) {
+			// A timeout is told apart: the batch may simply be too big to
+			// answer in time, and the screen then tries it in halves.
 			return new WP_Error(
-				'raynet_ai_http',
+				1 === preg_match( '/timed out|cURL error 28|timeout/i', $response->get_error_message() ) ? 'raynet_ai_timeout' : 'raynet_ai_http',
 				sprintf(
 					/* translators: %s: transport error message. */
 					__( 'Spojení s OpenAI selhalo: %s', 'raynet-lead-api-integration' ),

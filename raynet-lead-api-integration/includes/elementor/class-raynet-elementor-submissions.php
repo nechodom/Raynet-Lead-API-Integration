@@ -86,7 +86,7 @@ class Raynet_Elementor_Submissions {
 	/**
 	 * Age in seconds after which a form's AI review lock counts as left behind.
 	 */
-	const AI_LOCK_TTL = 90;
+	const AI_LOCK_TTL = 150;
 
 	/**
 	 * Option bumped whenever AI verdicts are stored. An index build that saw
@@ -676,9 +676,9 @@ class Raynet_Elementor_Submissions {
 	 * Submissions the AI review would send, oldest first.
 	 *
 	 * Only rows never sent, not blocked and without an attempt record, that
-	 * have no AI verdict yet. A row the rules found a strong signal in is
-	 * left out: the model's word could not move it off Spam, so judging it
-	 * would be paid for nothing.
+	 * have no AI verdict yet. A row the rules call Spam, or found a strong
+	 * signal in, is left out: the model's word could not move it off Spam,
+	 * so judging it would be paid for nothing.
 	 *
 	 * @param array<int,array<string,mixed>> $index Result of index().
 	 * @param int                            $after Only ids above this one.
@@ -692,6 +692,9 @@ class Raynet_Elementor_Submissions {
 				|| ! isset( $item['state'], $item['tab'] ) || self::STATE_NEW !== $item['state']
 				|| ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true )
 				|| ! empty( $item['ai'] )
+				// The model may only confirm, so a row the rules call Spam is
+				// not worth paying for (see Raynet_Import_Ai::merge()).
+				|| ( isset( $item['verdict'] ) && Raynet_Submission_Spam_Score::VERDICT_SPAM === $item['verdict'] )
 				// The rule merge() applies: a row it would keep on Spam whatever the model says.
 				|| Raynet_Import_Ai::has_strong( isset( $item['reasons'] ) ? (array) $item['reasons'] : array() ) ) {
 				continue;
@@ -722,6 +725,10 @@ class Raynet_Elementor_Submissions {
 	 */
 	private static function with_ai( array $row, array $item, array $form_settings, array $stored ) {
 		$id = (int) $row['id'];
+
+		// What the rules said, kept apart: when the AI verdict a row was
+		// lifted by turns out gone, the screen falls back to it.
+		$item['rule_verdict'] = $item['verdict'];
 
 		if ( ! isset( $stored[ $id ] ) || ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true ) ) {
 			$item['ai'] = null;
@@ -991,6 +998,7 @@ class Raynet_Elementor_Submissions {
 			$reasons,
 			$item['number_warning'] ? 1 : 0,
 			(int) array_search( self::ai_verdict( $item ), self::CACHE_AI, true ),
+			(int) array_search( isset( $item['rule_verdict'] ) ? $item['rule_verdict'] : $item['verdict'], self::CACHE_VERDICTS, true ),
 		);
 	}
 
@@ -1022,11 +1030,11 @@ class Raynet_Elementor_Submissions {
 		$states   = self::CACHE_STATES;
 		$ais      = self::CACHE_AI;
 
-		// An entry of the older, seven-part shape is malformed here: the index
-		// is then computed again, with strengths and AI verdicts.
-		if ( ! is_array( $packed ) || array( 0, 1, 2, 3, 4, 5, 6, 7 ) !== array_keys( $packed ) || ! is_int( $packed[0] ) || ! isset( $tabs[ $packed[0] ] )
+		// An entry of an older, shorter shape is malformed here: the index is
+		// then computed again, with strengths, AI and rule verdicts.
+		if ( ! is_array( $packed ) || array( 0, 1, 2, 3, 4, 5, 6, 7, 8 ) !== array_keys( $packed ) || ! is_int( $packed[0] ) || ! isset( $tabs[ $packed[0] ] )
 			|| ! is_int( $packed[1] ) || ! isset( $verdicts[ $packed[1] ] ) || ! is_int( $packed[3] ) || ! isset( $states[ $packed[3] ] ) || ! is_array( $packed[5] )
-			|| ! is_int( $packed[7] ) || ! isset( $ais[ $packed[7] ] ) ) {
+			|| ! is_int( $packed[7] ) || ! isset( $ais[ $packed[7] ] ) || ! is_int( $packed[8] ) || ! isset( $verdicts[ $packed[8] ] ) ) {
 			return null;
 		}
 
@@ -1058,6 +1066,7 @@ class Raynet_Elementor_Submissions {
 			'preselect'      => (bool) $packed[2],
 			'block'          => (string) $packed[4],
 			'number_warning' => (bool) $packed[6],
+			'rule_verdict'   => $verdicts[ $packed[8] ],
 			'ai'             => '' === $ais[ $packed[7] ] ? null : $ais[ $packed[7] ],
 		);
 	}
@@ -1346,7 +1355,8 @@ class Raynet_Elementor_Submissions {
 	 * windows never pay for the same rows.
 	 *
 	 * Same mechanism as lock(), with a shorter expiry: one batch takes an
-	 * index read and one OpenAI call of at most 30 s.
+	 * index read and one OpenAI call of at most 60 s, and every request of a
+	 * run takes the lock afresh, so AI_LOCK_TTL only has to outlast one.
 	 *
 	 * @param int    $post_id   Post the form lives in.
 	 * @param string $widget_id Form widget id.

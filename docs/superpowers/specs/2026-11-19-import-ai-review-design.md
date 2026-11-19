@@ -49,7 +49,8 @@ Pravidla na obrazovce importu nepoznají ručně psané nesmysly, které dávaj�
 
 **Spojení s pravidly.** Verdikt AI je další vrstva nad `classify()`:
 - `reject` → řádek je Spam, důvod „AI: <věta>“.
-- `import` → řádek je V pořádku, pokud pravidla nedala silný signál (odkazy, značky, shodný text od více odesílatelů…). Se silným signálem zůstává Spam a důvod AI se ukáže vedle.
+- `import` jen potvrzuje: řádek *Podezřelé* zvedne na V pořádku, pokud pravidla nedala silný signál (odkazy, značky, shodný text od více odesílatelů…); V pořádku nechá; řádek, který pravidla označila jako Spam (silným signálem i několika středními), nezmění nikdy, verdikt AI se jen ukáže vedle. Odeslání, které model přemluví na „import“, tak nikdy nedostane odkazový spam do předvýběru.
+- Řádky, které pravidla označila jako Spam, se k OpenAI neposílají vůbec: posudek by je nezměnil.
 - Bez verdiktu AI platí pravidla jako dnes.
 - Předvýběr: V pořádku + nikdy neodesláno + bez záznamu pokusu, beze změny.
 
