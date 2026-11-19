@@ -22,6 +22,16 @@ class Raynet_Elementor_Import_Admin {
 	const AJAX_ACTION = 'raynet_elm_import_one';
 
 	/**
+	 * AJAX action that has the next batch judged by the AI review.
+	 */
+	const AJAX_AI = 'raynet_elm_import_ai';
+
+	/**
+	 * AJAX action that drops a form's AI verdicts.
+	 */
+	const AJAX_AI_FORGET = 'raynet_elm_import_ai_forget';
+
+	/**
 	 * Rows per page the screen offers; the middle one is the default.
 	 */
 	const PER_PAGE = array( 50, 100, 200 );
@@ -43,6 +53,8 @@ class Raynet_Elementor_Import_Admin {
 	 */
 	public static function register() {
 		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( __CLASS__, 'handle_import_one' ) );
+		add_action( 'wp_ajax_' . self::AJAX_AI, array( __CLASS__, 'handle_ai_review' ) );
+		add_action( 'wp_ajax_' . self::AJAX_AI_FORGET, array( __CLASS__, 'handle_ai_forget' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 	}
 
@@ -123,16 +135,32 @@ class Raynet_Elementor_Import_Admin {
 				'sent'      => __( 'V RAYNETu, lead %d', 'raynet-lead-api-integration' ),
 				'unknown'   => __( 'výsledek neznámý, ověřte v RAYNETu, než to zkusíte znovu', 'raynet-lead-api-integration' ),
 				'failed'    => __( 'Odeslání selhalo.', 'raynet-lead-api-integration' ),
+				'ai'        => array(
+					'action'        => self::AJAX_AI,
+					'forgetAction'  => self::AJAX_AI_FORGET,
+					/* translators: %d: number of submissions. */
+					'confirm'       => __( "Odeslat %d odeslání k posouzení do OpenAI?\n\nOdejde: jméno, firma, předmět, zpráva, doména e-mailu, země telefonu a pole do poznámky. E-maily a telefony v textu se nahradí značkou.\nNeodejde: celý e-mail, telefon ani IP adresa.\n\nPosouzení se platí z OpenAI klíče tohoto webu.", 'raynet-lead-api-integration' ),
+					/* translators: 1: submissions judged so far, 2: submissions in all. */
+					'progress'      => __( 'Posouzeno %1$d z %2$d…', 'raynet-lead-api-integration' ),
+					/* translators: 1: recommended, 2: rejected, 3: left without a verdict. */
+					'summary'       => __( 'Hotovo: doporučeno %1$d, zamítnuto %2$d, bez verdiktu %3$d. Stránka se načte znovu.', 'raynet-lead-api-integration' ),
+					'stopping'      => __( 'Zastavuji po této dávce…', 'raynet-lead-api-integration' ),
+					'stopped'       => __( 'Zastaveno. Stránka se načte znovu.', 'raynet-lead-api-integration' ),
+					'failed'        => __( 'Posouzení selhalo.', 'raynet-lead-api-integration' ),
+					'forgetConfirm' => __( 'Zahodit všechna posouzení AI tohoto formuláře? Řádky se pak řídí jen pravidly.', 'raynet-lead-api-integration' ),
+				),
 			)
 		);
 	}
 
 	/**
-	 * Imports one submission: the screen calls this once per ticked row.
+	 * Ends an AJAX request unless the user may run the import and the
+	 * request carries the screen's nonce. Shared by every action of the
+	 * screen, so they are guarded alike.
 	 *
 	 * @return void
 	 */
-	public static function handle_import_one() {
+	private static function guard_ajax() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error(
 				array(
@@ -152,10 +180,21 @@ class Raynet_Elementor_Import_Admin {
 				403
 			);
 		}
+	}
 
+	/**
+	 * Imports one submission: the screen calls this once per ticked row.
+	 *
+	 * @return void
+	 */
+	public static function handle_import_one() {
+		self::guard_ajax();
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Checked in guard_ajax().
 		$key        = isset( $_POST['form'] ) ? sanitize_text_field( wp_unslash( $_POST['form'] ) ) : '';
 		$submission = isset( $_POST['submission'] ) ? absint( wp_unslash( $_POST['submission'] ) ) : 0;
 		$tag        = isset( $_POST['tag'] ) ? mb_substr( sanitize_text_field( wp_unslash( $_POST['tag'] ) ), 0, self::TAG_LENGTH ) : '';
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		$parts = self::parse_key( $key );
 
@@ -188,6 +227,205 @@ class Raynet_Elementor_Import_Admin {
 		}
 
 		wp_send_json_success( array( 'lead_id' => (int) $result['lead_id'] ) );
+	}
+
+	/**
+	 * The form an AI request names, if the screen would show it.
+	 *
+	 * The same checks as the screen and import(): a key of the right shape,
+	 * a form that exists, is not atomic and maps a contact. Anything else
+	 * ends the request as "not found".
+	 *
+	 * @return array{0:int,1:string} Post id and widget id.
+	 */
+	private static function ajax_form() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Checked in guard_ajax().
+		$key      = isset( $_POST['form'] ) ? sanitize_text_field( wp_unslash( $_POST['form'] ) ) : '';
+		$parts    = self::parse_key( $key );
+		$settings = null === $parts || ! Raynet_Elementor_Submissions::available() ? null : Raynet_Elementor_Forms::form_settings( $parts[0], $parts[1] );
+
+		if ( null === $settings || Raynet_Elementor_Forms::is_atomic( $settings ) || ! Raynet_Elementor_Forms::maps_contact( $settings ) ) {
+			wp_send_json_error(
+				array(
+					'code'    => 'raynet_import_no_form',
+					'message' => __( 'Formulář nebyl nalezen.', 'raynet-lead-api-integration' ),
+				),
+				400
+			);
+		}
+
+		return $parts;
+	}
+
+	/**
+	 * Has the next batch of a form judged by OpenAI.
+	 *
+	 * The screen calls this in a loop, passing back `next` as `after`: rows
+	 * go oldest first, and a row the model left without a verdict lies behind
+	 * the cursor, so it is tried again only on the next run the admin starts.
+	 * A batch for which nothing could be stored ends the run with an error,
+	 * so the loop can never spin on the same rows.
+	 *
+	 * @return void
+	 */
+	public static function handle_ai_review() {
+		self::guard_ajax();
+
+		list( $post_id, $widget_id ) = self::ajax_form();
+
+		if ( ! Raynet_OpenAI_Client::configured() ) {
+			wp_send_json_error(
+				array(
+					'code'    => 'raynet_ai_no_key',
+					'message' => __( 'Není zadaný API klíč OpenAI.', 'raynet-lead-api-integration' ),
+				),
+				400
+			);
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Checked in guard_ajax().
+		$after    = isset( $_POST['after'] ) ? absint( wp_unslash( $_POST['after'] ) ) : 0;
+		$settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
+		$queue    = Raynet_Elementor_Submissions::ai_candidates( Raynet_Elementor_Submissions::index( $post_id, $widget_id ) );
+		$ahead    = array_values(
+			array_filter(
+				$queue,
+				static function ( $id ) use ( $after ) {
+					return $id > $after;
+				}
+			)
+		);
+		$size     = Raynet_Import_Ai::batch_size();
+		$items    = array();
+		$hashes   = array();
+		$next     = $after;
+		$stale    = false;
+
+		// The index may be a few minutes old: each row's state is read again,
+		// and a row sent or tried meanwhile is skipped.
+		foreach ( array_chunk( $ahead, $size ) as $chunk ) {
+			$rows = Raynet_Elementor_Submissions::load( $post_id, $widget_id, $chunk );
+
+			foreach ( $chunk as $id ) {
+				if ( count( $items ) >= $size ) {
+					break 2;
+				}
+
+				$next = $id;
+
+				if ( ! isset( $rows[ $id ] ) || Raynet_Elementor_Submissions::STATE_NEW !== $rows[ $id ]['state'] ) {
+					$stale = true;
+					continue;
+				}
+
+				$payload       = Raynet_Elementor_Submissions::ai_payload( $rows[ $id ], $settings );
+				$items[]       = $payload;
+				$hashes[ $id ] = Raynet_Import_Ai::hash( $payload );
+			}
+		}
+
+		if ( $stale ) {
+			Raynet_Elementor_Submissions::forget_index( $post_id, $widget_id );
+		}
+
+		$done = static function ( $next ) use ( $ahead ) {
+			return empty( $ahead ) || $next >= max( $ahead );
+		};
+
+		if ( empty( $items ) ) {
+			wp_send_json_success(
+				array(
+					'done'      => $done( $next ),
+					'judged'    => 0,
+					'remaining' => count( $queue ),
+					'import'    => 0,
+					'reject'    => 0,
+					'next'      => $next,
+				)
+			);
+		}
+
+		$result = Raynet_OpenAI_Client::review(
+			$items,
+			array(
+				'name'     => get_bloginfo( 'name' ),
+				'url'      => home_url( '/' ),
+				'business' => Raynet_OpenAI_Client::business(),
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error(
+				array(
+					'code'    => $result->get_error_code(),
+					'message' => $result->get_error_message(),
+				),
+				400
+			);
+		}
+
+		$stored = array();
+		$counts = array(
+			'import' => 0,
+			'reject' => 0,
+		);
+
+		foreach ( (array) $result as $id => $verdict ) {
+			// Only ids of this batch, with the hash of exactly what was sent.
+			if ( ! isset( $hashes[ $id ] ) || ! is_array( $verdict ) || ! isset( $verdict['verdict'], $counts[ $verdict['verdict'] ] ) ) {
+				continue;
+			}
+
+			Raynet_Import_Ai::set( (int) $id, $verdict, $hashes[ $id ] );
+
+			$stored[ (int) $id ] = array(
+				'verdict' => (string) $verdict['verdict'],
+				'reason'  => isset( $verdict['reason'] ) ? Raynet_OpenAI_Client::plain_reason( (string) $verdict['reason'] ) : '',
+			);
+			$counts[ $verdict['verdict'] ]++;
+		}
+
+		// Includes an answer of {"results": []}: nothing to show for the
+		// money, and another call would most likely bring nothing either.
+		if ( empty( $stored ) ) {
+			wp_send_json_error(
+				array(
+					'code'    => 'raynet_ai_no_verdicts',
+					'message' => __( 'Model nevrátil verdikt pro žádné odeslání z dávky, posouzení se zastavilo. Zkuste to později znovu.', 'raynet-lead-api-integration' ),
+				),
+				400
+			);
+		}
+
+		Raynet_Elementor_Submissions::apply_ai( $post_id, $widget_id, $stored );
+
+		wp_send_json_success(
+			array(
+				'done'      => $done( $next ),
+				'judged'    => count( $stored ),
+				'remaining' => max( 0, count( $queue ) - count( $stored ) ),
+				'import'    => $counts['import'],
+				'reject'    => $counts['reject'],
+				'next'      => $next,
+			)
+		);
+	}
+
+	/**
+	 * Drops every AI verdict of a form's submissions.
+	 *
+	 * @return void
+	 */
+	public static function handle_ai_forget() {
+		self::guard_ajax();
+
+		list( $post_id, $widget_id ) = self::ajax_form();
+
+		$deleted = Raynet_Import_Ai::forget( array_keys( Raynet_Elementor_Submissions::index( $post_id, $widget_id ) ) );
+
+		Raynet_Elementor_Submissions::forget_index( $post_id, $widget_id );
+
+		wp_send_json_success( array( 'deleted' => $deleted ) );
 	}
 
 	/**
@@ -337,6 +575,7 @@ class Raynet_Elementor_Import_Admin {
 				<input type="text" id="raynet-import-tag" class="regular-text" maxlength="<?php echo (int) self::TAG_LENGTH; ?>" value="<?php echo esc_attr( Raynet_Elementor_Submissions::DEFAULT_TAG ); ?>" />
 				<span class="description"><?php esc_html_e( 'Podle štítku importované leady v RAYNETu najdete. Prázdné pole štítek nepřidá.', 'raynet-lead-api-integration' ); ?></span>
 			</p>
+			<?php self::ai_panel( $index ); ?>
 		<?php endif; ?>
 
 		<?php if ( empty( $rows ) ) : ?>
@@ -404,6 +643,54 @@ class Raynet_Elementor_Import_Admin {
 				<p class="description"><?php esc_html_e( 'Odešlou se zaškrtnuté řádky na této stránce, po jednom. Zavřít stránku uprostřed nevadí: co se odeslalo, je označené, zbytek zůstane k posouzení.', 'raynet-lead-api-integration' ); ?></p>
 			<?php endif; ?>
 			<?php self::pagination( $base, $page, $per_page, count( $by_tab[ $tab ] ) ); ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * The AI review controls: the button with the number of rows it would
+	 * send, Stop, progress, and the link that drops the verdicts. Without a
+	 * key only a link to the settings.
+	 *
+	 * @param array<int,array<string,mixed>> $index Result of index().
+	 * @return void
+	 */
+	private static function ai_panel( array $index ) {
+		if ( ! Raynet_OpenAI_Client::configured() ) {
+			?>
+			<p class="raynet-import__ai-panel">
+				<?php esc_html_e( 'Odeslání může posoudit i AI (OpenAI).', 'raynet-lead-api-integration' ); ?>
+				<a href="<?php echo esc_url( add_query_arg( array( 'page' => Raynet_Lead_Admin::PAGE ), admin_url( 'admin.php' ) ) ); ?>"><?php esc_html_e( 'Zadat API klíč OpenAI v nastavení', 'raynet-lead-api-integration' ); ?></a>
+			</p>
+			<?php
+			return;
+		}
+
+		$count  = count( Raynet_Elementor_Submissions::ai_candidates( $index ) );
+		$judged = count(
+			array_filter(
+				$index,
+				static function ( $item ) {
+					return ! empty( $item['ai'] );
+				}
+			)
+		);
+		?>
+		<div class="raynet-import__ai-panel">
+			<p>
+				<button type="button" id="raynet-import-ai" class="button" data-count="<?php echo (int) $count; ?>" <?php disabled( 0 === $count ); ?>>
+					<?php
+					/* translators: %d: number of submissions. */
+					echo esc_html( sprintf( __( 'Posoudit pomocí AI (%d)', 'raynet-lead-api-integration' ), $count ) );
+					?>
+				</button>
+				<button type="button" id="raynet-import-ai-stop" class="button" hidden><?php esc_html_e( 'Zastavit', 'raynet-lead-api-integration' ); ?></button>
+				<span id="raynet-import-ai-progress" class="raynet-import__progress" aria-live="polite"></span>
+				<?php if ( $judged > 0 ) : ?>
+					<button type="button" id="raynet-import-ai-forget" class="button-link"><?php esc_html_e( 'Zahodit posouzení AI', 'raynet-lead-api-integration' ); ?></button>
+				<?php endif; ?>
+			</p>
+			<p class="description"><?php esc_html_e( 'Posoudí nová, dosud neposouzená odeslání celého formuláře po dávkách; řádky se silným signálem spamu se neposílají. Verdikt AI je jen návrh a může se mýlit.', 'raynet-lead-api-integration' ); ?></p>
 		</div>
 		<?php
 	}
@@ -513,6 +800,17 @@ class Raynet_Elementor_Import_Admin {
 		$text     = mb_strlen( $text ) > 140 ? mb_substr( $text, 0, 140 ) . '…' : $text;
 		$state    = (string) $row['state'];
 		$box      = $pick && Raynet_Elementor_Submissions::STATE_SENT !== $state;
+		$ai       = null;
+
+		// The index caches only the AI verdict; its sentence is read for the
+		// rows on this page, and only while it still fits the data.
+		if ( ! empty( $item['ai'] ) ) {
+			$stored = Raynet_Import_Ai::get( $id, Raynet_Import_Ai::hash( Raynet_Elementor_Submissions::ai_payload( $row, $settings ) ) );
+			$ai     = array(
+				'verdict' => (string) $item['ai'],
+				'reason'  => null !== $stored && $stored['verdict'] === $item['ai'] ? $stored['reason'] : '',
+			);
+		}
 
 		if ( Raynet_Elementor_Submissions::STATE_SENT === $state ) {
 			$item['tab'] = Raynet_Elementor_Submissions::TAB_SENT;
@@ -533,6 +831,7 @@ class Raynet_Elementor_Import_Admin {
 			</td>
 			<td>
 				<?php self::verdict( $item ); ?>
+				<?php self::ai_label( $ai ); ?>
 				<?php if ( ! empty( $row['lead_id'] ) ) : ?>
 					<br /><span class="raynet-elm__warn">
 						<?php
@@ -609,6 +908,29 @@ class Raynet_Elementor_Import_Admin {
 	}
 
 	/**
+	 * What the AI review said about a row.
+	 *
+	 * The sentence is the model's own output and is treated as hostile text:
+	 * stored as plain text, escaped here.
+	 *
+	 * @param array{verdict:string,reason:string}|null $ai Verdict and reason, or null.
+	 * @return void
+	 */
+	private static function ai_label( $ai ) {
+		if ( ! is_array( $ai ) || ! in_array( $ai['verdict'], array( 'import', 'reject' ), true ) ) {
+			return;
+		}
+
+		$label = 'import' === $ai['verdict'] ? __( 'AI: doporučuje', 'raynet-lead-api-integration' ) : __( 'AI: zamítá', 'raynet-lead-api-integration' );
+
+		echo '<br /><span class="raynet-import__ai raynet-import__ai--' . esc_attr( $ai['verdict'] ) . '">' . esc_html( $label ) . '</span>';
+
+		if ( '' !== $ai['reason'] ) {
+			echo ' <span class="raynet-import__ai-reason">„' . esc_html( $ai['reason'] ) . '“</span>';
+		}
+	}
+
+	/**
 	 * Words for one spam signal.
 	 *
 	 * A raynet_import_spam_score filter may hand back reasons in any shape:
@@ -670,6 +992,8 @@ class Raynet_Elementor_Import_Admin {
 				return __( 'zpráva jen opakuje jméno nebo kontakt', 'raynet-lead-api-integration' );
 			case 'duplicate':
 				return __( 'duplicitní odeslání', 'raynet-lead-api-integration' );
+			case Raynet_Import_Ai::REASON_ID:
+				return __( 'zamítnuto AI', 'raynet-lead-api-integration' );
 		}
 
 		// A signal added through the raynet_import_spam_score filter.

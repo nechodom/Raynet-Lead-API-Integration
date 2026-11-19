@@ -194,6 +194,38 @@
 	max-width: 240px;
 }
 
+.raynet-import__ai-panel {
+	margin: 12px 0;
+}
+
+.raynet-import__ai-panel p {
+	margin: 4px 0;
+}
+
+.raynet-import__ai-panel .button-link {
+	margin-left: 8px;
+}
+
+.raynet-import__ai {
+	font-weight: 600;
+}
+
+.raynet-import__ai--import {
+	color: #00702a;
+}
+
+.raynet-import__ai--reject {
+	color: #b32d2e;
+}
+
+.raynet-import__ai-reason {
+	color: #50575e;
+}
+
+.raynet-import__ai-error {
+	color: #b32d2e;
+}
+
 .raynet-import {
 	margin-top: 8px;
 }

@@ -62,6 +62,13 @@ class Raynet_Elementor_Submissions {
 	const CACHE_STATES   = array( 'new', 'failed', 'sent' );
 
 	/**
+	 * Reason strengths and AI verdicts as the cache stores them: by position,
+	 * with 0 for "unknown" / "none".
+	 */
+	const CACHE_STRENGTHS = array( '', 'strong', 'medium', 'weak' );
+	const CACHE_AI        = array( '', 'import', 'reject' );
+
+	/**
 	 * Tag added to every imported lead unless the screen says otherwise.
 	 */
 	const DEFAULT_TAG = 'import-web';
@@ -535,11 +542,18 @@ class Raynet_Elementor_Submissions {
 	 * being built. It is stored compactly, in chunks of
 	 * CACHE_CHUNK submissions, so that no single row grows past what a
 	 * database packet or an object cache item can hold. A cached reason keeps
-	 * only its id and count.
+	 * only its id, count and strength.
+	 *
+	 * A stored AI verdict that still fits the row's data is merged in here
+	 * (Raynet_Import_Ai::merge()), so tabs, counts and paging follow it. Only
+	 * the verdict ("import" / "reject") is cached, under `ai`; the screen
+	 * reads the reason for the rows it shows. New verdicts are laid over the
+	 * cache by apply_ai() and dropped verdicts drop the cache.
 	 *
 	 * @param int    $post_id   Post the form lives in.
 	 * @param string $widget_id Form widget id.
-	 * @return array<int,array<string,mixed>> Submission id => classify() result.
+	 * @return array<int,array<string,mixed>> Submission id => classify() result
+	 *         merged with the AI verdict, plus `ai` (null, "import" or "reject").
 	 */
 	public static function index( $post_id, $widget_id ) {
 		if ( ! self::available() ) {
@@ -574,7 +588,7 @@ class Raynet_Elementor_Submissions {
 		 *
 		 * @param array<string,mixed> $config Thresholds, word lists, allowed scripts and disabled signals.
 		 */
-		$config      = (array) apply_filters( 'raynet_import_spam_config', Raynet_Submission_Spam_Score::default_config() );
+		$config      = self::spam_config();
 		$fingerprint = self::fingerprint( array( $generation, $form_settings, $config, self::count_submissions( $post_id, $widget_id ) ) );
 		$cache_key   = self::cache_key( $post_id, $widget_id );
 		$cached      = self::read_cache( $cache_key, $fingerprint );
@@ -590,8 +604,10 @@ class Raynet_Elementor_Submissions {
 			$post_id,
 			$widget_id,
 			static function ( array $rows ) use ( $form_settings, $stats, $config, &$packed ) {
+				self::prime_ai( array_keys( $rows ) );
+
 				foreach ( $rows as $id => $row ) {
-					$packed[ (int) $id ] = self::pack( self::classify( $row, $form_settings, $stats, $config ) );
+					$packed[ (int) $id ] = self::pack( self::with_ai( $row, self::classify( $row, $form_settings, $stats, $config ), $form_settings ) );
 				}
 			}
 		);
@@ -600,6 +616,213 @@ class Raynet_Elementor_Submissions {
 
 		// What a cached read would give, so callers see one shape.
 		return array_map( array( __CLASS__, 'unpack' ), $packed );
+	}
+
+	/**
+	 * The spam scoring config, after the `raynet_import_spam_config` filter.
+	 *
+	 * @return array<string,mixed> Config.
+	 */
+	private static function spam_config() {
+		/** This filter is documented in index(). */
+		return (array) apply_filters( 'raynet_import_spam_config', Raynet_Submission_Spam_Score::default_config() );
+	}
+
+	/**
+	 * Exactly what the AI review sends for one stored submission.
+	 *
+	 * The values are the sanitized ones a lead would carry, the notes the
+	 * lines its note would get (fields chosen for the note and values the
+	 * mapping could not place); Raynet_Import_Ai::prepare() masks and cuts
+	 * them. Upload links are left out: a file URL tells the model nothing.
+	 *
+	 * @param array<string,mixed> $row           Stored submission.
+	 * @param array<string,mixed> $form_settings Form settings.
+	 * @return array<string,mixed> Payload.
+	 */
+	public static function ai_payload( array $row, array $form_settings ) {
+		$parts = self::assemble( $row, $form_settings );
+		$notes = Raynet_Elementor_Lead_Builder::merge_lines(
+			Raynet_Elementor_Lead_Builder::noted_values( $parts['fields'], $form_settings ),
+			$parts['mapped']['extras']
+		);
+
+		return Raynet_Import_Ai::prepare( $row, $parts['values'], $notes );
+	}
+
+	/**
+	 * Submissions the AI review would send, oldest first.
+	 *
+	 * Only rows never sent, not blocked and without an attempt record, that
+	 * have no AI verdict yet. A row the rules found a strong signal in is
+	 * left out: the model's word could not move it off Spam, so judging it
+	 * would be paid for nothing.
+	 *
+	 * @param array<int,array<string,mixed>> $index Result of index().
+	 * @param int                            $after Only ids above this one.
+	 * @return int[] Submission ids, ascending.
+	 */
+	public static function ai_candidates( array $index, $after = 0 ) {
+		$ids = array();
+
+		foreach ( $index as $id => $item ) {
+			if ( (int) $id <= (int) $after
+				|| ! isset( $item['state'], $item['tab'] ) || self::STATE_NEW !== $item['state']
+				|| ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true )
+				|| ! empty( $item['ai'] )
+				|| self::has_strong_reason( isset( $item['reasons'] ) ? (array) $item['reasons'] : array() ) ) {
+				continue;
+			}
+
+			$ids[] = (int) $id;
+		}
+
+		sort( $ids );
+
+		return $ids;
+	}
+
+	/**
+	 * Whether the rules found a strong signal.
+	 *
+	 * A reason of unknown strength (a plain string or an id from the
+	 * raynet_import_spam_score filter) counts as strong: skipping a row costs
+	 * nothing, sending it might be paid for nothing.
+	 *
+	 * TODO(task-1-fix): call Raynet_Import_Ai::has_strong() once it is public,
+	 * so the selection and merge() decide by the same rule.
+	 *
+	 * @param array<int,mixed> $reasons Reasons.
+	 * @return bool True when one is strong or of unknown strength.
+	 */
+	private static function has_strong_reason( array $reasons ) {
+		foreach ( $reasons as $reason ) {
+			if ( ! is_array( $reason ) || ! isset( $reason['strength'] ) || '' === (string) $reason['strength'] || Raynet_Submission_Spam_Score::STRONG === $reason['strength'] ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Lays the stored AI verdict, if it still fits the data, over a
+	 * classify() result.
+	 *
+	 * Only rows on the two judged tabs are looked at: a row in RAYNET or one
+	 * that cannot be imported keeps what the rules said.
+	 *
+	 * @param array<string,mixed> $row           Stored submission.
+	 * @param array<string,mixed> $item          classify() result.
+	 * @param array<string,mixed> $form_settings Form settings.
+	 * @return array<string,mixed> Result with `ai` set.
+	 */
+	private static function with_ai( array $row, array $item, array $form_settings ) {
+		if ( ! in_array( $item['tab'], array( self::TAB_REVIEW, self::TAB_SPAM ), true ) ) {
+			$item['ai'] = null;
+
+			return $item;
+		}
+
+		$payload = self::ai_payload( $row, $form_settings );
+
+		return Raynet_Import_Ai::merge( $item, Raynet_Import_Ai::get( (int) $row['id'], Raynet_Import_Ai::hash( $payload ) ) );
+	}
+
+	/**
+	 * Loads the verdict rows of a batch in one query where WordPress can.
+	 *
+	 * They are not autoloaded, so without this every row of a form would be
+	 * a query of its own when the index is built.
+	 *
+	 * @param int[] $ids Submission ids.
+	 * @return void
+	 */
+	private static function prime_ai( array $ids ) {
+		if ( empty( $ids ) || ! function_exists( 'wp_prime_option_caches' ) ) {
+			return;
+		}
+
+		$names = array();
+
+		foreach ( $ids as $id ) {
+			$names[] = Raynet_Import_Ai::OPTION_PREFIX . (int) $id;
+		}
+
+		wp_prime_option_caches( $names );
+	}
+
+	/**
+	 * Lays new AI verdicts over the cached index of a form, in place.
+	 *
+	 * Rebuilding the index after every batch would judge the whole form again
+	 * each time. The rule result of a row without a verdict is in the cache,
+	 * strengths included, so merge() can be applied to it directly. A chunk is
+	 * written back with the fingerprint it was read with: if an import
+	 * replaced the generation meanwhile, the chunk no longer matches and the
+	 * next index() computes everything again. Anything unexpected drops the
+	 * cache, so the verdicts are then read from their option rows.
+	 *
+	 * @param int                                $post_id   Post the form lives in.
+	 * @param string                             $widget_id Form widget id.
+	 * @param array<int,array<string,string>>    $verdicts  Submission id => verdict and reason.
+	 * @return void
+	 */
+	public static function apply_ai( $post_id, $widget_id, array $verdicts ) {
+		$post_id       = (int) $post_id;
+		$widget_id     = (string) $widget_id;
+		$generation    = (string) get_option( self::CACHE_GENERATION, '' );
+		$form_settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
+
+		if ( empty( $verdicts ) || null === $form_settings ) {
+			return;
+		}
+
+		$fingerprint = self::fingerprint( array( $generation, $form_settings, self::spam_config(), self::count_submissions( $post_id, $widget_id ) ) );
+		$cache_key   = self::cache_key( $post_id, $widget_id );
+		$head        = get_transient( $cache_key );
+
+		// No usable cache: the next index() reads the stored verdicts anyway.
+		if ( ! is_array( $head ) || ! isset( $head['fingerprint'], $head['chunks'] ) || $fingerprint !== $head['fingerprint'] ) {
+			return;
+		}
+
+		$left = $verdicts;
+
+		for ( $i = 0; $i < (int) $head['chunks'] && ! empty( $left ); $i++ ) {
+			$chunk = get_transient( $cache_key . '_' . $i );
+
+			if ( ! is_array( $chunk ) || ! isset( $chunk['fingerprint'], $chunk['items'] ) || $fingerprint !== $chunk['fingerprint'] || ! is_array( $chunk['items'] ) ) {
+				self::forget_index( $post_id, $widget_id );
+				return;
+			}
+
+			$changed = false;
+
+			foreach ( $left as $id => $ai ) {
+				if ( ! isset( $chunk['items'][ $id ] ) ) {
+					continue;
+				}
+
+				$item = self::unpack( $chunk['items'][ $id ] );
+
+				// A row that has a verdict already carries its reason in the
+				// merged result; merging again would stack them.
+				if ( null === $item || null !== $item['ai'] ) {
+					self::forget_index( $post_id, $widget_id );
+					return;
+				}
+
+				$chunk['items'][ $id ] = self::pack( Raynet_Import_Ai::merge( $item, $ai ) );
+				$changed               = true;
+
+				unset( $left[ $id ] );
+			}
+
+			if ( $changed ) {
+				set_transient( $cache_key . '_' . $i, $chunk, self::CACHE_TTL );
+			}
+		}
 	}
 
 	/**
@@ -718,17 +941,23 @@ class Raynet_Elementor_Submissions {
 	 * One classify() result as the cache stores it.
 	 *
 	 * @param array<string,mixed> $item classify() result.
+	 * The strength of each reason is kept, so the AI layer can tell a strong
+	 * rule signal from a cached entry (see apply_ai(), ai_candidates()).
+	 *
 	 * @return array<int,mixed> Tab, verdict, preselect, state, block, reasons
-	 *                          (id and count, or a plain text), number warning.
+	 *                          (id, count and strength, or a plain text),
+	 *                          number warning, AI verdict.
 	 */
 	private static function pack( array $item ) {
 		$reasons = array();
 
 		foreach ( (array) $item['reasons'] as $reason ) {
 			if ( is_array( $reason ) ) {
+				$strength  = isset( $reason['strength'] ) && is_string( $reason['strength'] ) ? array_search( $reason['strength'], self::CACHE_STRENGTHS, true ) : false;
 				$reasons[] = array(
 					isset( $reason['id'] ) && is_scalar( $reason['id'] ) ? (string) $reason['id'] : '',
 					isset( $reason['count'] ) && is_scalar( $reason['count'] ) ? (int) $reason['count'] : 0,
+					false === $strength ? 0 : (int) $strength,
 				);
 			} elseif ( is_scalar( $reason ) ) {
 				// A raynet_import_spam_score filter may give plain texts.
@@ -744,7 +973,24 @@ class Raynet_Elementor_Submissions {
 			(string) $item['block'],
 			$reasons,
 			$item['number_warning'] ? 1 : 0,
+			(int) array_search( self::ai_verdict( $item ), self::CACHE_AI, true ),
 		);
+	}
+
+	/**
+	 * The AI verdict of an index entry or a merge() result.
+	 *
+	 * @param array<string,mixed> $item Entry.
+	 * @return string import, reject, or empty.
+	 */
+	private static function ai_verdict( array $item ) {
+		$ai = isset( $item['ai'] ) ? $item['ai'] : null;
+
+		if ( is_array( $ai ) ) {
+			$ai = isset( $ai['verdict'] ) ? $ai['verdict'] : null;
+		}
+
+		return is_string( $ai ) && in_array( $ai, array( 'import', 'reject' ), true ) ? $ai : '';
 	}
 
 	/**
@@ -757,21 +1003,34 @@ class Raynet_Elementor_Submissions {
 		$tabs     = self::CACHE_TABS;
 		$verdicts = self::CACHE_VERDICTS;
 		$states   = self::CACHE_STATES;
+		$ais      = self::CACHE_AI;
 
-		if ( ! is_array( $packed ) || array( 0, 1, 2, 3, 4, 5, 6 ) !== array_keys( $packed ) || ! is_int( $packed[0] ) || ! isset( $tabs[ $packed[0] ] )
-			|| ! is_int( $packed[1] ) || ! isset( $verdicts[ $packed[1] ] ) || ! is_int( $packed[3] ) || ! isset( $states[ $packed[3] ] ) || ! is_array( $packed[5] ) ) {
+		// An entry of the older, seven-part shape is malformed here: the index
+		// is then computed again, with strengths and AI verdicts.
+		if ( ! is_array( $packed ) || array( 0, 1, 2, 3, 4, 5, 6, 7 ) !== array_keys( $packed ) || ! is_int( $packed[0] ) || ! isset( $tabs[ $packed[0] ] )
+			|| ! is_int( $packed[1] ) || ! isset( $verdicts[ $packed[1] ] ) || ! is_int( $packed[3] ) || ! isset( $states[ $packed[3] ] ) || ! is_array( $packed[5] )
+			|| ! is_int( $packed[7] ) || ! isset( $ais[ $packed[7] ] ) ) {
 			return null;
 		}
 
 		$reasons = array();
 
 		foreach ( $packed[5] as $reason ) {
-			$reasons[] = is_array( $reason ) && 2 === count( $reason )
-				? array(
-					'id'    => (string) $reason[0],
-					'count' => (int) $reason[1],
-				)
-				: (string) $reason;
+			if ( ! is_array( $reason ) ) {
+				$reasons[] = (string) $reason;
+				continue;
+			}
+
+			if ( 3 !== count( $reason ) ) {
+				return null;
+			}
+
+			$strengths = self::CACHE_STRENGTHS;
+			$reasons[] = array(
+				'id'       => (string) $reason[0],
+				'strength' => isset( $strengths[ (int) $reason[2] ] ) ? $strengths[ (int) $reason[2] ] : '',
+				'count'    => (int) $reason[1],
+			);
 		}
 
 		return array(
@@ -782,6 +1041,7 @@ class Raynet_Elementor_Submissions {
 			'preselect'      => (bool) $packed[2],
 			'block'          => (string) $packed[4],
 			'number_warning' => (bool) $packed[6],
+			'ai'             => '' === $ais[ $packed[7] ] ? null : $ais[ $packed[7] ],
 		);
 	}
 

@@ -369,5 +369,73 @@ check( 'blokovaný řádek zůstane blokovaný', array( $m['tab'], $m['preselect
 $m = Raynet_Import_Ai::merge( array_merge( $classified, array( 'verdict' => 'spam', 'tab' => 'spam', 'preselect' => false, 'reasons' => $strong_rules['reasons'] ) ), $import );
 check( 'silný signál: zůstane na Spamu', array( $m['tab'], $m['preselect'] ), array( 'spam', false ) );
 
+echo "\n=== Co odejde z uloženého odeslání ===\n";
+
+$ai_form = array(
+	Raynet_Elementor_Forms::ACTION_NAME . '_fields_map' => array(
+		array( 'remote_id' => 'email', 'local_id' => 'email' ),
+		array( 'remote_id' => 'firstName', 'local_id' => 'name' ),
+		array( 'remote_id' => 'phone', 'local_id' => 'tel' ),
+		array( 'remote_id' => 'message', 'local_id' => 'msg' ),
+	),
+	Raynet_Elementor_Forms::NOTICE_KEY => array( 'odkud' ),
+	'form_fields'                      => array(
+		array( 'custom_id' => 'email', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+		array( 'custom_id' => 'name', 'field_type' => 'text', 'field_label' => 'Jméno' ),
+		array( 'custom_id' => 'tel', 'field_type' => 'tel', 'field_label' => 'Telefon' ),
+		array( 'custom_id' => 'msg', 'field_type' => 'textarea', 'field_label' => 'Zpráva' ),
+		array( 'custom_id' => 'odkud', 'field_type' => 'text', 'field_label' => 'Odkud o nás víte' ),
+	),
+);
+$ai_row  = array(
+	'id'         => 77,
+	'created_at' => '2025-03-12 14:10:00',
+	'referer'    => 'https://example.test/kontakt/',
+	'ip'         => '192.0.2.10',
+	'user_agent' => 'Mozilla/5.0',
+	'state'      => Raynet_Elementor_Submissions::STATE_NEW,
+	'log'        => '',
+	'values'     => array(
+		'email' => 'jana.novakova@firma.cz',
+		'name'  => 'Jana',
+		'tel'   => '+420 603 123 456',
+		'msg'   => 'Poptávám střechu, volejte 777 888 999.',
+		'odkud' => 'Google',
+	),
+);
+$ai_payload = Raynet_Elementor_Submissions::ai_payload( $ai_row, $ai_form );
+$ai_encoded = wp_json_encode( $ai_payload );
+check( 'payload: id odeslání', $ai_payload['id'], 77 );
+check( 'payload: jméno', $ai_payload['first_name'], 'Jana' );
+check( 'payload: doména e-mailu', $ai_payload['email_domain'], 'firma.cz' );
+check( 'payload: země telefonu', $ai_payload['phone_country'], 'Česko' );
+check( 'payload: pole do poznámky', $ai_payload['notes'], array( array( 'label' => 'Odkud o nás víte', 'value' => 'Google' ) ) );
+check( 'payload: bez e-mailu', false !== strpos( $ai_encoded, 'jana.novakova' ), false );
+check( 'payload: bez telefonu', false !== strpos( $ai_encoded, '603 123' ) || false !== strpos( $ai_encoded, '777 888' ), false );
+check( 'payload: bez IP', false !== strpos( $ai_encoded, '192.0.2.10' ), false );
+check( 'payload: otisk jako z prepare()', Raynet_Import_Ai::hash( $ai_payload ), Raynet_Import_Ai::hash( Raynet_Import_Ai::prepare( $ai_row, array( 'firstName' => 'Jana', 'lastName' => '', 'companyName' => '', 'topic' => '', 'message' => 'Poptávám střechu, volejte 777 888 999.', 'email' => 'jana.novakova@firma.cz', 'phone' => '+420 603 123 456' ), array( 'Odkud o nás víte' => 'Google' ) ) ) );
+
+echo "\n=== Které řádky odejdou k posouzení ===\n";
+
+$entry = function ( $tab, $verdict, $state, $ai = null, array $reasons = array() ) {
+	return array( 'state' => $state, 'verdict' => $verdict, 'reasons' => $reasons, 'tab' => $tab, 'preselect' => false, 'block' => '', 'number_warning' => false, 'ai' => $ai );
+};
+// Newest first, as index() gives it.
+$ai_index = array(
+	90 => $entry( 'review', 'ok', 'new' ),
+	80 => $entry( 'spam', 'spam', 'new', null, array( array( 'id' => 'keywords', 'strength' => 'medium', 'count' => 0 ), array( 'id' => 'same_ip', 'strength' => 'medium', 'count' => 3 ) ) ),
+	70 => $entry( 'spam', 'spam', 'new', null, array( array( 'id' => 'links_many', 'strength' => 'strong', 'count' => 0 ) ) ),
+	60 => $entry( 'review', 'ok', 'new', 'import' ),
+	50 => $entry( 'spam', 'spam', 'new', 'reject', array( array( 'id' => 'ai_reject', 'strength' => 'strong', 'count' => 0 ) ) ),
+	40 => $entry( 'sent', 'ok', 'sent' ),
+	30 => $entry( 'blocked', 'ok', 'new' ),
+	20 => $entry( 'review', 'suspect', 'failed' ),
+	10 => $entry( 'review', 'suspect', 'new' ),
+);
+check( 'fronta: nové bez verdiktu, nejstarší první, spam bez silného signálu ano', Raynet_Elementor_Submissions::ai_candidates( $ai_index ), array( 10, 80, 90 ) );
+check( 'fronta: za kurzorem', Raynet_Elementor_Submissions::ai_candidates( $ai_index, 10 ), array( 80, 90 ) );
+check( 'fronta: za koncem nic', Raynet_Elementor_Submissions::ai_candidates( $ai_index, 90 ), array() );
+check( 'fronta: prázdný index', Raynet_Elementor_Submissions::ai_candidates( array() ), array() );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );
