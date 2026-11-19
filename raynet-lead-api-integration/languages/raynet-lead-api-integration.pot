@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-19T14:06:50+00:00\n"
+"POT-Creation-Date: 2026-11-19T14:23:14+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: raynet-lead-api-integration\n"
@@ -1108,7 +1108,7 @@ msgid "Přílohy se k e-mailu nepodařilo připojit."
 msgstr ""
 
 #: includes/class-raynet-lead-form.php:1278
-#: includes/elementor/class-raynet-atomic-form-action.php:154
+#: includes/elementor/class-raynet-atomic-form-action.php:156
 msgid "Odeslání formuláře se nezdařilo. Zkuste to prosím znovu později."
 msgstr ""
 
@@ -1161,7 +1161,7 @@ msgid "Atomový formulář %1$s na stránce %2$d nebyl nalezen; lead nebyl odesl
 msgstr ""
 
 #. translators: 1: position of the field in the form, 2: field type.
-#: includes/elementor/class-raynet-elementor-atomic-forms.php:154
+#: includes/elementor/class-raynet-elementor-atomic-forms.php:198
 #, php-format
 msgid "Pole %1$d (%2$s)"
 msgstr ""
@@ -1543,8 +1543,8 @@ msgstr[1] ""
 #. translators: %d: number of forms.
 #: includes/elementor/class-raynet-elementor-forms-admin.php:672
 #, php-format
-msgid "%d nastavený atomový formulář nemá namapovaný e-mail ani telefon, takže z něj lead nevznikne a návštěvník po odeslání uvidí chybu. Namapujte pole přes Namapovat pole v tabulce; formulář je v ní označený."
-msgid_plural "%d nastavených atomových formulářů nemá namapovaný e-mail ani telefon, takže z nich leady nevzniknou a návštěvníci po odeslání uvidí chybu. Namapujte pole přes Namapovat pole v tabulce; formuláře jsou v ní označené."
+msgid "%d nastavený atomový formulář nemá namapovaný e-mail ani telefon, takže z něj lead nevznikne. Namapujte pole přes Namapovat pole v tabulce; formulář je v ní označený."
+msgid_plural "%d nastavených atomových formulářů nemá namapovaný e-mail ani telefon, takže z nich leady nevzniknou. Namapujte pole přes Namapovat pole v tabulce; formuláře jsou v ní označené."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -1624,7 +1624,7 @@ msgid "Atomový formulář Elementoru 4: nastavení RAYNETu drží plugin, ne El
 msgstr ""
 
 #: includes/elementor/class-raynet-elementor-forms-admin.php:1008
-msgid "Akce RAYNET CRM je u formuláře zapnutá, ale plugin pro něj zatím nemá namapovaný e-mail ani telefon. Dokud mapování neuložíte, skončí každé odeslání návštěvníkovi chybou (ostatní akce formuláře, třeba e-mail, proběhnou)."
+msgid "Akce RAYNET CRM je u formuláře zapnutá, ale plugin pro něj zatím nemá namapovaný e-mail ani telefon. Dokud mapování neuložíte, nevznikne z žádného odeslání lead. Spouští-li formulář i jinou akci, třeba e-mail, návštěvník uvidí úspěch a o selhání svědčí jen Poslední chyba API; je-li RAYNET CRM jeho jediná akce, návštěvník uvidí chybu."
 msgstr ""
 
 #: includes/elementor/class-raynet-elementor-forms-admin.php:1013

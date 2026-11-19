@@ -669,7 +669,7 @@ class Raynet_Elementor_Forms_Admin {
 					esc_html(
 						sprintf(
 							/* translators: %d: number of forms. */
-							_n( '%d nastavený atomový formulář nemá namapovaný e-mail ani telefon, takže z něj lead nevznikne a návštěvník po odeslání uvidí chybu. Namapujte pole přes Namapovat pole v tabulce; formulář je v ní označený.', '%d nastavených atomových formulářů nemá namapovaný e-mail ani telefon, takže z nich leady nevzniknou a návštěvníci po odeslání uvidí chybu. Namapujte pole přes Namapovat pole v tabulce; formuláře jsou v ní označené.', $bare_a, 'raynet-lead-api-integration' ),
+							_n( '%d nastavený atomový formulář nemá namapovaný e-mail ani telefon, takže z něj lead nevznikne. Namapujte pole přes Namapovat pole v tabulce; formulář je v ní označený.', '%d nastavených atomových formulářů nemá namapovaný e-mail ani telefon, takže z nich leady nevzniknou. Namapujte pole přes Namapovat pole v tabulce; formuláře jsou v ní označené.', $bare_a, 'raynet-lead-api-integration' ),
 							$bare_a
 						)
 					)
@@ -1005,7 +1005,7 @@ class Raynet_Elementor_Forms_Admin {
 				</p>
 				<?php if ( $enabled && ! Raynet_Elementor_Forms::maps_contact( $settings ) ) : ?>
 					<div class="notice notice-error inline">
-						<p><strong><?php esc_html_e( 'Akce RAYNET CRM je u formuláře zapnutá, ale plugin pro něj zatím nemá namapovaný e-mail ani telefon. Dokud mapování neuložíte, skončí každé odeslání návštěvníkovi chybou (ostatní akce formuláře, třeba e-mail, proběhnou).', 'raynet-lead-api-integration' ); ?></strong></p>
+						<p><strong><?php esc_html_e( 'Akce RAYNET CRM je u formuláře zapnutá, ale plugin pro něj zatím nemá namapovaný e-mail ani telefon. Dokud mapování neuložíte, nevznikne z žádného odeslání lead. Spouští-li formulář i jinou akci, třeba e-mail, návštěvník uvidí úspěch a o selhání svědčí jen Poslední chyba API; je-li RAYNET CRM jeho jediná akce, návštěvník uvidí chybu.', 'raynet-lead-api-integration' ); ?></strong></p>
 					</div>
 				<?php endif; ?>
 			<?php else : ?>

@@ -1307,6 +1307,17 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'atomový formulář má odkaz na mapování', (bool) preg_match( '/mapovat=' . $atomic_page . '(:|%3A)atomform/', $screen['body'] ), true );
 		check( 'hláška o nepodpoře zmizela', false !== strpos( $screen['body'], 'zatím nepodporovaný' ), false );
 
+		// With Elementor Pro's atomic form experiment off the registry never
+		// starts, although its class still loads; the row says so.
+		$experiment_option = 'elementor_experiment-e_pro_atomic_form';
+		$experiment_before = get_option( $experiment_option, null );
+		update_option( $experiment_option, 'inactive' );
+		$screen_off = req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true )['body'];
+		null === $experiment_before ? delete_option( $experiment_option ) : update_option( $experiment_option, $experiment_before );
+		check( 'experiment vypnutý: řádek nejde vybrat', (bool) preg_match( '/value="' . $atomic_page . ':atomform"[^>]*disabled/', $screen_off ), true );
+		check( 'experiment vypnutý: hláška', false !== strpos( $screen_off, 'tato verze Elementoru Pro akce atomového formuláře neumí' ), true );
+		check( 'experiment zase zapnutý: řádek jde vybrat', (bool) preg_match( '/value="' . $atomic_page . ':atomform"[^>]*disabled/', req( '/wp-admin/admin.php?page=raynet-elementor-forms', null, true )['body'] ), false );
+
 		// Without Elementor Pro's action registry the row stays inactive and
 		// says why. The site has the registry, so the row is drawn from a scan
 		// row that says otherwise.
@@ -1640,8 +1651,8 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		$amap_bare_html = ob_get_clean();
 		check( 'přehled: varování o chybějícím kontaktu', false !== strpos( $amap_bare_html, 'chybí e-mail i telefon — RAYNET lead nepřijme' ), true );
 		$amap_bare_view = req( '/wp-admin/admin.php?page=raynet-elementor-forms&mapovat=' . rawurlencode( $amap_bare_page . ':aform9' ), null, true )['body'];
-		check( 'mapování: varování o chybě pro návštěvníka', false !== strpos( $amap_bare_view, 'skončí každé odeslání návštěvníkovi chybou' ), true );
-		check( 'namapovaný formulář varování nemá', false !== strpos( req( $amap_path, null, true )['body'], 'skončí každé odeslání návštěvníkovi chybou' ), false );
+		check( 'mapování: varování o chybě pro návštěvníka', false !== strpos( $amap_bare_view, 'nevznikne z žádného odeslání lead' ), true );
+		check( 'namapovaný formulář varování nemá', false !== strpos( req( $amap_path, null, true )['body'], 'nevznikne z žádného odeslání lead' ), false );
 
 		// Without the action registry. This site has it, so the screen is built
 		// with the answer fixed to "no".
@@ -1691,8 +1702,28 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		// classic, and the marker is gone after the next write.
 		$forged_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Podvržená značka', 'post_status' => 'publish' ) );
 		update_post_meta( $forged_page, '_elementor_edit_mode', 'builder' );
-		update_post_meta( $forged_page, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'forgedform', 'Podvržený', array( Raynet_Elementor_Forms::ATOMIC_KEY => true ) ) ) ) );
-		check( 'podvržená značka: řádek klasický', Raynet_Elementor_Forms::forms_in_post( $forged_page )[0]['atomic'], false );
+		update_post_meta(
+			$forged_page,
+			'_elementor_data',
+			wp_slash(
+				wp_json_encode(
+					$form_layout(
+						'forgedform',
+						'Podvržený',
+						array(
+							Raynet_Elementor_Forms::ATOMIC_KEY => true,
+							'form_fields'                      => array(
+								array( '_id' => 'fge', 'custom_id' => 'fge', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+								array( '_id' => 'fgu', 'custom_id' => 'fgu', 'field_type' => 'upload', 'field_label' => 'Soubor' ),
+							),
+						)
+					)
+				)
+			)
+		);
+		// Read as atomic, the row would count the upload as noted.
+		check( 'podvržená značka: řádek bere soubor jako přílohu', Raynet_Elementor_Forms::forms_in_post( $forged_page )[0]['noted'], 0 );
+		check( 'podvržená značka: soubor se přikládá', Raynet_Elementor_Forms::field_targets( Raynet_Elementor_Forms::form_settings( $forged_page, 'forgedform' ) )['fgu'], Raynet_Elementor_Forms::TARGET_ATTACH );
 		check( 'podvržená značka: import ji nebere za atomovou', Raynet_Elementor_Forms::is_atomic( Raynet_Elementor_Forms::form_settings( $forged_page, 'forgedform' ) ), false );
 		Raynet_Elementor_Forms::apply( $forged_page, 'forgedform', array(), true );
 		check( 'podvržená značka zmizela ze stránky', false !== strpos( (string) get_post_meta( $forged_page, '_elementor_data', true ), Raynet_Elementor_Forms::ATOMIC_KEY ), false );
@@ -3320,6 +3351,53 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'admin-ajax: důvod zapsaný', '' !== $aform_diag, true );
 		check( 'admin-ajax: návštěvník důvod nevidí', '' !== $aform_diag && false !== strpos( (string) wp_json_encode( $aform_http, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $aform_diag ), false );
 
+		// RAYNET next to Elementor's e-mail, as enabling through the plugin
+		// leaves a form that had e-mail. Elementor Pro answers success when any
+		// action succeeded, so the visitor sees success although no lead came.
+		$aform_tree   = json_decode( get_post_meta( $aform_page, '_elementor_data', true ), true );
+		$aform_tree[] = $aform( 'aform4', array( 'email', 'raynet_crm' ) );
+		update_post_meta( $aform_page, '_elementor_data', wp_slash( wp_json_encode( $aform_tree ) ) );
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform4', $aform_map );
+		$aform_mails_to = function ( $to ) {
+			return count( array_filter( get_option( 'raynet_test_mails', array() ), function ( $mail ) use ( $to ) {
+				return false !== strpos( is_array( $mail['to'] ) ? implode( ',', $mail['to'] ) : (string) $mail['to'], $to );
+			} ) );
+		};
+
+		update_option( 'raynet_test_refuse_leads', 1 );
+		update_option( 'raynet_test_mails', array() );
+		delete_option( 'raynet_lead_last_error' );
+		$aform_both = json_decode( req( '/wp-admin/admin-ajax.php', $aform_post( 'aform4' ) )['body'], true );
+		delete_option( 'raynet_test_refuse_leads' );
+		wp_cache_flush();
+		$aform_last = get_option( 'raynet_lead_last_error' );
+		check( 's e-mailem: odmítnutí vypadá pro návštěvníka jako úspěch', isset( $aform_both['success'] ) ? $aform_both['success'] : null, true );
+		check( 's e-mailem: selhala jen akce RAYNET', isset( $aform_both['data']['data']['failedActions'] ) ? $aform_both['data']['data']['failedActions'] : null, array( 'raynet_crm' ) );
+		check( 's e-mailem: e-mail Elementoru odešel', $aform_mails_to( 'obchod@example.cz' ), 1 );
+		check( 's e-mailem: záložní e-mail odešel', $aform_mails_to( 'zaloha@example.cz' ), 1 );
+		check( 's e-mailem: důvod zapsaný pro správce', is_array( $aform_last ) && '' !== (string) $aform_last['message'], true );
+
+		// The same form never mapped in the plugin: no lead, no fallback e-mail,
+		// the reason in the plugin's error report, and still success outside.
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform4', array() );
+		update_option( 'raynet_test_mails', array() );
+		update_option( 'raynet_test_http_calls', array() );
+		delete_option( 'raynet_lead_last_error' );
+		$aform_unmapped = json_decode( req( '/wp-admin/admin-ajax.php', $aform_post( 'aform4' ) )['body'], true );
+		wp_cache_flush();
+		$aform_last = get_option( 'raynet_lead_last_error' );
+		check( 'nenamapovaný s e-mailem: návštěvník vidí úspěch', isset( $aform_unmapped['success'] ) ? $aform_unmapped['success'] : null, true );
+		check( 'nenamapovaný s e-mailem: RAYNET nevolán', $aform_calls()['count'], 0 );
+		check( 'nenamapovaný s e-mailem: důvod pro správce', is_array( $aform_last ) ? $aform_last['message'] : '', 'Lead neobsahuje e-mail ani telefon.' );
+		check( 'nenamapovaný s e-mailem: záložní e-mail neodešel', $aform_mails_to( 'zaloha@example.cz' ), 0 );
+		check( 'nenamapovaný s e-mailem: e-mail Elementoru odešel', $aform_mails_to( 'obchod@example.cz' ), 1 );
+
+		// RAYNET as the only action, never mapped: the visitor sees the error.
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform2', array() );
+		$aform_alone = json_decode( req( '/wp-admin/admin-ajax.php', $aform_post( 'aform2' ) )['body'], true );
+		check( 'jen RAYNET nenamapovaný: návštěvník vidí chybu', isset( $aform_alone['success'] ) ? $aform_alone['success'] : null, false );
+		Raynet_Elementor_Atomic_Forms::store( $aform_page, 'aform2', $aform_map );
+
 		// All-digit ids. Elementor's ids are 7 hex characters, so some are all
 		// digits; PHP keys those as integers and Elementor Pro's controller
 		// renumbers them with array_merge() before the action runs.
@@ -3421,6 +3499,92 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'číselná ID: po vrácení nic uloženo', Raynet_Elementor_Atomic_Forms::stored( $digit_page, '8675309' ), array() );
 		check( 'číselná ID: po vrácení vypnuto', Raynet_Elementor_Atomic_Forms::actions( Raynet_Atomic_Form_Integration::form_element( $digit_page, '8675309' ) ), array( 'email' ) );
 		wp_delete_post( $digit_page, true );
+
+		// An all-digit upload id that carries a file, between all-digit text
+		// fields: the file's URLs come from the upload handler after the posted
+		// values, and every value must still land under its own field.
+		$upfile_form = array(
+			'id'       => '7000001',
+			'elType'   => 'e-form',
+			'isInner'  => false,
+			'settings' => array(
+				'form-name'            => $as( 'Číselná příloha' ),
+				'actions-after-submit' => $at( 'string-array', array( $as( 'raynet_crm' ) ) ),
+			),
+			'elements' => array(
+				$al2( '7100001', 'Město', 'mesto' ),
+				$aw2( '1212121', 'e-form-input', array( '_cssid' => $as( 'mesto' ) ) ),
+				$al2( '7100002', 'E-mail', 'mail' ),
+				$aw2( 'abcdef1', 'e-form-input', array( 'type' => $as( 'email' ), '_cssid' => $as( 'mail' ) ) ),
+				$al2( '7100003', 'Příloha', 'soubor' ),
+				$aw2( '3434343', 'e-form-file-upload', array( '_cssid' => $as( 'soubor' ) ) ),
+				$al2( '7100004', 'Poznámka', 'pozn' ),
+				$aw2( '5656565', 'e-form-input', array( '_cssid' => $as( 'pozn' ) ) ),
+				$aw2( '7100005', 'e-form-submit-button' ),
+			),
+		);
+		$upfile_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Číselná příloha', 'post_status' => 'publish' ) );
+		update_post_meta( $upfile_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $upfile_page, '_elementor_data', wp_slash( wp_json_encode( array( $upfile_form ) ) ) );
+		Raynet_Elementor_Atomic_Forms::store(
+			$upfile_page,
+			'7000001',
+			array(
+				'raynet_crm_fields_map'    => array( array( 'remote_id' => 'email', 'local_id' => 'abcdef1' ) ),
+				'raynet_crm_notice_fields' => array( '1212121', '5656565' ),
+			)
+		);
+
+		$upfile_name = 'cislo-' . wp_generate_password( 6, false, false ) . '.pdf';
+		$upfile_src  = get_temp_dir() . $upfile_name;
+		file_put_contents( $upfile_src, "%PDF-1.4\n%%EOF\n" );
+		wp_set_current_user( 0 );
+		$upfile_fields = array(
+			'action'                  => 'elementor_pro_atomic_forms_send_form',
+			'_nonce'                  => wp_create_nonce( 'elementor_pro_atomic_forms_send_form' ),
+			'post_id'                 => (string) $upfile_page,
+			'form_id'                 => '7000001',
+			'form_name'               => 'Číselná příloha',
+			'form_fields[0][id]'      => '1212121',
+			'form_fields[0][type]'    => 'text',
+			'form_fields[0][label]'   => 'Město',
+			'form_fields[0][value]'   => 'Brno',
+			'form_fields[1][id]'      => 'abcdef1',
+			'form_fields[1][type]'    => 'email',
+			'form_fields[1][label]'   => 'E-mail',
+			'form_fields[1][value]'   => 'priloha.cisla@example.cz',
+			'form_fields[2][id]'      => '3434343',
+			'form_fields[2][type]'    => 'file',
+			'form_fields[2][label]'   => 'Příloha',
+			'form_fields[2][value][0]' => new CURLFile( $upfile_src, 'application/pdf', $upfile_name ),
+			'form_fields[3][id]'      => '5656565',
+			'form_fields[3][type]'    => 'text',
+			'form_fields[3][label]'   => 'Poznámka',
+			'form_fields[3][value]'   => 'druhé pole',
+		);
+		update_option( 'raynet_test_http_calls', array() );
+		$upfile_ch = curl_init( $GLOBALS['base'] . '/wp-admin/admin-ajax.php' );
+		curl_setopt_array( $upfile_ch, array( CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $upfile_fields ) );
+		$upfile_http = json_decode( (string) curl_exec( $upfile_ch ), true );
+		wp_cache_flush();
+		$upfile_lead   = $aform_calls()['lead'];
+		$upfile_notice = isset( $upfile_lead['notice'] ) ? (string) $upfile_lead['notice'] : '';
+		check( 'číselná příloha: odesláno', isset( $upfile_http['success'] ) ? $upfile_http['success'] : null, true );
+		check( 'číselná příloha: soubor uložil Elementor', isset( $upfile_http['data']['data']['actionResults'][0]['status'] ) ? $upfile_http['data']['data']['actionResults'][0]['status'] : '', 'success' );
+		check( 'číselná příloha: e-mail dorazil', isset( $upfile_lead['contactInfo']['email'] ) ? $upfile_lead['contactInfo']['email'] : '', 'priloha.cisla@example.cz' );
+		check( 'číselná příloha: první pole pod svým popiskem', false !== strpos( $upfile_notice, 'Město: Brno' ), true );
+		check( 'číselná příloha: druhé pole pod svým popiskem', false !== strpos( $upfile_notice, 'Poznámka: druhé pole' ), true );
+		check( 'číselná příloha: soubor v poznámce názvem', (bool) preg_match( '/Příloha: cislo-[A-Za-z0-9]+(-\d+)?\.pdf/', $upfile_notice ), true );
+		check( 'číselná příloha: žádná adresa souboru', false !== strpos( (string) wp_json_encode( $upfile_lead, JSON_UNESCAPED_SLASHES ), 'elementor/forms' ), false );
+		check( 'číselná příloha: hodnoty se nepřehodily', false !== strpos( $upfile_notice, 'Město: druhé pole' ) || false !== strpos( $upfile_notice, 'Poznámka: Brno' ), false );
+
+		// The copy Elementor Pro stored, and the source.
+		$upfile_uploads = wp_upload_dir();
+		foreach ( (array) glob( trailingslashit( $upfile_uploads['basedir'] ) . 'elementor/forms/cislo-*.pdf' ) as $upfile_copy ) {
+			@unlink( $upfile_copy ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		}
+		@unlink( $upfile_src ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+		wp_delete_post( $upfile_page, true );
 
 		update_option( Raynet_Lead_Settings::OPTION, $aform_gdpr_before );
 		delete_option( 'raynet_lead_last_error' );

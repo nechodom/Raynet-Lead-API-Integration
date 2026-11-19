@@ -332,5 +332,19 @@ Raynet_Elementor_Forms::update_forms(
 $forged_tree = json_decode( $GLOBALS['wp_meta'][79]['_elementor_data'], true );
 check( 'značka z $change se do klasického prvku nezapíše', array_key_exists( Raynet_Elementor_Forms::ATOMIC_KEY, $forged_tree[0]['settings'] ), false );
 
+// --- supported() follows the registry, not the class --------------------------
+// Elementor Pro's autoloader loads the runner's class whether or not the
+// atomic form module runs; only a started registry fires its hook.
+if ( ! function_exists( 'did_action' ) ) {
+	function did_action( $hook ) { return isset( $GLOBALS['raynet_did'][ $hook ] ) ? $GLOBALS['raynet_did'][ $hook ] : 0; }
+}
+$GLOBALS['raynet_did'] = array( 'init' => 1 );
+check( 'během init bez Elementoru podpora není', Raynet_Elementor_Atomic_Forms::supported(), false );
+$GLOBALS['raynet_did'] = array( 'init' => 1, 'wp_loaded' => 1 );
+check( 'po init bez spuštěného registru podpora není', Raynet_Elementor_Atomic_Forms::supported(), false );
+$GLOBALS['raynet_did'] = array( 'init' => 1, 'elementor_pro/atomic_forms/actions/register' => 1 );
+check( 'spuštěný registr znamená podporu', Raynet_Elementor_Atomic_Forms::supported(), true );
+$GLOBALS['raynet_did'] = array();
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

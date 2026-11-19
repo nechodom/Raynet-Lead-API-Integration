@@ -65,13 +65,57 @@ class Raynet_Elementor_Atomic_Forms {
 	const LABEL_TYPE = 'e-form-label';
 
 	/**
+	 * Hook Elementor Pro fires once its atomic action registry has started.
+	 */
+	const REGISTRY_HOOK = 'elementor_pro/atomic_forms/actions/register';
+
+	/**
 	 * Tells whether Elementor Pro can run an action of this plugin on an
 	 * atomic form.
 	 *
-	 * @return bool True when the atomic action registry is there.
+	 * The runner's class alone says nothing: Elementor Pro's autoloader loads
+	 * it with the atomic form experiment off too. The registry is live only
+	 * when Pro's module started it, which it does on `init` and announces
+	 * with the registration hook. Every caller (the forms screen, its
+	 * handlers, the editor) runs after `init`; before `init` is over the
+	 * answer follows the conditions Pro's module checks itself.
+	 *
+	 * @return bool True when the atomic action registry is running.
 	 */
 	public static function supported() {
-		return class_exists( '\\ElementorPro\\Modules\\AtomicForm\\Actions\\Action_Runner' );
+		if ( ! function_exists( 'did_action' ) ) {
+			return false;
+		}
+
+		if ( did_action( self::REGISTRY_HOOK ) > 0 ) {
+			return true;
+		}
+
+		if ( did_action( 'wp_loaded' ) > 0 ) {
+			return false;
+		}
+
+		return class_exists( '\\ElementorPro\\Modules\\AtomicForm\\Actions\\Action_Runner' ) && self::experiments_active();
+	}
+
+	/**
+	 * The experiments Elementor Pro's atomic form module requires.
+	 *
+	 * Mirrors ElementorPro\Modules\AtomicForm\Module::is_experiment_active().
+	 *
+	 * @return bool True when Elementor 4+ has both experiments on.
+	 */
+	private static function experiments_active() {
+		if ( ! defined( 'ELEMENTOR_VERSION' ) || version_compare( ELEMENTOR_VERSION, '4.0', '<' ) || ! class_exists( '\\Elementor\\Plugin' ) ) {
+			return false;
+		}
+
+		$experiments = isset( \Elementor\Plugin::$instance->experiments ) ? \Elementor\Plugin::$instance->experiments : null;
+
+		return is_object( $experiments )
+			&& method_exists( $experiments, 'is_feature_active' )
+			&& $experiments->is_feature_active( 'e_pro_atomic_form' )
+			&& $experiments->is_feature_active( 'e_atomic_elements' );
 	}
 
 	/**
