@@ -132,7 +132,7 @@ Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci R
 
 ### Chování formuláře
 
-Hlášky po odeslání i při chybě, přesměrování po úspěchu, nastavení ochrany proti spamu, záložní e-mail, kontrola aktualizací (viz [Aktualizace](#aktualizace)), zapisování chyb do logu a mazání dat při odinstalaci. Hlášky, přesměrování a ochrana proti spamu platí jen pro formuláře z builderu; formuláře Elementoru mají vlastní (viz [Co obstarává Elementor a co plugin](#co-obstarává-elementor-a-co-plugin)). Záložní e-mail a log platí pro oba. Souhlas se zpracováním údajů se nastavuje na formuláři, ne tady.
+Hlášky po odeslání i při chybě, přesměrování po úspěchu, nastavení ochrany proti spamu, záložní e-mail, kontrola aktualizací (viz [Aktualizace](#aktualizace)), zapisování chyb do logu a mazání dat při odinstalaci. Hlášky, přesměrování a ochrana proti spamu platí jen pro formuláře z builderu; formuláře Elementoru mají vlastní (viz [Co obstarává Elementor a co plugin](#co-obstarává-elementor-a-co-plugin)). U atomového formuláře Elementoru 4 se *Hláška při chybě* odsud vrací v odpovědi na odeslání místo skutečného důvodu, na stránce ale návštěvník vidí chybový stav formuláře z Elementoru. Záložní e-mail a log platí pro oba. Souhlas se zpracováním údajů se nastavuje na formuláři, ne tady.
 
 **Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API, zálohy stránek z nasazení šablon a cache, zámky a záznamy pokusů importu starších odeslání. Odeslání uložená v Elementoru ani záznamy, které do nich import zapsal, odinstalace nemaže. Akce RAYNET CRM a mapování uložené ve formulářích Elementoru zůstanou ve stránkách; leady v RAYNETu plugin nemaže nikdy.
 
@@ -317,7 +317,7 @@ Nemá-li formulář akci RAYNET CRM zapnutou, obrazovka nabídne zaškrtávátko
 
 Přehled formulářů u zapnutého formuláře ukáže, kolik polí je **bez určení** — třeba když do formuláře v Elementoru přibude nové pole — a odkazem vede rovnou na mapování.
 
-Jeden atribut může plnit jen jedno pole a celé jméno nejde kombinovat se samostatným jménem nebo příjmením; takové uložení obrazovka odmítne a řekne proč. Pole pro nahrání souboru nabízí jen **Přiložit k leadu jako přílohu** nebo **Neodesílat** — viz [Přílohy z formuláře](#přílohy-z-formuláře). Pole, která odeslat nejde nebo nemá (**heslo**, reCAPTCHA, honeypot, HTML, krok), se nenabízejí vůbec. Heslo se do RAYNETu nepošle nikdy, ani když ho někdo namapuje v editoru.
+Jeden atribut může plnit jen jedno pole a celé jméno nejde kombinovat se samostatným jménem nebo příjmením; takové uložení obrazovka odmítne a řekne proč. Pole pro nahrání souboru nabízí jen **Přiložit k leadu jako přílohu** nebo **Neodesílat** — viz [Přílohy z formuláře](#přílohy-z-formuláře); u atomového formuláře **Zapsat do poznámky název souboru** nebo **Neodesílat**. Pole, která odeslat nejde nebo nemá (**heslo**, reCAPTCHA, honeypot, HTML, krok), se nenabízejí vůbec. Heslo se do RAYNETu nepošle nikdy, ani když ho někdo namapuje v editoru.
 
 **Uložení mění jen to, co jste na obrazovce změnili.** Pole, které v Elementoru plní dva atributy, obrazovka ukáže s poznámkou „Pole plní také…" a druhé mapování zůstane, dokud výběr u pole nezměníte. Mapování, které obrazovka neukazuje (třeba nahraný soubor namapovaný v editoru), zůstane taky.
 
@@ -346,10 +346,12 @@ V **RAYNET CRM → Elementor formuláře** plugin vypíše každý formulář El
 
 Hledá ve všech typech obsahu a v knihovně šablon Elementoru. Najde tedy i formulář v **popupu**, **hlavičce**, **patičce**, **uložené sekci** nebo **globálním widgetu**; sloupec *Umístění* říká, o co jde. Formulář vložený do šablony se nastavuje v té šabloně, protože odtud si ho Elementor při odeslání čte — nasazení se tak projeví všude, kde se šablona zobrazuje.
 
-Dva druhy formulářů tabulka ukáže, ale nastavit nedovolí:
+Tabulka ukáže i **atomový formulář Elementoru 4** a nastaví ho stejně jako widget Formulář — viz [Atomový formulář Elementoru 4](#atomový-formulář-elementoru-4).
+
+Dva případy tabulka ukáže, ale nastavit nedovolí:
 
 - **Stránka přepnutá zpět do editoru WordPressu.** Elementor ji už nevykresluje, starý formulář na webu není.
-- **Atomový formulář Elementoru 4.** Je to jiný prvek než widget Formulář, s pevným seznamem akcí (e-mail, sběr odeslání, webhook), do kterého se RAYNET zatím zapojit nedá. Pro leady použijte widget **Formulář**.
+- **Atomový formulář u Elementoru Pro bez registru akcí atomového formuláře** (starší verze nebo vypnutý experiment). Řádek je šedý s hláškou „tato verze Elementoru Pro akce atomového formuláře neumí“ a nasazení i uložení mapování to odmítnou.
 
 **Šablona** nese nastavení leadu — předmět, prioritu, typ leadu, předponu poznámky, číselníková ID, štítky a notifikační e-maily. Šablon můžete mít víc, třeba zvlášť pro poptávky a zvlášť pro kontaktní formuláře. Založíte je na téže obrazovce v části **Šablony** (*Název šablony*, **Uložit šablonu**); kliknutím na název šablonu upravíte nebo smažete (**Smazat**).
 
@@ -368,6 +370,41 @@ Odhad není věštec. Po nasazení se vyplatí formulář zkontrolovat přes **N
 > Záloha je jedna na stránku. Několik nasazení po sobě ji nepřepíše, takže se vracíte k podobě před prvním z nich. Upravíte-li ale stránku mezi nasazeními v Elementoru, další nasazení uloží jako zálohu už upravenou podobu — vrácení tak vaši práci nesmaže. Když stránku upravíte po posledním nasazení, plugin to pozná a vrácení odmítne; pokračovat jde jen po potvrzení.
 >
 > **Neuložený koncept.** Má-li stránka v Elementoru rozpracovaný, nepublikovaný koncept, nasazení se zapíše do stránky i do konceptu. Koncept tak zůstane, jak byl, a po publikování nastavení RAYNETu neztratí. Vrácení stránky zpět se při čekajícím konceptu zastaví a řekne proč: koncept nejdřív publikujte nebo zahoďte.
+
+### Atomový formulář Elementoru 4
+
+Elementor 4 má vedle widgetu Formulář i **atomový formulář** (prvek `e-form`). Elementor Pro 4.1 pro něj má vlastní registr akcí po odeslání a plugin do něj přidává akci **RAYNET CRM**. Lead z něj vzniká stejnými pravidly jako z widgetu: mapování po polích, odhad podle popisku, souhlas ze zaškrtávátka, zbytek do poznámky, nastavení leadu po formuláři, notifikace, záložní e-mail a GDPR záznam.
+
+**Zapnutí.** Dvě cesty, obě vedou k témuž:
+
+- v **RAYNET CRM → Elementor formuláře** formulář zaškrtnete a nasadíte šablonu, nebo otevřete **Namapovat pole** a uložíte se zaškrtnutým *Zapnout odesílání do RAYNETu*;
+- v editoru Elementoru u formuláře v **Actions after submit** přidáte **RAYNET CRM**.
+
+Zapnutí ostatní akce nechá. Formulář, který posílal e-mail Elementoru, ho posílá dál.
+
+**Nastavení drží plugin, ne Elementor.** Atomový editor nemá místo pro mapování po polích, takže mapování a nastavení leadu atomového formuláře plugin ukládá k dokumentu, ve kterém formulář je (post meta `_raynet_crm_atomic_forms`). Do formuláře samotného zapíše jen akci RAYNET CRM v *Actions after submit*. Z toho plyne:
+
+- mapování se mění jen na obrazovce **Namapovat pole**, nastavení leadu jen nasazením šablony; v editoru Elementoru sekce RAYNET CRM není;
+- **duplikace stránky, export a import šablony nebo kopírování prvku přes Elementor nastavení RAYNETu nepřenese.** Kopie má zapnutou akci, ale nic namapovaného — nastavte ji v pluginu znovu;
+- **Vrátit stránku zpět** vrací i tohle nastavení, stejně jako u widgetu.
+
+> **Zapnuto v editoru, nenamapováno v pluginu = každé odeslání skončí chybou.** Formulář, kterému přidáte RAYNET CRM v editoru, ale v pluginu ho nenamapujete, nemá namapovaný e-mail ani telefon. Akce pak u každého odeslání selže, návštěvník uvidí chybovou hlášku formuláře (ostatní akce, třeba e-mail, přesto proběhnou) a důvod se zapíše do **Poslední chyba API**. Přehled takový formulář označí „chybí e-mail i telefon“ a obrazovka mapování na to upozorní. Po zapnutí v editoru proto vždy otevřete **Namapovat pole** a uložte.
+
+**Pole.** ID pole je ID prvku pole v Elementoru. Typ a popisek plugin čte z uložené stránky, nikdy z toho, co poslal prohlížeč. Popisek je text prvku *Label* napojeného na pole, jinak zástupný text, jinak „Pole N (typ)“. Pole, která v uložené stránce nejsou, se zahodí. Heslo se nepošle nikdy.
+
+- **Přepínače** se stejným *názvem skupiny* jsou jedno pole (pod ID prvního z nich). Přepínač bez názvu skupiny je pole samo o sobě a hodnotu má, jen když ho návštěvník vybral.
+- Několik **zaškrtávátek** se stejným názvem přijde od Elementoru jako jedna hodnota pod ID prvního zaškrtnutého.
+- **Výběr** s vícenásobnou volbou pošle jen první vybranou položku.
+- **Nahrávací pole** nabízí jen **Zapsat do poznámky název souboru** (výchozí) nebo **Neodesílat**. Soubory se do RAYNETu nenahrávají a adresa souboru se nikam neposílá.
+
+**Když se odeslání nepovede**, formulář přejde do chybového stavu, který mu nastavíte v Elementoru. Elementor Pro přitom posílá do prohlížeče i text chyby každé akce, proto akce RAYNET CRM vrací jen obecnou hlášku — **Hláška při chybě** z nastavení pluginu, jinak „Odeslání formuláře se nezdařilo. Zkuste to prosím znovu později.“ Skutečný důvod jde jen do logu pluginu a do **Poslední chyba API**. Záložní e-mail se posílá stejně jako u widgetu.
+
+**Co v této verzi nejde:**
+
+- přílohy do RAYNETu (nahrávací pole jen do poznámky, nebo vynechat);
+- [import starších odeslání](#import-starších-odeslání) — odkaz u atomového formuláře není a obrazovka importu ho odmítne;
+- formulář vložený uvnitř **komponenty** Elementoru — leží v jiném dokumentu, přehled ho nevypíše a plugin ho nepodporuje;
+- Elementor Pro bez registru akcí atomového formuláře (verze před 4.1 nebo vypnutý experiment) — řádek zůstane neaktivní s vysvětlením.
 
 ### Co obstarává Elementor a co plugin
 
@@ -393,7 +430,7 @@ V uložených odesláních bývá hodně spamu, a ten se pak z CRM maže ručně
 
 > Vyžaduje aktivní **Elementor Pro**. Tabulky odeslání deaktivaci Elementor Pro přežijí, ale import bez něj neběží: odkaz se nezobrazí a obrazovka importu řekne proč. Totéž platí, když tabulka odeslání na webu chybí.
 
-**Kde import najdete.** V **RAYNET CRM → Elementor formuláře** má každý formulář, který má v Elementoru uložená odeslání (mimo koš), odkaz **Importovat starší odeslání (N)**. N je počet odeslání, která ještě v RAYNETu nejsou. Odkaz je vidět i s nulou; na obrazovce pak najdete aspoň to, co už v RAYNETu je. Atomový formulář Elementoru 4 odkaz nemá.
+**Kde import najdete.** V **RAYNET CRM → Elementor formuláře** má každý formulář, který má v Elementoru uložená odeslání (mimo koš), odkaz **Importovat starší odeslání (N)**. N je počet odeslání, která ještě v RAYNETu nejsou. Odkaz je vidět i s nulou; na obrazovce pak najdete aspoň to, co už v RAYNETu je. Atomový formulář Elementoru 4 odkaz nemá: import jeho odeslání tahle verze neumí a obrazovka importu ho odmítne, i když adresu někdo sestaví ručně.
 
 Obrazovka potřebuje jen mapování: formulář musí mít namapovaný e-mail nebo telefon. Zapnutou akci RAYNET CRM nepotřebuje, takže kdo chce jen jednorázově importovat, nemusí ji zapínat. Bez namapovaného kontaktu obrazovka místo tabulky odkáže na **Namapovat pole**. Bez přihlašovacích údajů k RAYNETu tabulku ukáže, ale tlačítko pro odeslání chybí.
 
@@ -806,7 +843,7 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **Formulář se nevykreslí** | Zkratka musí být v obsahu stránky, ne v úryvku. V blokovém editoru použijte blok *Zkratka*. Vykreslí se jen publikovaný formulář: koncept, formulář v koši, neexistující `id` nebo chybějící výchozí formulář návštěvník neuvidí vůbec. Přihlášený správce místo formuláře vidí „RAYNET: formulář „…“ neexistuje nebo je v koši.“, případně „RAYNET: není nastaven výchozí formulář. Založte ho v RAYNET CRM → Formuláře.“ |
 | **Tlačítko nereaguje** | Chyba v konzoli prohlížeče. Nejčastěji jiný plugin rozbil načítání skriptů. |
 | **Test spojení hlásí chybu, ale údaje jsou správné** | Nastavení nejdřív **uložte**, teprve pak testujte. |
-| **Formulář Elementoru v přehledu chybí** | Od verze 2.5.0 přehled prohledává i popupy, hlavičky, patičky a globální widgety. Chybí-li formulář dál, jde o jiný prvek než widget Formulář Elementor Pro. |
+| **Formulář Elementoru v přehledu chybí** | Od verze 2.5.0 přehled prohledává i popupy, hlavičky, patičky a globální widgety. Chybí-li formulář dál, jde o jiný prvek než widget Formulář Elementor Pro nebo atomový formulář, nebo o atomový formulář uvnitř komponenty Elementoru, kterou tahle verze neprochází. |
 | **Po nasazení šablony akce v editoru Elementoru chybí** | Verze do 2.4.0 nechávaly vyhrát starší automaticky uloženou verzi stránky. Aktualizujte a šablonu nasaďte znovu. |
 | **V mapování chybí vlastní pole z RAYNETu** | **Elementor formuláře → Pole z RAYNETu → Načíst pole z RAYNETu znovu**. Pole jen pro čtení a pole typu soubor se nenabízejí. |
 | **Hodnota vlastního pole je v poznámce leadu, ne v poli** | Nešla převést na typ pole — třeba datum v nečitelném tvaru nebo položka mimo číselník. Viz [převod hodnot](#všechna-pole-raynetu-včetně-vlastních). |
@@ -816,7 +853,9 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **Ve výběru vlastníka chybí uživatel** | Seznam je starý — v nastavení klikněte na **Načíst znovu** u vlastníka. Účty bez kontaktní osoby a účty, které RAYNET vede jako neplatné (bývalí uživatelé), se nenabízejí. Když místo výběru zůstává pole pro ID, popisek pod ním říká proč (nejčastěji API klíč bez práva vypisovat uživatele). |
 | **Formulář hlásí chybu, ale lead v RAYNETu je** | Selhala jiná akce formuláře, typicky e-mailová notifikace Elementoru (nefunkční odesílání pošty na webu). Přihlášený správce vidí u chyby, která akce to byla. |
 | **„RAYNET: integrace s Elementor Pro Forms není aktivní“** | Elementor Pro je zapnutý, ale jeho formuláře se nenačetly. Nejčastěji chybí nebo je zastaralý základní Elementor (Elementor Pro to hlásí i vlastním upozorněním); jinak tato verze Elementor Pro nemá rozhraní akcí po odeslání, se kterým plugin počítá. Formuláře Elementoru do té doby leady nezakládají, formuláře z builderu fungují dál. Aktivujte nebo aktualizujte Elementor. |
-| **Odkaz „Importovat starší odeslání“ nevidím** | Elementor Pro není aktivní, nebo na webu chybí jeho tabulka odeslání. Nebo formulář nemá v Elementoru žádné uložené odeslání mimo koš — odeslání ukládá jen formulář s akcí **Collect Submissions**, a jen od chvíle, kdy ji má. Atomový formulář Elementoru 4 odkaz nemá nikdy. Viz [Import starších odeslání](#import-starších-odeslání). |
+| **Odkaz „Importovat starší odeslání“ nevidím** | Elementor Pro není aktivní, nebo na webu chybí jeho tabulka odeslání. Nebo formulář nemá v Elementoru žádné uložené odeslání mimo koš — odeslání ukládá jen formulář s akcí **Collect Submissions**, a jen od chvíle, kdy ji má. Atomový formulář Elementoru 4 odkaz nemá nikdy, import jeho odeslání tahle verze neumí. Viz [Import starších odeslání](#import-starších-odeslání). |
+| **Atomový formulář hlásí návštěvníkům chybu** | Akce RAYNET CRM je zapnutá (třeba v editoru v *Actions after submit*), ale v pluginu chybí namapovaný e-mail i telefon — typicky po zapnutí jen v editoru, nebo na kopii stránky, protože duplikace přes Elementor nastavení RAYNETu nepřenese. Otevřete **Elementor formuláře → Namapovat pole** a uložte. Důvod konkrétního selhání je v **Poslední chyba API**. Viz [Atomový formulář Elementoru 4](#atomový-formulář-elementoru-4). |
+| **Atomový formulář je v přehledu šedý** | Tato verze Elementoru Pro nemá registr akcí atomového formuláře (verze před 4.1 nebo vypnutý experiment). Aktualizujte Elementor Pro. |
 | **Odeslání v importu chybí** | Podívejte se na ostatní záložky: spam, odeslání bez e-mailu a telefonu i odeslání, která už v RAYNETu jsou, mají vlastní. Odeslání v koši Elementoru se nenabízejí. Import páruje přísně podle ID widgetu i stránky, takže odeslání ze zduplikované stránky patří k formuláři na té kopii, a odeslání formuláře, který mezitím dostal nové ID nebo z webu zmizel, se nenabídnou vůbec. |
 
 Chyby API se zapisují do PHP logu s prefixem `[Raynet Lead API Integration]`, pokud je zapnuté *Zapisovat chyby API do PHP logu* (ve výchozím stavu je). Poslední chyba se navíc zobrazuje nahoře na stránce nastavení jako **Poslední chyba API:** s datem a časem. Zůstane tam, dokud ji nepřepíše další chyba nebo dokud neproběhne úspěšný test spojení — úspěšně založený lead ji nesmaže. Pro zapnutí logu WordPressu:

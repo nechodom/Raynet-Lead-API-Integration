@@ -2,6 +2,22 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.11.0] — 2026-11-18
+
+### Přidáno
+
+- **Atomový formulář Elementoru 4.** Odeslání atomového formuláře (`e-form`) zakládá lead stejnými pravidly jako widget Formulář: mapování po polích, odhad podle popisku, souhlas ze zaškrtávátka, zbytek do poznámky, nastavení leadu po formuláři, notifikace, záložní e-mail a GDPR záznam. Plugin přidává akci **RAYNET CRM** do registru akcí atomového formuláře v Elementor Pro 4.1 a volbu do *Actions after submit* v editoru.
+- V **RAYNET CRM → Elementor formuláře** jde atomový formulář vybrat, nasadit na něj šablonu a otevřít **Namapovat pole**. Hláška „zatím nepodporovaný“ zmizela. Bez registru akcí (starší Elementor Pro, vypnutý experiment) zůstane řádek neaktivní s hláškou, že tato verze Elementoru Pro akce atomového formuláře neumí, a nasazení i uložení mapování to odmítnou se stejným důvodem.
+- Mapování a nastavení leadu atomového formuláře drží plugin v post meta dokumentu (`_raynet_crm_atomic_forms`), ne Elementor. Do prvku se zapíše jen `raynet_crm` v `actions-after-submit`; formulář, který posílal e-mail, ho posílá dál. **Vrátit stránku zpět** vrací i tohle nastavení. Duplikace nebo export stránky přes Elementor ho nepřenese.
+- Typ a popisek pole se čtou z uložené stránky, ne z odeslaných dat; pole, která na stránce nejsou, se zahodí, heslo se nepošle nikdy. Přepínače se stejným názvem skupiny jsou jedno pole.
+- Nahrávací pole atomového formuláře nabízí jen **Zapsat do poznámky název souboru** (výchozí) nebo **Neodesílat**. Soubory ani jejich adresy do RAYNETu nejdou.
+- Selhání akce vidí návštěvník jako chybový stav formuláře; v odpovědi prohlížeči je jen *Hláška při chybě*, skutečný důvod v logu a v **Poslední chyba API**. Formulář zapnutý jen v editoru a v pluginu nenamapovaný proto selže u každého odeslání — přehled ho označí „chybí e-mail i telefon“ a obrazovka mapování na to výrazně upozorní.
+- **Zatím nejde:** u atomového formuláře přílohy do RAYNETu, import starších odeslání (odkaz chybí a obrazovka importu i její AJAX ručně sestavený klíč odmítnou), formulář uvnitř komponenty Elementoru a Elementor Pro bez registru akcí atomového formuláře. README to popisuje v nové části *Atomový formulář Elementoru 4*.
+
+### Změněno
+
+- Odinstalace s mazáním dat maže i `_raynet_crm_atomic_forms` a jeho zálohu.
+
 ## [2.10.0] — 2026-11-18
 
 ### Přidáno

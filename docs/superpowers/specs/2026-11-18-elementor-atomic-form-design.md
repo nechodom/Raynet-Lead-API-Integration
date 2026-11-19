@@ -24,7 +24,7 @@ Přehled **RAYNET CRM → Elementor formuláře** dnes atomový formulář (`e-f
 - Živé chování widgetu Formulář se nesmí změnit.
 - Typ a popisek pole se nikdy neberou z požadavku návštěvníka (`form_fields[][type|label]` posílá prohlížeč). Čtou se z uloženého stromu stránky.
 - Plugin nesmí zapsat do nastavení prvku `e-form` nic, co schéma Elementoru nezná, kromě hodnoty `raynet_crm` v `actions-after-submit`.
-- Zapnutí RAYNETu nesmí vypnout výchozí e-mail: formulář bez uloženého `actions-after-submit` posílá e-mail, po zapnutí musí mít `email` i `raynet_crm`.
+- Zapnutí RAYNETu nesmí vypnout výchozí e-mail: formulář bez uloženého `actions-after-submit` posílá e-mail, pokud má prvek uložené nastavení `email` (bez něj nespouští nic); takový formulář musí mít po zapnutí `email` i `raynet_crm`, formulář bez nastavení e-mailu jen `raynet_crm`.
 
 ## Cesty
 
