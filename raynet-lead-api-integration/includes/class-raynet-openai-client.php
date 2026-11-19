@@ -468,8 +468,8 @@ class Raynet_OpenAI_Client {
 					'schema' => self::schema(),
 				),
 			),
-			// The Responses API keeps responses for at least 30 days unless
-			// told not to; nothing here needs to be fetched again later.
+			// Ask OpenAI not to store the response; nothing here fetches it
+			// later. What OpenAI keeps anyway is for its terms to say.
 			'store' => false,
 		);
 	}
