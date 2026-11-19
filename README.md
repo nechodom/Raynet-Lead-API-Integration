@@ -134,7 +134,7 @@ Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci R
 
 Hlášky po odeslání i při chybě, přesměrování po úspěchu, nastavení ochrany proti spamu, záložní e-mail, kontrola aktualizací (viz [Aktualizace](#aktualizace)), zapisování chyb do logu a mazání dat při odinstalaci. Hlášky, přesměrování a ochrana proti spamu platí jen pro formuláře z builderu; formuláře Elementoru mají vlastní (viz [Co obstarává Elementor a co plugin](#co-obstarává-elementor-a-co-plugin)). U atomového formuláře Elementoru 4 se *Hláška při chybě* odsud vrací v odpovědi na odeslání místo skutečného důvodu, na stránce ale návštěvník vidí chybový stav formuláře z Elementoru. Záložní e-mail a log platí pro oba. Souhlas se zpracováním údajů se nastavuje na formuláři, ne tady.
 
-**Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API, zálohy stránek z nasazení šablon a cache, zámky a záznamy pokusů importu starších odeslání. Odeslání uložená v Elementoru ani záznamy, které do nich import zapsal, odinstalace nemaže. Akce RAYNET CRM a mapování uložené ve formulářích Elementoru zůstanou ve stránkách; leady v RAYNETu plugin nemaže nikdy.
+**Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API, zálohy stránek z nasazení šablon, nastavení RAYNETu atomových formulářů Elementoru 4 (`_raynet_crm_atomic_forms`) i jeho zálohy a cache, zámky a záznamy pokusů importu starších odeslání. Odeslání uložená v Elementoru ani záznamy, které do nich import zapsal, odinstalace nemaže. Akce RAYNET CRM a mapování uložené ve widgetech Formulář zůstanou ve stránkách; u atomového formuláře zůstane ve stránce jen akce `raynet_crm` v *Actions after submit*; leady v RAYNETu plugin nemaže nikdy.
 
 ---
 
@@ -384,7 +384,7 @@ Zapnutí ostatní akce nechá. Formulář, který posílal e-mail Elementoru, ho
 
 **Nastavení drží plugin, ne Elementor.** Atomový editor nemá místo pro mapování po polích, takže mapování a nastavení leadu atomového formuláře plugin ukládá k dokumentu, ve kterém formulář je (post meta `_raynet_crm_atomic_forms`). Do formuláře samotného zapíše jen akci RAYNET CRM v *Actions after submit*. Z toho plyne:
 
-- mapování se mění jen na obrazovce **Namapovat pole**, nastavení leadu jen nasazením šablony; v editoru Elementoru sekce RAYNET CRM není;
+- mapování se mění na obrazovce **Namapovat pole** a při nasazení šablony (volby *Doplnit mapování odhadem* a *Pole bez protějšku v RAYNETu zapsat do poznámky*), nastavení leadu jen nasazením šablony; v editoru Elementoru sekce RAYNET CRM není;
 - **duplikace stránky, export a import šablony nebo kopírování prvku přes Elementor nastavení RAYNETu nepřenese.** Kopie má zapnutou akci, ale nic namapovaného — nastavte ji v pluginu znovu;
 - **Vrátit stránku zpět** vrací i tohle nastavení, stejně jako u widgetu.
 
