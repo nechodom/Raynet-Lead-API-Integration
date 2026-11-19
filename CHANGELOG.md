@@ -2,6 +2,17 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.11.1] — 2026-11-19
+
+### Změněno
+
+- **Přísnější hodnocení spamu u importu starších odeslání.** Na skutečných datech propouštělo ručně naťukané nesmysly, protože mířilo hlavně na odkazový spam robotů. Teď je řádek *V pořádku* (a tedy předvybraný) jen tehdy, když nespustil žádný signál; jakýkoli jediný signál, i slabý, dá nejméně *Podezřelé*. Nově je *Spam* i jeden střední signál se dvěma a více slabými (klíč `medium_weak_to_spam`, výchozí `2`). Výchozí `weak_to_suspect` je `1`; web, který si prahy nastavil filtrem `raynet_import_spam_config`, si je ponechá.
+- `short_message` (zpráva kratší než 10 znaků) a `bad_phone` (nevěrohodný telefon) jsou nově střední signály místo slabých. `bad_phone` navíc pozná číslice jdoucí po jedné nahoru nebo dolů přes celé číslo (`123456789`, `987654321`).
+- Nové signály: zpráva jen opakuje jméno nebo kontakt odesílatele (`message_is_name`), zpráva bez slov, jen číslice, interpunkce nebo emoji (`no_words`), zpráva, která nedává smysl, třeba „Mggkgmegvkfv“ (`gibberish`; česká a slovenská slova bez samohlásek jako „prst“ nebo „scvrkl“ ho nespustí), všechny střední, a jednoslovná zpráva (`one_word`, slabý). Každý jde vypnout klíčem `disabled`.
+- Země a jazyk se dál neposuzují, poptávky chodí i ze zahraničí. Web, který obsluhuje jen některé země, si může zapnout signál `home_phone` (střední) klíčem `home_phone_prefixes`, třeba `array( '+420', '+421' )`; ve výchozím stavu je vypnutý.
+- Cache hodnocení na obrazovce importu se po aktualizaci pluginu přepočítá, staré verdikty se neukážou.
+- Týká se jen návrhu na obrazovce importu. Živá odeslání formulářů se nehodnotí ani nemění a import dál nic neposílá sám: řádek označený jako spam jde zaškrtnout a odeslat ručně.
+
 ## [2.11.0] — 2026-11-18
 
 ### Přidáno

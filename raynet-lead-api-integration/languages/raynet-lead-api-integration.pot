@@ -2,14 +2,14 @@
 # This file is distributed under the MIT.
 msgid ""
 msgstr ""
-"Project-Id-Version: Raynet Lead API Integration 2.11.0\n"
+"Project-Id-Version: Raynet Lead API Integration 2.11.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/raynet-lead-api-integration\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-19T14:23:14+00:00\n"
+"POT-Creation-Date: 2026-11-19T14:57:38+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: raynet-lead-api-integration\n"
@@ -242,7 +242,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:246
 #: includes/elementor/class-raynet-elementor-form-action.php:190
 #: includes/elementor/class-raynet-elementor-forms-admin.php:517
-#: includes/elementor/class-raynet-elementor-import-admin.php:773
+#: includes/elementor/class-raynet-elementor-import-admin.php:783
 msgid "Priorita"
 msgstr ""
 
@@ -266,7 +266,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:267
 #: includes/elementor/class-raynet-elementor-form-action.php:212
 #: includes/elementor/class-raynet-elementor-forms-admin.php:538
-#: includes/elementor/class-raynet-elementor-import-admin.php:816
+#: includes/elementor/class-raynet-elementor-import-admin.php:826
 msgid "Fyzická osoba"
 msgstr ""
 
@@ -282,7 +282,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:282
 #: includes/elementor/class-raynet-elementor-form-action.php:286
 #: includes/elementor/class-raynet-elementor-forms-admin.php:549
-#: includes/elementor/class-raynet-elementor-import-admin.php:784
+#: includes/elementor/class-raynet-elementor-import-admin.php:794
 msgid "Kategorie (ID)"
 msgstr ""
 
@@ -294,7 +294,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:283
 #: includes/elementor/class-raynet-elementor-form-action.php:287
 #: includes/elementor/class-raynet-elementor-forms-admin.php:550
-#: includes/elementor/class-raynet-elementor-import-admin.php:785
+#: includes/elementor/class-raynet-elementor-import-admin.php:795
 msgid "Stav leadu (ID)"
 msgstr ""
 
@@ -306,7 +306,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:284
 #: includes/elementor/class-raynet-elementor-form-action.php:288
 #: includes/elementor/class-raynet-elementor-forms-admin.php:551
-#: includes/elementor/class-raynet-elementor-import-admin.php:786
+#: includes/elementor/class-raynet-elementor-import-admin.php:796
 msgid "Zdroj kontaktu (ID)"
 msgstr ""
 
@@ -329,7 +329,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:286
 #: includes/elementor/class-raynet-elementor-form-action.php:290
 #: includes/elementor/class-raynet-elementor-forms-admin.php:553
-#: includes/elementor/class-raynet-elementor-import-admin.php:788
+#: includes/elementor/class-raynet-elementor-import-admin.php:798
 msgid "Bezpečnostní úroveň (ID)"
 msgstr ""
 
@@ -341,7 +341,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:292
 #: includes/elementor/class-raynet-elementor-form-action.php:271
 #: includes/elementor/class-raynet-elementor-forms-admin.php:557
-#: includes/elementor/class-raynet-elementor-import-admin.php:787
+#: includes/elementor/class-raynet-elementor-import-admin.php:797
 msgid "Vlastník leadu"
 msgstr ""
 
@@ -367,7 +367,7 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:302
 #: includes/elementor/class-raynet-elementor-form-action.php:315
 #: includes/elementor/class-raynet-elementor-forms-admin.php:568
-#: includes/elementor/class-raynet-elementor-import-admin.php:789
+#: includes/elementor/class-raynet-elementor-import-admin.php:799
 msgid "Štítky"
 msgstr ""
 
@@ -742,35 +742,35 @@ msgstr ""
 #: includes/class-raynet-form-builder-admin.php:251
 #: includes/elementor/class-raynet-elementor-form-action.php:195
 #: includes/elementor/class-raynet-elementor-forms-admin.php:523
-#: includes/elementor/class-raynet-elementor-import-admin.php:821
+#: includes/elementor/class-raynet-elementor-import-admin.php:831
 msgid "Nízká"
 msgstr ""
 
 #: includes/class-raynet-form-builder-admin.php:252
 #: includes/elementor/class-raynet-elementor-form-action.php:196
 #: includes/elementor/class-raynet-elementor-forms-admin.php:524
-#: includes/elementor/class-raynet-elementor-import-admin.php:822
+#: includes/elementor/class-raynet-elementor-import-admin.php:832
 msgid "Běžná"
 msgstr ""
 
 #: includes/class-raynet-form-builder-admin.php:253
 #: includes/elementor/class-raynet-elementor-form-action.php:197
 #: includes/elementor/class-raynet-elementor-forms-admin.php:525
-#: includes/elementor/class-raynet-elementor-import-admin.php:823
+#: includes/elementor/class-raynet-elementor-import-admin.php:833
 msgid "Kritická"
 msgstr ""
 
 #: includes/class-raynet-form-builder-admin.php:264
 #: includes/elementor/class-raynet-elementor-form-action.php:207
 #: includes/elementor/class-raynet-elementor-forms-admin.php:534
-#: includes/elementor/class-raynet-elementor-import-admin.php:775
+#: includes/elementor/class-raynet-elementor-import-admin.php:785
 msgid "Typ leadu"
 msgstr ""
 
 #: includes/class-raynet-form-builder-admin.php:268
 #: includes/elementor/class-raynet-elementor-form-action.php:213
 #: includes/elementor/class-raynet-elementor-forms-admin.php:539
-#: includes/elementor/class-raynet-elementor-import-admin.php:816
+#: includes/elementor/class-raynet-elementor-import-admin.php:826
 msgid "Firma"
 msgstr ""
 
@@ -814,32 +814,32 @@ msgid "Jméno a příjmení"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:82
-#: includes/elementor/class-raynet-elementor-import-admin.php:776
+#: includes/elementor/class-raynet-elementor-import-admin.php:786
 msgid "Jméno"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:83
-#: includes/elementor/class-raynet-elementor-import-admin.php:777
+#: includes/elementor/class-raynet-elementor-import-admin.php:787
 msgid "Příjmení"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:84
-#: includes/elementor/class-raynet-elementor-import-admin.php:778
+#: includes/elementor/class-raynet-elementor-import-admin.php:788
 msgid "Společnost"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:85
-#: includes/elementor/class-raynet-elementor-import-admin.php:779
+#: includes/elementor/class-raynet-elementor-import-admin.php:789
 msgid "E-mail"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:86
-#: includes/elementor/class-raynet-elementor-import-admin.php:780
+#: includes/elementor/class-raynet-elementor-import-admin.php:790
 msgid "Telefon"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:87
-#: includes/elementor/class-raynet-elementor-import-admin.php:772
+#: includes/elementor/class-raynet-elementor-import-admin.php:782
 msgid "Předmět"
 msgstr ""
 
@@ -848,17 +848,17 @@ msgid "Zpráva"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:89
-#: includes/elementor/class-raynet-elementor-import-admin.php:781
+#: includes/elementor/class-raynet-elementor-import-admin.php:791
 msgid "Ulice"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:90
-#: includes/elementor/class-raynet-elementor-import-admin.php:782
+#: includes/elementor/class-raynet-elementor-import-admin.php:792
 msgid "Město"
 msgstr ""
 
 #: includes/class-raynet-form-definition.php:91
-#: includes/elementor/class-raynet-elementor-import-admin.php:783
+#: includes/elementor/class-raynet-elementor-import-admin.php:793
 msgid "PSČ"
 msgstr ""
 
@@ -1041,13 +1041,13 @@ msgstr ""
 
 #: includes/class-raynet-lead-form.php:769
 #: includes/class-raynet-lead-form.php:1221
-#: includes/elementor/class-raynet-elementor-import-admin.php:836
+#: includes/elementor/class-raynet-elementor-import-admin.php:846
 msgid "ano"
 msgstr ""
 
 #: includes/class-raynet-lead-form.php:770
 #: includes/class-raynet-lead-form.php:1221
-#: includes/elementor/class-raynet-elementor-import-admin.php:836
+#: includes/elementor/class-raynet-elementor-import-admin.php:846
 msgid "ne"
 msgstr ""
 
@@ -2040,66 +2040,86 @@ msgid "nevěrohodný telefon"
 msgstr ""
 
 #: includes/elementor/class-raynet-elementor-import-admin.php:658
-msgid "jednorázový e-mail"
+msgid "telefon mimo povolené předvolby"
 msgstr ""
 
 #: includes/elementor/class-raynet-elementor-import-admin.php:660
-msgid "velmi krátká zpráva"
+msgid "jednorázový e-mail"
 msgstr ""
 
 #: includes/elementor/class-raynet-elementor-import-admin.php:662
+msgid "velmi krátká zpráva"
+msgstr ""
+
+#: includes/elementor/class-raynet-elementor-import-admin.php:664
+msgid "zpráva bez slov"
+msgstr ""
+
+#: includes/elementor/class-raynet-elementor-import-admin.php:666
+msgid "zpráva nedává smysl"
+msgstr ""
+
+#: includes/elementor/class-raynet-elementor-import-admin.php:668
+msgid "jednoslovná zpráva"
+msgstr ""
+
+#: includes/elementor/class-raynet-elementor-import-admin.php:670
+msgid "zpráva jen opakuje jméno nebo kontakt"
+msgstr ""
+
+#: includes/elementor/class-raynet-elementor-import-admin.php:672
 msgid "duplicitní odeslání"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:681
+#: includes/elementor/class-raynet-elementor-import-admin.php:691
 msgid "Uložené hodnoty"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:694
+#: includes/elementor/class-raynet-elementor-import-admin.php:704
 msgid "Elementor uložil jen celé číslo; úvodní nuly a desetinná část se nedochovaly"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:698
+#: includes/elementor/class-raynet-elementor-import-admin.php:708
 msgid "IP adresa"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:700
+#: includes/elementor/class-raynet-elementor-import-admin.php:710
 msgid "Prohlížeč"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:702
+#: includes/elementor/class-raynet-elementor-import-admin.php:712
 msgid "Odesláno ze stránky"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:707
+#: includes/elementor/class-raynet-elementor-import-admin.php:717
 msgid "Náhled leadu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:734
+#: includes/elementor/class-raynet-elementor-import-admin.php:744
 msgid "Poznámka"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:737
+#: includes/elementor/class-raynet-elementor-import-admin.php:747
 msgid "Náhled počítá s výchozím štítkem importu; odešle se štítek, který bude v poli nad tabulkou."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:774
+#: includes/elementor/class-raynet-elementor-import-admin.php:784
 msgid "Datum leadu"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:790
+#: includes/elementor/class-raynet-elementor-import-admin.php:800
 msgid "Text notifikace"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:864
+#: includes/elementor/class-raynet-elementor-import-admin.php:874
 msgid "Předchozí stránka"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:876
+#: includes/elementor/class-raynet-elementor-import-admin.php:886
 msgid "Další stránka"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-import-admin.php:881
+#: includes/elementor/class-raynet-elementor-import-admin.php:891
 msgid "Na stránku:"
 msgstr ""
 
@@ -2113,56 +2133,56 @@ msgstr ""
 msgid "Importováno z uložených odeslání Elementoru. Původně odesláno: %s"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-submissions.php:828
+#: includes/elementor/class-raynet-elementor-submissions.php:830
 msgid "Import potřebuje aktivní Elementor Pro s uloženými odesláními."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-submissions.php:839
+#: includes/elementor/class-raynet-elementor-submissions.php:841
 msgid "Formulář nebyl nalezen nebo nemá namapovaný e-mail ani telefon."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-submissions.php:847
-#: includes/elementor/class-raynet-elementor-submissions.php:896
+#: includes/elementor/class-raynet-elementor-submissions.php:849
+#: includes/elementor/class-raynet-elementor-submissions.php:898
 msgid "Import se nepodařilo spustit kvůli chybě databáze. Do RAYNETu se nic neodeslalo."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-submissions.php:851
+#: includes/elementor/class-raynet-elementor-submissions.php:853
 msgid "Toto odeslání se právě importuje."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-submissions.php:875
+#: includes/elementor/class-raynet-elementor-submissions.php:877
 msgid "Odeslání k tomuto formuláři nepatří nebo je v koši."
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-submissions.php:881
+#: includes/elementor/class-raynet-elementor-submissions.php:883
 msgid "Odeslání už v RAYNETu je."
 msgstr ""
 
 #. translators: %d: lead id.
-#: includes/elementor/class-raynet-elementor-submissions.php:910
+#: includes/elementor/class-raynet-elementor-submissions.php:912
 #, php-format
 msgid "Importováno, lead %d"
 msgstr ""
 
 #. translators: %d: lead id.
-#: includes/elementor/class-raynet-elementor-submissions.php:932
+#: includes/elementor/class-raynet-elementor-submissions.php:934
 #, php-format
 msgid "Lead %d byl v RAYNETu založen, ale odeslání se nepodařilo označit jako odeslané. Než ho budete importovat znovu, ověřte v RAYNETu, že lead už existuje."
 msgstr ""
 
 #. translators: %s: error detail.
-#: includes/elementor/class-raynet-elementor-submissions.php:975
+#: includes/elementor/class-raynet-elementor-submissions.php:977
 #, php-format
 msgid "Výsledek je neznámý: RAYNET neodpověděl nebo ohlásil chybu na své straně, lead tam proto možná vznikl. Než odeslání zkusíte znovu, ověřte v RAYNETu, že lead neexistuje. (%s)"
 msgstr ""
 
 #. translators: %s: reason RAYNET gave.
-#: includes/elementor/class-raynet-elementor-submissions.php:1427
+#: includes/elementor/class-raynet-elementor-submissions.php:1429
 #, php-format
 msgid "při předchozím importu RAYNET odmítl: %s"
 msgstr ""
 
-#: includes/elementor/class-raynet-elementor-submissions.php:1430
+#: includes/elementor/class-raynet-elementor-submissions.php:1432
 msgid "při předchozím importu: výsledek neznámý"
 msgstr ""
 

@@ -513,7 +513,7 @@ Uložené hodnoty jsou cizí vstup jako každé odeslání formuláře: na obraz
 
 **Párování s formulářem je přísné.** Odeslání patří k formuláři, jen když sedí ID widgetu formuláře **a zároveň** stránka. Za stránku se bere ta, pod kterou Elementor odeslání uložil, nebo ta, kterou si poznamenal do metadat odeslání. U globálního widgetu se to liší: Elementor odeslání uloží pod ID šablony widgetu a stránku, na které widget byl, si poznamená do metadat; import přijme obojí. Samotné ID widgetu nestačí: zduplikovaná stránka nebo importovaná šablona ho zachová, a odeslání by se tak poslala s mapováním cizího formuláře. Odeslání formuláře, který už na webu není, import nenabízí.
 
-**Hodnocení spamu.** Každé odeslání projde sadou signálů. Čtou se uložené hodnoty tak, jak je Elementor uložil, ještě před sanitizací, aby se zachytily i HTML značky. Hodnocení nikam neposílá data; běží celé na webu.
+**Hodnocení spamu.** Každé odeslání projde devatenácti signály (jeden z nich, `home_phone`, je ve výchozím stavu vypnutý). Míří hlavně na ručně naťukané nesmysly, jaké na reálných webech převažují, nejen na odkazový spam robotů. Čtou se uložené hodnoty tak, jak je Elementor uložil, ještě před sanitizací, aby se zachytily i HTML značky. Hodnocení nikam neposílá data; běží celé na webu.
 
 | Síla | Signál | ID |
 |---|---|---|
@@ -528,19 +528,28 @@ Uložené hodnoty jsou cizí vstup jako každé odeslání formuláře: na obraz
 | střední | nevěrohodné jméno: shodné jméno a příjmení, číslice ve jméně, slovo z pěti a více písmen bez samohlásky, nebo slovo, ve kterém malé písmeno aspoň dvakrát přejde ve velké (`JoHnSoN`; „McDonald“ s jediným přechodem projde) | `odd_name` |
 | střední | prázdný nebo strojový user agent (`curl`, `python`, `bot`…); jen když ho formulář ukládá | `bot_agent` |
 | střední | duplicitní odeslání (viz níže) | `duplicate` |
-| slabý | nevěrohodný telefon: méně než 9 číslic, nebo samé stejné číslice | `bad_phone` |
+| střední | nevěrohodný telefon: méně než 9 číslic, samé stejné číslice, nebo číslice jdoucí po jedné nahoru či dolů přes celé číslo (`123456789`, `987654321`, `0123456789`) | `bad_phone` |
+| střední | telefon s mezinárodní předvolbou (`+` nebo `00`), která není v `home_phone_prefixes`; **ve výchozím stavu vypnuto** (viz níže) | `home_phone` |
+| střední | zpráva kratší než 10 znaků | `short_message` |
+| střední | zpráva bez slov: méně než 3 písmena, jen číslice, interpunkce nebo emoji („199999“, „???“) | `no_words` |
+| střední | zpráva nedává smysl: nejvýš tři slova a v nich latinkou psané slovo z 8 a více písmen s méně než 20 % samohlásek („Mggkgmegvkfv“, „Wtssdres“), nebo slovo z 5 a více písmen bez samohlásky i bez `r` a `l`. Česká a slovenská slova jako „scvrkl“, „čtvrthodina“, „zmrzlina“, „prst“ nebo „Strč prst skrz krk“ signál nespustí | `gibberish` |
+| střední | zpráva jen opakuje jméno, příjmení, e-mail nebo telefon odesílatele (jméno „Savan Damor“, zpráva „Savan Damor“) | `message_is_name` |
 | slabý | e-mail z jednorázové služby (mailinator.com, yopmail.com…) | `disposable_email` |
-| slabý | zpráva kratší než 10 znaků, pokud má formulář namapovanou zprávu | `short_message` |
+| slabý | zpráva z jediného slova (pokud už nespustila `no_words`) | `one_word` |
+
+Signály, které čtou zprávu (`short_message`, `no_words`, `gibberish`, `one_word`, `message_is_name`), platí jen u formuláře s namapovanou zprávou.
 
 Verdikt:
 
-- **Spam** — aspoň jeden silný signál, nebo dva a více středních.
-- **Podezřelé** — jeden střední signál, nebo dva a více slabých.
-- **V pořádku** — jinak, tedy i s jediným slabým signálem. Jen tyto řádky jsou předvybrané.
+- **Spam** — aspoň jeden silný signál, dva a více středních, nebo jeden střední a k tomu dva a více slabých.
+- **Podezřelé** — jakýkoli jiný signál, i jediný slabý.
+- **V pořádku** — žádný signál. Jen tyto řádky jsou předvybrané: řádek se předvybere, jen když nespustil vůbec nic.
+
+**Země a jazyk se neposuzují.** Skutečné poptávky chodí i ze zahraničí, proto předvolba telefonu ani jazyk zprávy (pokud je latinkou) samy o sobě nic nespustí. Web, který obsluhuje jen některé země, si to zapne klíčem `home_phone_prefixes` ve filtru [`raynet_import_spam_config`](#raynet_import_spam_config-filtr), třeba `array( '+420', '+421' )`: číslo s jinou mezinárodní předvolbou pak dostane `home_phone`. Číslo napsané bez `+` nebo `00` se neposuzuje, jeho zemi nejde poznat.
 
 **Duplicity.** Stejný e-mail se stejnou zprávou ve více odesláních (typicky návštěvník, kterému odeslání selhalo a zkusil to znovu): nejstarší se hodnotí normálně, další dostanou důvod „duplicitní odeslání“, a tím verdikt nejméně *Podezřelé*. Kopie, která už v RAYNETu je, se počítá jako původní bez ohledu na stáří.
 
-Hodnocení všech odeslání formuláře se drží až 10 minut v cache; přepočítá se dřív, když se změní nastavení formuláře, konfigurace hodnocení nebo počet jeho odeslání, a po každém importu, který změní stav řádku. Zaškrtávátko a předvýběr se ale vždy řídí aktuálním stavem z databáze: řádek, který mezitím odeslala jiná záložka, se nenabídne ani se starou cache. Prahy, seznamy slov a domén i vypnutí jednotlivých signálů změníte filtrem — viz [`raynet_import_spam_config`](#raynet_import_spam_config-filtr).
+Hodnocení všech odeslání formuláře se drží až 10 minut v cache; přepočítá se dřív, když se změní nastavení formuláře, konfigurace hodnocení, počet jeho odeslání nebo verze pluginu (aktualizace s novými pravidly tak nikdy neukáže staré verdikty), a po každém importu, který změní stav řádku. Zaškrtávátko a předvýběr se ale vždy řídí aktuálním stavem z databáze: řádek, který mezitím odeslala jiná záložka, se nenabídne ani se starou cache. Prahy, seznamy slov a domén i vypnutí jednotlivých signálů změníte filtrem — viz [`raynet_import_spam_config`](#raynet_import_spam_config-filtr).
 
 ### Export šablony
 
@@ -759,12 +768,14 @@ Konfigurace [hodnocení spamu](#import-starších-odeslání) u importu starší
 | `strong_to_spam` | `1` | kolik silných signálů dá verdikt spam |
 | `medium_to_spam` | `2` | kolik středních signálů dá verdikt spam |
 | `medium_to_suspect` | `1` | kolik středních signálů dá verdikt podezřelé |
-| `weak_to_suspect` | `2` | kolik slabých signálů dá verdikt podezřelé |
+| `weak_to_suspect` | `1` | kolik slabých signálů dá verdikt podezřelé |
+| `medium_weak_to_spam` | `2` | kolik slabých signálů k jednomu střednímu dá verdikt spam; `0` pravidlo vypne |
 | `same_text_senders` | `3` | od kolika různých odesílatelů platí `same_text` |
 | `same_text_min_length` | `40` | kolik znaků musí zpráva mít, aby se `same_text` uplatnil |
 | `same_ip_count` | `5` | od kolika odeslání z jedné IP platí `same_ip` |
 | `min_message_length` | `10` | kratší zpráva spustí `short_message` |
 | `min_phone_digits` | `9` | telefon s méně číslicemi spustí `bad_phone` |
+| `home_phone_prefixes` | prázdné | mezinárodní předvolby, které web obsluhuje (`+420`, `+421`…); prázdné = `home_phone` se nikdy nespustí |
 | `keywords` | `seo`, `backlink`, `casino`, `crypto`, `viagra`, `loan`, `guest post`… | slova a fráze pro `keywords`, hledané jako celá slova bez ohledu na velikost písmen |
 | `disposable_domains` | `mailinator.com`, `yopmail.com`… | domény pro `disposable_email`, včetně jejich subdomén |
 | `allowed_scripts` | `Latin` | písma, která `foreign_script` nebere jako cizí (názvy písem Unicode: `Cyrillic`, `Greek`, `Han`…) |
