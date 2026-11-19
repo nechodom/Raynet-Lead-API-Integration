@@ -176,6 +176,58 @@ class Raynet_Atomic_Form_Integration {
 	}
 
 	/**
+	 * The posted values under the ids they were posted with.
+	 *
+	 * Elementor element ids are seven hex characters, so now and then one is
+	 * all digits, and PHP keys it as an integer. Elementor Pro's controller
+	 * then calls array_merge( $form_data, $upload_overrides ), which renumbers
+	 * every integer key from 0 (atomic-form-controller.php:86 in Pro 4.1.1):
+	 * the value of field "1066726" arrives as key 0 and its field looks empty.
+	 *
+	 * The ids survive as the keys of `field_metadata`, built from the same
+	 * posted rows in the same order, and of `files`, built in the same loop as
+	 * the upload overrides. array_merge() numbers the integer keys of the
+	 * posted data first, then those of the overrides, so the n-th renumbered
+	 * key is the n-th integer id of those two lists. Data whose integer keys
+	 * are not exactly 0, 1, 2, … was not renumbered and is returned as it is.
+	 *
+	 * @param array<int|string,mixed> $form_data Values as Elementor Pro passes them.
+	 * @param array<string,mixed>     $context   Elementor Pro's context.
+	 * @return array<int|string,mixed> Values keyed by field id.
+	 */
+	public static function posted_data( array $form_data, array $context ) {
+		$numbered = array_values( array_filter( array_keys( $form_data ), 'is_int' ) );
+
+		if ( empty( $numbered ) || range( 0, count( $numbered ) - 1 ) !== $numbered ) {
+			return $form_data;
+		}
+
+		$ids = array();
+
+		foreach ( array( 'field_metadata', 'files' ) as $source ) {
+			if ( isset( $context[ $source ] ) && is_array( $context[ $source ] ) ) {
+				$ids = array_merge( $ids, array_values( array_filter( array_keys( $context[ $source ] ), 'is_int' ) ) );
+			}
+		}
+
+		// Ids that are themselves 0, 1, 2 … would read the same either way;
+		// without the lists nothing can be told apart.
+		if ( empty( $ids ) || count( $ids ) < count( $numbered ) ) {
+			return $form_data;
+		}
+
+		$restored = array();
+
+		foreach ( $form_data as $key => $value ) {
+			// An override comes after the posted value and replaces it, as
+			// Elementor Pro meant it to.
+			$restored[ is_int( $key ) ? $ids[ $key ] : $key ] = $value;
+		}
+
+		return $restored;
+	}
+
+	/**
 	 * Lines for the lead note: the names of the uploaded files.
 	 *
 	 * Files are not sent to RAYNET from an atomic form. Their names go to the

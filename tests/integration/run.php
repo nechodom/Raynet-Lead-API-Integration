@@ -3320,6 +3320,108 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'admin-ajax: důvod zapsaný', '' !== $aform_diag, true );
 		check( 'admin-ajax: návštěvník důvod nevidí', '' !== $aform_diag && false !== strpos( (string) wp_json_encode( $aform_http, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES ), $aform_diag ), false );
 
+		// All-digit ids. Elementor's ids are 7 hex characters, so some are all
+		// digits; PHP keys those as integers and Elementor Pro's controller
+		// renumbers them with array_merge() before the action runs.
+		$digit_form = array(
+			'id'       => '8675309',
+			'elType'   => 'e-form',
+			'isInner'  => false,
+			'settings' => array(
+				'form-name'            => $as( 'Číselná ID' ),
+				'actions-after-submit' => $at( 'string-array', array( $as( 'email' ) ) ),
+				'email'                => $at( 'email', array( 'to' => $as( 'obchod@example.cz' ) ) ),
+			),
+			'elements' => array(
+				$al2( '1111111', 'Jméno', 'jmeno' ),
+				$aw2( '1234567', 'e-form-input', array( '_cssid' => $as( 'jmeno' ) ) ),
+				$al2( '1111112', 'E-mail', 'mail' ),
+				$aw2( 'a1b2c3d', 'e-form-input', array( 'type' => $as( 'email' ), '_cssid' => $as( 'mail' ) ) ),
+				$al2( '1111113', 'Zpráva', 'msg' ),
+				$aw2( '7654321', 'e-form-textarea', array( '_cssid' => $as( 'msg' ) ) ),
+				$al2( '1111114', 'Služba', 'svc' ),
+				$aw2( '2345678', 'e-form-input', array( '_cssid' => $as( 'svc' ) ) ),
+				$al2( '1111115', 'Interní kód', 'kod' ),
+				$aw2( '3456789', 'e-form-input', array( '_cssid' => $as( 'kod' ) ) ),
+				$aw2( '4567890', 'e-form-radio-button', array( 'name' => $as( 'Typ zákazníka' ), 'value' => $as( 'firma' ) ) ),
+				$aw2( '6789012', 'e-form-radio-button', array( 'name' => $as( 'Typ zákazníka' ), 'value' => $as( 'fo' ) ) ),
+				$aw2( '5678901', 'e-form-checkbox', array( '_cssid' => $as( 'gdpr' ) ) ),
+				$al2( '1111116', 'Souhlasím se zpracováním osobních údajů', 'gdpr' ),
+				$aw2( '1111117', 'e-form-submit-button' ),
+			),
+		);
+		$digit_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Číselná ID', 'post_status' => 'publish' ) );
+		update_post_meta( $digit_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $digit_page, '_elementor_data', wp_slash( wp_json_encode( array( $digit_form ) ) ) );
+
+		$digit_rows = array_values( array_filter( Raynet_Elementor_Forms::scan(), function ( $row ) use ( $digit_page ) {
+			return $digit_page === $row['post_id'];
+		} ) );
+		check( 'číselné ID formuláře: řádek přehledu', isset( $digit_rows[0] ) ? $digit_rows[0]['widget_id'] : '', '8675309' );
+		check( 'číselná ID polí: skupina jako jedno pole', isset( $digit_rows[0] ) ? array_column( $digit_rows[0]['fields'], 'id' ) : array(), array( '1234567', 'a1b2c3d', '7654321', '2345678', '3456789', '4567890', '5678901' ) );
+
+		// The mapping screen's round trip, keyed by all-digit ids.
+		$digit_targets = array(
+			'1234567' => 'firstName',
+			'a1b2c3d' => 'email',
+			'7654321' => 'message',
+			'2345678' => Raynet_Elementor_Forms::TARGET_NOTICE,
+			'3456789' => '-',
+			'4567890' => Raynet_Elementor_Forms::TARGET_NOTICE,
+			'5678901' => 'gdprConsent',
+		);
+		$digit_post_targets = array();
+		foreach ( $digit_targets as $digit_id => $digit_target ) {
+			$digit_post_targets[ $digit_id ] = $digit_target; // Integer keys, as PHP parses target[1234567].
+		}
+		check( 'číselná ID: mapování uloženo', Raynet_Elementor_Forms::save_targets( $digit_page, '8675309', $digit_post_targets, true ), true );
+		$digit_settings = Raynet_Elementor_Forms::form_settings( $digit_page, '8675309' );
+		$digit_shown    = null !== $digit_settings ? Raynet_Elementor_Forms::field_targets( $digit_settings ) : array();
+		ksort( $digit_shown );
+		$digit_want = $digit_targets;
+		ksort( $digit_want );
+		check( 'číselná ID: obrazovka ukáže uložené', $digit_shown, $digit_want );
+		check( 'číselné ID formuláře: zapnuto', in_array( 'raynet_crm', Raynet_Elementor_Atomic_Forms::actions( Raynet_Atomic_Form_Integration::form_element( $digit_page, '8675309' ) ), true ), true );
+		check( 'číselné ID formuláře: meta pod svým ID', array_keys( (array) get_post_meta( $digit_page, Raynet_Elementor_Atomic_Forms::META, true ) ), array( 8675309 ) );
+
+		update_option( 'raynet_test_http_calls', array() );
+		wp_set_current_user( 0 );
+		$digit_post = array(
+			'action'      => 'elementor_pro_atomic_forms_send_form',
+			'_nonce'      => wp_create_nonce( 'elementor_pro_atomic_forms_send_form' ),
+			'post_id'     => $digit_page,
+			'form_id'     => '8675309',
+			'form_name'   => 'Číselná ID',
+			'form_fields' => array(
+				array( 'id' => '1234567', 'type' => 'text', 'label' => 'Jméno', 'value' => 'Jana' ),
+				array( 'id' => 'a1b2c3d', 'type' => 'email', 'label' => 'E-mail', 'value' => 'jana.cisla@example.cz' ),
+				array( 'id' => '7654321', 'type' => 'textarea', 'label' => 'Zpráva', 'value' => 'Zpráva pod číselným ID.' ),
+				array( 'id' => '2345678', 'type' => 'text', 'label' => 'Služba', 'value' => 'montáž' ),
+				array( 'id' => '3456789', 'type' => 'text', 'label' => 'Interní kód', 'value' => 'TAJNY-KOD' ),
+				// The group is posted under the checked button.
+				array( 'id' => '6789012', 'type' => 'radio', 'label' => 'Typ zákazníka', 'value' => 'fo' ),
+				array( 'id' => '5678901', 'type' => 'checkbox', 'label' => 'Souhlas', 'value' => 'on' ),
+			),
+		);
+		$digit_http   = json_decode( req( '/wp-admin/admin-ajax.php', $digit_post )['body'], true );
+		$digit_sent   = $aform_calls();
+		$digit_lead   = $digit_sent['lead'];
+		$digit_notice = isset( $digit_lead['notice'] ) ? (string) $digit_lead['notice'] : '';
+		check( 'číselná ID: odesláno', isset( $digit_http['success'] ) ? $digit_http['success'] : null, true );
+		check( 'číselná ID: jméno dorazilo', isset( $digit_lead['firstName'] ) ? $digit_lead['firstName'] : '', 'Jana' );
+		check( 'číselná ID: e-mail dorazil', isset( $digit_lead['contactInfo']['email'] ) ? $digit_lead['contactInfo']['email'] : '', 'jana.cisla@example.cz' );
+		check( 'číselná ID: zpráva dorazila', false !== strpos( $digit_notice, 'Zpráva pod číselným ID.' ), true );
+		check( 'číselná ID: pole v poznámce', false !== strpos( $digit_notice, 'Služba: montáž' ), true );
+		check( 'číselná ID: skupina v poznámce', false !== strpos( $digit_notice, 'Typ zákazníka: fo' ), true );
+		check( 'číselná ID: vynechané pole neodešlo', false !== strpos( (string) wp_json_encode( $digit_lead ), 'TAJNY-KOD' ), false );
+		check( 'číselná ID: souhlas dal GDPR záznam', isset( $digit_sent['gdpr']['lead'] ) ? $digit_sent['gdpr']['lead'] : 0, 4242 );
+
+		// Undo: the layout and the meta both go back.
+		check( 'číselná ID: vrácení projde', is_wp_error( Raynet_Elementor_Forms::restore( $digit_page, true ) ), false );
+		check( 'číselná ID: po vrácení nic uloženo', Raynet_Elementor_Atomic_Forms::stored( $digit_page, '8675309' ), array() );
+		check( 'číselná ID: po vrácení vypnuto', Raynet_Elementor_Atomic_Forms::actions( Raynet_Atomic_Form_Integration::form_element( $digit_page, '8675309' ) ), array( 'email' ) );
+		wp_delete_post( $digit_page, true );
+
 		update_option( Raynet_Lead_Settings::OPTION, $aform_gdpr_before );
 		delete_option( 'raynet_lead_last_error' );
 		update_option( 'raynet_test_mails', array() );

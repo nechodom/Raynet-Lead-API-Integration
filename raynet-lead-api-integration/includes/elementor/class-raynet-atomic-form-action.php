@@ -101,6 +101,8 @@ class Raynet_Atomic_Form_Action extends Action_Base {
 		}
 
 		$form_settings = Raynet_Elementor_Atomic_Forms::settings( $post_id, $element );
+		// Values of all-digit field ids arrive renumbered; see posted_data().
+		$form_data     = Raynet_Atomic_Form_Integration::posted_data( $form_data, $context );
 		$fields        = Raynet_Atomic_Form_Integration::submitted_fields( $form_settings['form_fields'], $form_data, Raynet_Elementor_Atomic_Forms::radio_groups( $element ) );
 
 		$mapped           = Raynet_Elementor_Lead_Builder::mapped_values( $fields, $form_settings );

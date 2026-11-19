@@ -166,6 +166,60 @@ check(
 	array()
 );
 
+// --- all-digit element ids ------------------------------------------------------
+// Elementor's ids are 7 hex characters, so some are all digits, and PHP keys
+// such an id as an integer. Elementor Pro's controller then runs
+// array_merge( $form_data, $upload_overrides ), which renumbers every integer
+// key from 0 (atomic-form-controller.php:86); the ids survive only as the
+// keys of $context['field_metadata'] and $context['files'].
+$digit_rows = array(
+	array( 'custom_id' => '1066726', 'field_type' => 'text', 'field_label' => 'Jméno' ),
+	array( 'custom_id' => '7aeee81', 'field_type' => 'email', 'field_label' => 'E-mail' ),
+	array( 'custom_id' => '2024000', 'field_type' => 'text', 'field_label' => 'Město' ),
+	array( 'custom_id' => '3141592', 'field_type' => 'radio', 'field_label' => 'Typ' ),
+	array( 'custom_id' => '5550001', 'field_type' => 'acceptance', 'field_label' => 'Souhlas', 'acceptance_text' => 'Souhlas' ),
+	array( 'custom_id' => '9990001', 'field_type' => 'upload', 'field_label' => 'Příloha' ),
+);
+$posted = array();
+foreach ( array( '1066726' => 'Jana', '7aeee81' => 'jana@example.cz', '2024000' => 'Brno', '2718281' => 'fo', '5550001' => 'on', '9990001' => '' ) as $id => $value ) {
+	$posted[ $id ] = $value;
+}
+$metadata = array();
+foreach ( array_keys( $posted ) as $id ) {
+	$metadata[ $id ] = array( 'label' => '', 'type' => 'text', 'options' => null );
+}
+$overrides = array( 9990001 => array( 'https://example.test/wp-content/uploads/elementor/forms/cv.pdf' ) );
+$merged    = array_merge( $posted, $overrides );
+check( 'Elementor přečísluje číselná ID', array_keys( $merged ), array( 0, '7aeee81', 1, 2, 3, 4, 5 ) );
+
+$restored = Raynet_Atomic_Form_Integration::posted_data( $merged, array( 'field_metadata' => $metadata, 'files' => array( 9990001 => array( '/tmp/cv.pdf' ) ) ) );
+check( 'číselná ID obnovená', array_keys( $restored ), array( 1066726, '7aeee81', 2024000, 2718281, 5550001, 9990001 ) );
+check( 'hodnota pod svým ID', $restored[1066726], 'Jana' );
+check( 'nahrání přepsáno adresou souboru', $restored[9990001], $overrides[9990001] );
+check( 'bez přečíslování beze změny', Raynet_Atomic_Form_Integration::posted_data( $posted, array( 'field_metadata' => $metadata ) ), $posted );
+check( 'bez metadat beze změny', Raynet_Atomic_Form_Integration::posted_data( $merged, array() ), $merged );
+
+$digit_fields = Raynet_Atomic_Form_Integration::submitted_fields( $digit_rows, $restored, array( '3141592' => '3141592', '2718281' => '3141592' ) );
+check( 'pole pod číselnými ID, ne 0 a 1', array_keys( $digit_fields ), array( 1066726, '7aeee81', 2024000, 3141592, 5550001, 9990001 ) );
+check( 'ID pole zůstane řetězcem', $digit_fields[1066726]['id'], '1066726' );
+check( 'skupina pod číselným ID', $digit_fields[3141592]['value'], 'fo' );
+check( 'soubor pod číselným ID jménem', $digit_fields[9990001]['value'], 'cv.pdf' );
+
+$digit_settings = array(
+	'form_fields'              => $digit_rows,
+	'raynet_crm_fields_map'    => array(
+		array( 'remote_id' => 'firstName', 'local_id' => '1066726' ),
+		array( 'remote_id' => 'email', 'local_id' => '7aeee81' ),
+		array( 'remote_id' => 'gdprConsent', 'local_id' => '5550001' ),
+	),
+	'raynet_crm_notice_fields' => array( '2024000', '3141592' ),
+);
+$digit_mapped = Raynet_Elementor_Lead_Builder::mapped_values( $digit_fields, $digit_settings );
+check( 'číselné ID namapované', $digit_mapped['basic'], array( 'firstName' => 'Jana', 'email' => 'jana@example.cz' ) );
+check( 'souhlas pod číselným ID', $digit_mapped['consent'], true );
+check( 'poznámka pod číselnými ID', Raynet_Elementor_Lead_Builder::noted_values( $digit_fields, $digit_settings ), array( 'Město' => 'Brno', 'Typ' => 'fo' ) );
+check( 'nahrání pod číselným ID do poznámky', Raynet_Atomic_Form_Integration::upload_lines( $digit_fields, $digit_settings ), array( 'Příloha' => 'cv.pdf' ) );
+
 // --- action log label -------------------------------------------------------
 check( 'popisek v logu akcí', Raynet_Atomic_Form_Integration::log_label( 'Raynet Crm', 'raynet_crm' ), 'RAYNET CRM' );
 check( 'cizí akce beze změny', Raynet_Atomic_Form_Integration::log_label( 'Webhook', 'webhook' ), 'Webhook' );
