@@ -2,6 +2,24 @@
 
 Formát vychází z [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 
+## [2.12.0] — 2026-11-19
+
+### Přidáno
+
+- **Posouzení importu pomocí AI (OpenAI), volitelné.** S API klíčem OpenAI v nastavení (nebo konstantou `RAYNET_OPENAI_API_KEY` ve `wp-config.php`, která má přednost) má obrazovka importu starších odeslání tlačítko **Posoudit pomocí AI (N)**. Po potvrzení, které říká kolik řádků, komu a co odejde, pošle nová, dosud neposouzená odeslání celého formuláře po dávkách (výchozí 20) do Responses API OpenAI a uloží verdikt *doporučuje* / *zamítá* s krátkou větou. Nic se nespustí samo; bez klíče je místo tlačítka odkaz do nastavení a nikam se nic neposílá.
+- Nastavení: klíč (nevypisuje se zpět, jen „uloženo (…abcd)“; prázdné pole ho nechá, zaškrtávátko smaže), model (volný text, výchozí `gpt-6-luna`) a „Čím se firma zabývá“ (nejvýš 1000 znaků).
+- Odchází jméno, příjmení, firma, předmět, zpráva (nejvýš 1500 znaků), doména e-mailu, země telefonní předvolby a pole do poznámky (nejvýš 10 × 300 znaků); e-maily a čísla podobná telefonu se v textech nahradí značkou `[e-mail]` / `[telefon]` (to postihne i data a delší čísla psaná s oddělovači). Celý e-mail, telefon, IP adresa ani prohlížeč neodcházejí. Požadavek nese `store: false` a odpověď je vázaná na schéma; z odpovědi se čtou jen ID z dávky.
+- Spojení s pravidly: *zamítá* → Spam s důvodem „zamítnuto AI“; *doporučuje* → V pořádku, pokud pravidla nenašla silný signál. Řádky se silným signálem, v RAYNETu, nelze importovat a se záznamem pokusu se neposílají. Předvybraný je dál jen řádek V pořádku, nikdy neposlaný a bez pokusu; stav i posouzení se čtou při každém zobrazení znovu.
+- Štítky **AI: doporučuje** / **AI: zamítá** / **AI: neposouzeno** u řádku a odkaz **Zahodit posouzení AI**. Dávku, kterou model odmítne jako celek, plugin půlí, dokud nezůstane sám řádek, kvůli kterému to je; ten dostane značku „neposouzeno“ a běh pokračuje. Řádek vynechaný ve dvou odpovědích dostane značku taky.
+- Jeden běh na formulář: druhé okno dostane „Posouzení tohoto formuláře už běží v jiném okně…“. Posouzení se nepoužije, když se změní odeslaná data (mapování, poznámková pole), model nebo popis firmy.
+- Filtry `raynet_import_ai_endpoint` (jen `https://`; dostane i klíč) a `raynet_import_ai_batch_size` (1–50).
+- Odinstalace s mazáním dat smaže i klíč, model, popis firmy, všechna posouzení a značky.
+
+### Změněno
+
+- Bez klíče OpenAI a bez uloženého posouzení přidá výpočet hodnocení na obrazovce importu jen jeden dotaz na požadavek (zda nějaké posouzení existuje); žádné posouzení se nečte ani nepočítá. S posouzeními se čtou jedním dotazem na díl odeslání. Cache hodnocení se po aktualizaci přepočítá.
+- README: slib, že hodnocení běží celé na webu, platí jen bez klíče OpenAI. Nová část *Posouzení pomocí AI (OpenAI)* s tím, co odchází a co musí provozovatel zajistit (zásady zpracování, zpracovatelská smlouva s OpenAI), a nové řádky v řešení potíží.
+
 ## [2.11.1] — 2026-11-19
 
 ### Změněno

@@ -41,6 +41,7 @@ WordPress plugin, který posílá poptávky z webových formulářů přímo do 
 - **Všechna pole leadu, i vlastní** — v Elementoru namapujete kromě jména a kontaktu i IČO, DIČ, druhý e-mail, sociální sítě a vlastní pole, která si vaše instance RAYNETu definuje. Plugin je načte přímo z RAYNETu a hodnoty převede na správný typ.
 - **Přílohy** — soubory nahrané do formuláře Elementoru se k leadu v RAYNETu přiloží jako přílohy.
 - **Import starších odeslání** — poptávky, které Elementor uložil dřív, než formulář posílal do RAYNETu, nebo které RAYNET tehdy nepřijal, pošlete do RAYNETu dodatečně. Plugin u každého odeslání navrhne, jestli jde o spam; odešle se jen to, co potvrdíte.
+- **Posouzení pomocí AI (volitelné)** — s vlastním API klíčem OpenAI nechá obrazovka importu uložená odeslání na vaše kliknutí posoudit jazykovým modelem. Verdikt AI je jen další návrh vedle pravidel; bez klíče se nikam nic neposílá.
 - **GDPR souhlas v RAYNETu** — zaškrtnutý souhlas se zapíše do poznámky s datem a zněním a volitelně založí k leadu i právní titul (GDPR záznam).
 - **Jedno pole pro celé jméno** — „Jan Novák" se do RAYNETu rozdělí na jméno a příjmení.
 - **Přihlašovací údaje zůstávají na serveru.** Prohlížeč mluví jen s WordPressem.
@@ -134,7 +135,11 @@ Stejný výběr je v šablonách, v builderu u každého formuláře i v sekci R
 
 Hlášky po odeslání i při chybě, přesměrování po úspěchu, nastavení ochrany proti spamu, záložní e-mail, kontrola aktualizací (viz [Aktualizace](#aktualizace)), zapisování chyb do logu a mazání dat při odinstalaci. Hlášky, přesměrování a ochrana proti spamu platí jen pro formuláře z builderu; formuláře Elementoru mají vlastní (viz [Co obstarává Elementor a co plugin](#co-obstarává-elementor-a-co-plugin)). U atomového formuláře Elementoru 4 se *Hláška při chybě* odsud vrací v odpovědi na odeslání místo skutečného důvodu; co návštěvník na stránce uvidí, ale rozhoduje Elementor — viz [Atomový formulář Elementoru 4](#atomový-formulář-elementoru-4). Záložní e-mail a log platí pro oba. Souhlas se zpracováním údajů se nastavuje na formuláři, ne tady.
 
-**Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API, zálohy stránek z nasazení šablon, nastavení RAYNETu atomových formulářů Elementoru 4 (`_raynet_crm_atomic_forms`) i jeho zálohy a cache, zámky a záznamy pokusů importu starších odeslání. Odeslání uložená v Elementoru ani záznamy, které do nich import zapsal, odinstalace nemaže. Akce RAYNET CRM a mapování uložené ve widgetech Formulář zůstanou ve stránkách; u atomového formuláře zůstane ve stránce jen akce `raynet_crm` v *Actions after submit*; leady v RAYNETu plugin nemaže nikdy. **Atomový formulář s akcí RAYNET CRM před deaktivací nebo odinstalací pluginu upravte v Elementoru:** bez pluginu Elementor Pro tu akci nezná a u každého odeslání ji počítá jako selhanou („Invalid action type“). Má-li formulář i jinou akci, která projde (třeba e-mail), návštěvník uvidí úspěch; je-li RAYNET CRM jediná akce, uvidí chybu a odeslání se nikam neuloží. Akci RAYNET CRM proto v *Actions after submit* nejdřív odeberte, případně přidejte e-mail nebo *Collect Submissions*.
+**Odinstalace.** Smazáním pluginu se ve výchozím stavu nic nemaže. Se zaškrtnutou volbou *Smazat všechna data pluginu při odinstalaci* zmizí nastavení včetně API klíče, formuláře z builderu, šablony pro Elementor, načtení uživatelé a vlastní pole z RAYNETu, poslední chyba API, zálohy stránek z nasazení šablon, nastavení RAYNETu atomových formulářů Elementoru 4 (`_raynet_crm_atomic_forms`) i jeho zálohy a cache, zámky a záznamy pokusů importu starších odeslání, uložený API klíč OpenAI, model, popis firmy a všechna posouzení AI (volby `raynet_import_ai_<ID odeslání>`, včetně značek „neposouzeno“) se zámky běhu a razítkem cache. Klíč zadaný konstantou `RAYNET_OPENAI_API_KEY` ve `wp-config.php` plugin smazat neumí; odstraňte ho tam. Odeslání uložená v Elementoru ani záznamy, které do nich import zapsal, odinstalace nemaže. Akce RAYNET CRM a mapování uložené ve widgetech Formulář zůstanou ve stránkách; u atomového formuláře zůstane ve stránce jen akce `raynet_crm` v *Actions after submit*; leady v RAYNETu plugin nemaže nikdy. **Atomový formulář s akcí RAYNET CRM před deaktivací nebo odinstalací pluginu upravte v Elementoru:** bez pluginu Elementor Pro tu akci nezná a u každého odeslání ji počítá jako selhanou („Invalid action type“). Má-li formulář i jinou akci, která projde (třeba e-mail), návštěvník uvidí úspěch; je-li RAYNET CRM jediná akce, uvidí chybu a odeslání se nikam neuloží. Akci RAYNET CRM proto v *Actions after submit* nejdřív odeberte, případně přidejte e-mail nebo *Collect Submissions*.
+
+### Posouzení importu pomocí AI (OpenAI)
+
+Volitelná pole: API klíč OpenAI, model a „Čím se firma zabývá“. Bez klíče se nic z toho nepoužije. Co dělají a co se kam posílá, popisuje [Posouzení pomocí AI (OpenAI)](#posouzení-pomocí-ai-openai).
 
 ---
 
@@ -513,7 +518,7 @@ Uložené hodnoty jsou cizí vstup jako každé odeslání formuláře: na obraz
 
 **Párování s formulářem je přísné.** Odeslání patří k formuláři, jen když sedí ID widgetu formuláře **a zároveň** stránka. Za stránku se bere ta, pod kterou Elementor odeslání uložil, nebo ta, kterou si poznamenal do metadat odeslání. U globálního widgetu se to liší: Elementor odeslání uloží pod ID šablony widgetu a stránku, na které widget byl, si poznamená do metadat; import přijme obojí. Samotné ID widgetu nestačí: zduplikovaná stránka nebo importovaná šablona ho zachová, a odeslání by se tak poslala s mapováním cizího formuláře. Odeslání formuláře, který už na webu není, import nenabízí.
 
-**Hodnocení spamu.** Každé odeslání projde devatenácti signály (jeden z nich, `home_phone`, je ve výchozím stavu vypnutý). Míří hlavně na ručně naťukané nesmysly, jaké na reálných webech převažují, nejen na odkazový spam robotů. Čtou se uložené hodnoty tak, jak je Elementor uložil, ještě před sanitizací, aby se zachytily i HTML značky. Hodnocení nikam neposílá data; běží celé na webu.
+**Hodnocení spamu.** Každé odeslání projde devatenácti signály (jeden z nich, `home_phone`, je ve výchozím stavu vypnutý). Míří hlavně na ručně naťukané nesmysly, jaké na reálných webech převažují, nejen na odkazový spam robotů. Čtou se uložené hodnoty tak, jak je Elementor uložil, ještě před sanitizací, aby se zachytily i HTML značky. Hodnocení pravidly nikam neposílá data a běží celé na webu. To platí, dokud není zadaný API klíč OpenAI: s ním můžete odeslání nechat posoudit i AI a jejich části pak na vaše kliknutí odcházejí k OpenAI — viz [Posouzení pomocí AI (OpenAI)](#posouzení-pomocí-ai-openai).
 
 | Síla | Signál | ID |
 |---|---|---|
@@ -550,6 +555,63 @@ Verdikt:
 **Duplicity.** Stejný e-mail se stejnou zprávou ve více odesláních (typicky návštěvník, kterému odeslání selhalo a zkusil to znovu): nejstarší se hodnotí normálně, další dostanou důvod „duplicitní odeslání“, a tím verdikt nejméně *Podezřelé*. Kopie, která už v RAYNETu je, se počítá jako původní bez ohledu na stáří.
 
 Hodnocení všech odeslání formuláře se drží až 10 minut v cache; přepočítá se dřív, když se změní nastavení formuláře, konfigurace hodnocení, počet jeho odeslání nebo verze pluginu (aktualizace s novými pravidly tak nikdy neukáže staré verdikty), a po každém importu, který změní stav řádku. Zaškrtávátko a předvýběr se ale vždy řídí aktuálním stavem z databáze: řádek, který mezitím odeslala jiná záložka, se nenabídne ani se starou cache. Prahy, seznamy slov a domén i vypnutí jednotlivých signálů změníte filtrem — viz [`raynet_import_spam_config`](#raynet_import_spam_config-filtr).
+
+### Posouzení pomocí AI (OpenAI)
+
+Pravidla poznají odkazový spam a nesmysly, ne však obchodní nabídku napsanou slušnou češtinou nebo poptávku, která s činností firmy nesouvisí. Na to může obrazovka importu nechat odeslání posoudit jazykovým modelem OpenAI. Je to volitelné, platí to provozovatel webu z vlastního klíče a nikdy se to nespustí samo: žádný cron, nic při načtení stránky, jen po kliknutí správce.
+
+**Nastavení.** V **RAYNET CRM → Nastavení**, část *Posouzení importu pomocí AI (OpenAI)*:
+
+| Pole | Co vyplnit |
+|---|---|
+| **API klíč OpenAI** | Klíč z [platform.openai.com](https://platform.openai.com/api-keys). Uloží se do vlastní volby `raynet_lead_openai_key`, která se nenačítá automaticky. Zpět se nevypisuje, jen „uloženo (…abcd)“ s posledními čtyřmi znaky; prázdné pole při uložení klíč nechá, zaškrtávátko **Smazat uložený klíč** ho smaže. Klíč nepatří do HTML, AJAXových odpovědí ani chybových hlášek. |
+| konstanta `RAYNET_OPENAI_API_KEY` | Místo pole můžete klíč dát do `wp-config.php`: `define( 'RAYNET_OPENAI_API_KEY', 'sk-…' );`. Konstanta má přednost a pole pak jen řekne, že je klíč zadaný konstantou. |
+| **Model** | Volný text, ID modelu podle [stránky modelů OpenAI](https://platform.openai.com/docs/models). Prázdné pole = výchozí `gpt-6-luna`, k 19. 11. 2026 nejlevnější obecný model. OpenAI modely přejmenovává a vyřazuje; když přestane výchozí fungovat, vyberte na té stránce jiný. |
+| **Čím se firma zabývá** | Doporučené. Pár vět o tom, co firma nabízí (nejvýš 1000 znaků). Model podle toho pozná, která poptávka dává smysl. |
+
+**Spuštění.** Na záložkách **V pořádku + podezřelé** a **Spam** je tlačítko **Posoudit pomocí AI (N)**; bez klíče je místo něj odkaz do nastavení. N je počet řádků celého formuláře, ne jen stránky, které se pošlou. Tlačítko se nejdřív zeptá: kolik řádků odejde, komu (OpenAI), co odejde a co ne a že se platí z klíče webu. Pak posílá po dávkách, nejstarší odeslání první, s počitadlem a tlačítkem **Zastavit** (zastaví po dávce, která právě běží). Po doběhnutí nebo zastavení se stránka načte znovu. Chyba se ukáže vedle tlačítka a běh skončí; co se do té doby posoudilo, zůstane uložené a počet na tlačítku se o to sníží.
+
+**Co se pošle.** Na každé odeslání:
+
+| Odejde | Neodejde |
+|---|---|
+| ID odeslání (jen pro spárování odpovědi) | celý e-mail |
+| jméno, příjmení, společnost, předmět (každé nejvýš 200 znaků) | telefonní číslo |
+| text zprávy, nejvýš 1500 znaků | IP adresa |
+| doména e-mailu (`firma.cz`) | prohlížeč (user agent), stránka odeslání, datum |
+| země telefonní předvolby („Česko“; neznámá předvolba jako číslo, třeba `+9999`; bez předvolby „bez předvolby“) | hodnoty polí, která nejdou do poznámky leadu, a soubory |
+| pole, která jdou do poznámky leadu: nejvýš 10, každé s popiskem a nejvýš 300 znaky | |
+
+Ke každé dávce název a adresa webu a text „Čím se firma zabývá“.
+
+Ve všech textech (jméno, firma, předmět, zpráva, poznámková pole) se před odesláním nahradí e-mailové adresy značkou `[e-mail]`, i napsané jako `jan (at) firma.cz` nebo `jan [zavináč] firma.cz`, a čísla, která vypadají jako telefon, značkou `[telefon]`. Za telefon se bere 7 a více číslic, mezi kterými jsou nejvýš tři oddělovače (mezery, tečky, pomlčky, lomítka, závorky). Vedlejší účinek: stejně dopadne datum nebo delší číslo psané s oddělovači („12. 3. 2025“, „IČO 027 95 281“, číslo objednávky) — model ho uvidí jako `[telefon]`. Čísla bez oddělovačů kratší než 7 číslic (rok, počet kusů) zůstanou.
+
+Požadavek jde na `https://api.openai.com/v1/responses` (Responses API) s hlavičkou `Authorization: Bearer <klíč>`, `store: false` (OpenAI odpověď neukládá k pozdějšímu načtení) a odpovědí vázanou na schéma: `id`, `verdict` (`import` / `reject`) a `reason` (česká věta, nejvýš 160 znaků). Časový limit je 30 s. Text odeslání je pro model nedůvěryhodný vstup; z odpovědi se čtou jen pole schématu a jen pro ID z dávky. Věta modelu se uloží jako prostý text a na obrazovce escapuje.
+
+> **Údaje návštěvníků odcházejí k OpenAI.** Jména, firmy a texty zpráv jsou osobní údaje. Než AI zapnete, je to na provozovateli webu: uveďte OpenAI jako příjemce v zásadách zpracování osobních údajů a uzavřete s OpenAI zpracovatelskou smlouvu (Data Processing Addendum podle jejích podmínek pro API). Jak dlouho OpenAI data drží, určují její podmínky pro API, ne plugin.
+
+**Cena.** Platí se podle ceníku OpenAI z klíče webu, zhruba jeden požadavek na 20 odeslání (výchozí velikost dávky, filtr `raynet_import_ai_batch_size`). Kolik to stojí, záleží na modelu a délce zpráv; přehled je v účtu OpenAI.
+
+**Které řádky se pošlou.** Jen nová odeslání: nikdy neposlaná do RAYNETu, ne na záložce **Nelze importovat** a bez [záznamu pokusu](#import-starších-odeslání). Z nich jen ta, která ještě nemají platné posouzení, a ta, u kterých pravidla nenašla silný signál (odkazy, značky, cizí písmo, stejný text od více odesílatelů): takový řádek zůstane spamem, ať model řekne cokoli, posílat ho by bylo za peníze nic. Signál neznámé síly z filtru `raynet_import_spam_score` se bere jako silný. Řádky, které pravidla dala na *Spam* jen kvůli středním a slabým signálům, se posílají, AI je může zachránit. Řádky v RAYNETu, nelze importovat a s pokusem se neposílají nikdy. Před každou dávkou server znovu přečte stav i uložené posouzení přímo z databáze, takže co je posouzené, se nezaplatí dvakrát.
+
+**Jak se AI a pravidla spojí.**
+
+- AI **zamítá** → řádek je *Spam* s důvodem „zamítnuto AI“ a nepředvybere se.
+- AI **doporučuje** → řádek je *V pořádku*, pokud pravidla nenašla silný signál; se silným signálem zůstane *Spam* a doporučení je vidět vedle.
+- Bez posouzení platí pravidla jako dřív.
+- Předvybraný je dál jen řádek *V pořádku*, nikdy neposlaný a bez záznamu pokusu. Stav i uložené posouzení se čtou při každém zobrazení znovu: řádek odeslaný nebo zkoušený po posouzení se nezaškrtne a řádek, který AI zamítla, se nezaškrtne ani se starou cache.
+
+U řádku je štítek **AI: doporučuje** nebo **AI: zamítá** s větou modelu, nebo **AI: neposouzeno**. Odkaz **Zahodit posouzení AI** smaže všechna posouzení formuláře, i značky „neposouzeno“; řádky se pak řídí jen pravidly a další běh je pošle znovu. Odkaz je vidět, i když klíč mezitím zmizel.
+
+**AI: neposouzeno.** Když model dávku odmítne jako celek (část odpovědi typu `refusal` nebo odpověď bez jediného platného verdiktu), plugin ji půlí, dokud nezůstane sám řádek, kvůli kterému to je; ten dostane značku „neposouzeno“ a běh pokračuje dál. Řádek, který model v jinak platné odpovědi vynechá, se pošle znovu při dalším spuštění; když ho vynechá podruhé, dostane značku taky. Označený řádek se znovu nepošle, dokud posouzení nezahodíte. Výpadek spojení, vypršený čas, 401, 429 a chyby OpenAI 5xx běh zastaví a nic neoznačí.
+
+**Jeden běh na formulář.** Posouzení jednoho formuláře může běžet jen v jednom okně; druhé dostane „Posouzení tohoto formuláře už běží v jiném okně…“. Zámek po přerušeném běhu vyprší sám za 90 sekund.
+
+**Co posouzení zneplatní.** Posouzení patří k přesně těm datům, která odešla, a k modelu a popisu firmy. Změníte-li mapování formuláře, poznámková pole, model nebo „Čím se firma zabývá“, staré posouzení se nepoužije a řádek se při dalším běhu posoudí znovu (a znovu zaplatí).
+
+**Meze.** Verdikt AI je návrh stejně jako hodnocení pravidly a může se mýlit oběma směry: zamítnout skutečnou poptávku i doporučit spam. Zaškrtnout a odeslat jde i řádek, který AI zamítla. Model vidí jen to, co je v tabulce nahoře, ne celý e-mail ani telefon.
+
+Filtry: [`raynet_import_ai_endpoint`](#raynet_import_ai_endpoint-filtr) a [`raynet_import_ai_batch_size`](#raynet_import_ai_batch_size-filtr).
 
 ### Export šablony
 
@@ -689,8 +751,10 @@ Import starších odeslání z Elementoru má vlastní hodnocení spamu, nezávi
 - Plugin **neukládá odeslaná data do databáze WordPressu**. Jdou rovnou do RAYNETu; jen když je RAYNET nepřijme (nebo plugin není nastavený), odejdou na **záložní e-mail** z nastavení, je-li vyplněný, u Elementoru i s nahranými soubory do 10 MB celkem.
 - Soubory nahrané přes formulář Elementoru ukládá Elementor sám do `uploads/elementor/forms/` (a u režimu příloha e-mailu je po odeslání maže). Plugin si dělá jen dočasné kopie v dočasném adresáři serveru, čitelné jen pro systémového uživatele, pod kterým běží PHP, a na konci požadavku je maže. Kopie po přerušeném požadavku smaže nejpozději další odeslání formuláře po hodině.
 - IP adresa se používá jen pro omezení frekvence, ukládá se jako hash v transientu a do CRM se neposílá.
-- Import starších odeslání čte odeslání, která uložil Elementor. Sám si z nich na 10 minut drží v transientu jen verdikty a stav, ne hodnoty. IP adresu a user agent uložené Elementorem použije jen pro hodnocení spamu a ukáže je v detailu řádku; do RAYNETu je neposílá.
+- Import starších odeslání čte odeslání, která uložil Elementor. Sám si z nich na 10 minut drží v transientu jen verdikty a stav, ne hodnoty. IP adresu a user agent uložené Elementorem použije jen pro hodnocení spamu a ukáže je v detailu řádku; do RAYNETu ani k OpenAI je neposílá.
 - Záznamy pokusů o import (volby `raynet_import_attempt_<ID odeslání>`) drží výsledek pokusu a text chyby z RAYNETu, nejvýš 500 znaků. U odmítnutého požadavku v něm mohou být i odeslané hodnoty. Odinstalace se zaškrtnutým mazáním dat je smaže.
+- **Posouzení pomocí AI posílá osobní údaje třetí straně.** Bez API klíče OpenAI plugin nic k OpenAI neposílá a všechno výše platí beze změny. S klíčem odcházejí po kliknutí správce na obrazovce importu k OpenAI jména, firmy, předměty, texty zpráv a poznámková pole uložených odeslání, s nahrazenými e-maily a telefony v textu; celý e-mail, telefon, IP adresa ani prohlížeč neodcházejí. Provozovatel webu musí OpenAI uvést jako příjemce v zásadách zpracování osobních údajů a mít s ní zpracovatelskou smlouvu. Podrobnosti v [Posouzení pomocí AI (OpenAI)](#posouzení-pomocí-ai-openai).
+- Posouzení AI se ukládá do voleb `raynet_import_ai_<ID odeslání>`: verdikt, věta modelu, model, otisk odeslaných dat a čas; odeslané hodnoty samotné ne. Smaže je odkaz **Zahodit posouzení AI** u formuláře a odinstalace se zaškrtnutým mazáním dat.
 - Do poznámky leadu jde URL stránky, ze které poptávka přišla.
 
 ---
@@ -829,6 +893,26 @@ add_filter( 'raynet_import_index_chunk_size', function () {
 } );
 ```
 
+### `raynet_import_ai_endpoint` (filtr)
+
+Adresa, na kterou [posouzení pomocí AI](#posouzení-pomocí-ai-openai) posílá dávky; výchozí `https://api.openai.com/v1/responses`. Hodí se pro proxy nebo bránu s rozhraním Responses API. Přijme jen adresu `https://` s hostitelem, cokoli jiného vrátí výchozí adresu. **Na tuto adresu jde i API klíč** (hlavička `Authorization: Bearer`) a údaje odeslání, filtr proto ukazujte jen na server, kterému klíč svěříte.
+
+```php
+add_filter( 'raynet_import_ai_endpoint', function () {
+	return 'https://ai-brana.example.cz/v1/responses';
+} );
+```
+
+### `raynet_import_ai_batch_size` (filtr)
+
+Kolik odeslání jde k posouzení v jednom požadavku; výchozí 20, hodnota se omezí na 1–50. Menší dávka znamená víc požadavků, ale kratší čekání na odpověď (časový limit je 30 s) a menší ztrátu, když jedna dávka selže.
+
+```php
+add_filter( 'raynet_import_ai_batch_size', function () {
+	return 10;
+} );
+```
+
 ---
 
 ## REST endpoint
@@ -879,6 +963,11 @@ Tělo požadavku musí obsahovat stejná pole jako formulář, včetně `raynet_
 | **Z atomového formuláře nechodí leady** (návštěvník přitom vidí úspěch, nebo chybu, má-li formulář jen akci RAYNET CRM) | Nejčastěji v pluginu chybí namapovaný e-mail i telefon — typicky po zapnutí jen v editoru, nebo na kopii stránky, protože duplikace přes Elementor nastavení RAYNETu nepřenese. Otevřete **Elementor formuláře → Namapovat pole** a uložte. Jinak RAYNET lead odmítl. Důvod posledního selhání je v **Poslední chyba API**. Viz [Atomový formulář Elementoru 4](#atomový-formulář-elementoru-4). |
 | **Atomový formulář po deaktivaci pluginu hlásí chybu** | Formulář má jen akci RAYNET CRM, kterou Elementor Pro bez pluginu nezná. Odeberte ji v *Actions after submit*, nebo přidejte e-mail či *Collect Submissions*. |
 | **Atomový formulář je v přehledu šedý** | Registr akcí atomového formuláře neběží: Elementor Pro je starší než 4.1, nebo je vypnutý jeho experiment atomového formuláře či experiment *Atomic Widgets* Elementoru. Aktualizujte Elementor Pro, případně oba experimenty v nastavení Elementoru zapněte. |
+| **Posouzení AI: „OpenAI klíč odmítl (401)“** | Klíč je špatně opsaný, zrušený, nebo patří k projektu bez přístupu k Responses API. V nastavení zadejte nový (nebo opravte konstantu `RAYNET_OPENAI_API_KEY`). Běh se zastavil a nic neoznačil; co se posoudilo předtím, zůstává. |
+| **Posouzení AI: „OpenAI hlásí limit, zkuste později (429)“** | Vyčerpaný limit požadavků nebo kredit účtu OpenAI. Zkuste to později, dobijte kredit, nebo zmenšete dávku filtrem `raynet_import_ai_batch_size`. Další běh začne u řádků, které ještě posouzení nemají. |
+| **Tlačítko „Posoudit pomocí AI“ chybí** | Není zadaný klíč OpenAI (místo tlačítka je odkaz do nastavení), nebo jste na záložce **Už v RAYNETu** či **Nelze importovat**. Tlačítko s nulou a vypnuté znamená, že žádný řádek posouzení nepotřebuje: všechno je posouzené, označené „neposouzeno“, má silný signál pravidel, pokus o import, nebo je v RAYNETu. |
+| **„Posouzení tohoto formuláře už běží v jiném okně…“** | Stejný formulář se právě posuzuje v jiné záložce nebo okně. Počkejte, až doběhne. Když okno spadlo uprostřed, zámek sám vyprší do 90 sekund. |
+| **Posouzení AI se po změně nastavení vrátilo k pravidlům** | Změnil se model, „Čím se firma zabývá“, mapování nebo poznámková pole formuláře. Posouzení patří k přesným datům a nastavení; spusťte posouzení znovu. |
 | **Odeslání v importu chybí** | Podívejte se na ostatní záložky: spam, odeslání bez e-mailu a telefonu i odeslání, která už v RAYNETu jsou, mají vlastní. Odeslání v koši Elementoru se nenabízejí. Import páruje přísně podle ID widgetu i stránky, takže odeslání ze zduplikované stránky patří k formuláři na té kopii, a odeslání formuláře, který mezitím dostal nové ID nebo z webu zmizel, se nenabídnou vůbec. |
 
 Chyby API se zapisují do PHP logu s prefixem `[Raynet Lead API Integration]`, pokud je zapnuté *Zapisovat chyby API do PHP logu* (ve výchozím stavu je). Poslední chyba se navíc zobrazuje nahoře na stránce nastavení jako **Poslední chyba API:** s datem a časem. Zůstane tam, dokud ji nepřepíše další chyba nebo dokud neproběhne úspěšný test spojení — úspěšně založený lead ji nesmaže. Pro zapnutí logu WordPressu:
@@ -920,7 +1009,7 @@ Repozitář obsahuje testy, které plugin proženou bez instalace WordPressu —
 php tests/run.php
 ```
 
-Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky, builder, stránku nastavení, aktualizace, odhad mapování, převod hodnot vlastních polí, souhlas, přílohy, výběr vlastníka z uživatelů RAYNETu, hodnocení spamu a sestavení leadu z uloženého odeslání Elementoru a odinstalaci. Výběr vlastníka v editoru Elementoru a sériové odesílání na obrazovce importu (JavaScript) testuje `tests/js/` přes Node.js, který `run.php` spustí také. Testy vyžadují PHP 8.0+ a Node.js; samotný plugin běží od PHP 7.4.
+Pokrývají sanitizaci nastavení, převod konfigurace z 1.x, sestavení payloadu pro RAYNET, zpracování odpovědí API, celý průchod odeslání včetně ochran proti spamu, vykreslení zkratky, builder, stránku nastavení, aktualizace, odhad mapování, převod hodnot vlastních polí, souhlas, přílohy, výběr vlastníka z uživatelů RAYNETu, hodnocení spamu a sestavení leadu z uloženého odeslání Elementoru a odinstalaci. Výběr vlastníka v editoru Elementoru, sériové odesílání na obrazovce importu a smyčku posouzení pomocí AI (JavaScript) testuje `tests/js/` přes Node.js, který `run.php` spustí také. Testy vyžadují PHP 8.0+ a Node.js; samotný plugin běží od PHP 7.4.
 
 ### Integrační sada
 
@@ -935,7 +1024,7 @@ Ověřuje pořadí hooků, že `manage_options` zůstává funkční, položky m
 
 Adresář `.wp-test/` je mimo git a dá se kdykoliv zahodit; `bin/wp-test-setup.sh --fresh` ho postaví znovu.
 
-Většina kontrol se týká Elementoru a běží jen tehdy, když je Elementor Pro v testovací instalaci přítomné: nakopírujte `elementor` a `elementor-pro` do `.wp-test/wp/wp-content/plugins/` a aktivujte je. Pak sada projde i hledání formulářů v šablonách a popupech, nasazení šablon se zálohou a koncepty, obrazovku mapování přes HTTP, vlastní pole, souhlas s GDPR záznamem, skutečné nahrání přílohy přes AJAX Elementoru, výběr vlastníka z uživatelů RAYNETu (v nastavení, šablonách, builderu i v Elementoru) a import uložených odeslání: skutečné tabulky odeslání Elementoru, odkaz s počtem, obrazovku importu přes HTTP, import jednoho odeslání přes AJAX až k payloadu pro RAYNET, zápis do logu akcí, zámek proti dvojímu odeslání, odmítnutí bez přihlášení a bez nonce a chování s vypnutým Elementor Pro. Bez Elementor Pro tuhle část přeskočí celou, včetně kontrol nastavení a builderu, které v ní jsou.
+Většina kontrol se týká Elementoru a běží jen tehdy, když je Elementor Pro v testovací instalaci přítomné: nakopírujte `elementor` a `elementor-pro` do `.wp-test/wp/wp-content/plugins/` a aktivujte je. Pak sada projde i hledání formulářů v šablonách a popupech, nasazení šablon se zálohou a koncepty, obrazovku mapování přes HTTP, vlastní pole, souhlas s GDPR záznamem, skutečné nahrání přílohy přes AJAX Elementoru, výběr vlastníka z uživatelů RAYNETu (v nastavení, šablonách, builderu i v Elementoru) a import uložených odeslání: skutečné tabulky odeslání Elementoru, odkaz s počtem, obrazovku importu přes HTTP, import jednoho odeslání přes AJAX až k payloadu pro RAYNET, zápis do logu akcí, zámek proti dvojímu odeslání, odmítnutí bez přihlášení a bez nonce, chování s vypnutým Elementor Pro a posouzení pomocí AI proti dvojníkovi OpenAI (výběr řádků, zámek běhu, půlení odmítnuté dávky, chyby 401 a 429). Bez Elementor Pro tuhle část přeskočí celou, včetně kontrol nastavení a builderu, které v ní jsou.
 
 Historie změn je v [CHANGELOG.md](CHANGELOG.md).
 
