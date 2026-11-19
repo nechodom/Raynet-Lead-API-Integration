@@ -1643,6 +1643,62 @@ if ( ! class_exists( '\\ElementorPro\\Plugin' ) || ! class_exists( '\\ElementorP
 		check( 'mapování: varování o chybě pro návštěvníka', false !== strpos( $amap_bare_view, 'skončí každé odeslání návštěvníkovi chybou' ), true );
 		check( 'namapovaný formulář varování nemá', false !== strpos( req( $amap_path, null, true )['body'], 'skončí každé odeslání návštěvníkovi chybou' ), false );
 
+		// Without the action registry. This site has it, so the screen is built
+		// with the answer fixed to "no".
+		$no_registry      = new Raynet_Elementor_Forms_Admin( false );
+		$amap_tree_before = get_post_meta( $amap_page, '_elementor_data', true );
+		$amap_meta_before = Raynet_Elementor_Atomic_Forms::stored( $amap_page, 'aform1' );
+		$refused_args     = $no_registry->apply_to_pages( array( $amap_page => array( 'aform1' ) ), array( 'topic' => 'Nemá se zapsat' ), true, true );
+		wp_cache_flush();
+		check( 'bez registru: nasazení odmítnuto, vlastní počet, žádné „nasazeno“', $refused_args, array( 'raynet_atomic' => 1 ) );
+		check( 'bez registru: stránka beze změny', get_post_meta( $amap_page, '_elementor_data', true ), $amap_tree_before );
+		check( 'bez registru: nastavení beze změny', Raynet_Elementor_Atomic_Forms::stored( $amap_page, 'aform1' ), $amap_meta_before );
+		$refused_notice = req( '/wp-admin/admin.php?page=raynet-elementor-forms&raynet_atomic=1', null, true )['body'];
+		check( 'bez registru: hláška u nasazení', false !== strpos( $refused_notice, '1 atomový formulář se nenastavil: tato verze Elementoru Pro akce atomového formuláře neumí.' ), true );
+		check( 'bez registru: žádné „Šablona nasazena“', false !== strpos( $refused_notice, 'Šablona nasazena' ), false );
+
+		$refused_mapping = $no_registry->save_mapping( $amap_page, 'aform1', array( 'af1' => 'phone' ), true );
+		wp_cache_flush();
+		check( 'bez registru: mapování odmítnuto', is_wp_error( $refused_mapping ) ? $refused_mapping->get_error_code() : $refused_mapping, 'raynet_atomic_unsupported' );
+		check( 'bez registru: mapování beze změny', Raynet_Elementor_Atomic_Forms::stored( $amap_page, 'aform1' ), $amap_meta_before );
+
+		// The redirect after that refusal: one notice, and the flash is gone.
+		$refused_flash = 'raynet_elm_mapping_' . get_current_user_id();
+		set_transient( $refused_flash, array( 'key' => $amap_key, 'targets' => array( 'af1' => 'phone' ), 'enable' => true, 'message' => is_wp_error( $refused_mapping ) ? $refused_mapping->get_error_message() : '' ), 300 );
+		$saved_get = $_GET;
+		$_GET      = array( 'page' => 'raynet-elementor-forms', 'mapovat' => $amap_key, 'raynet_error' => 'mapping' );
+		ob_start();
+		$no_registry->render();
+		$refused_screen = ob_get_clean();
+		$_GET           = $saved_get;
+		check( 'bez registru: obrazovka mapování jednu hlášku', substr_count( $refused_screen, 'class="notice notice-error"' ), 1 );
+		check( 'bez registru: obrazovka mapování říká proč', false !== strpos( $refused_screen, 'proto tento formulář nejde nastavit' ), true );
+		check( 'bez registru: obrazovka mapování bez polí', false !== strpos( $refused_screen, 'name="target[' ), false );
+		check( 'bez registru: po odmítnutí nezůstal flash', get_transient( $refused_flash ), false );
+
+		// A freshly applied atomic form without a contact is pointed to this
+		// plugin's mapping screen, not to an Elementor section it does not have.
+		$bare_apply_page = $atomic_page_with( 'Atomový bez kontaktu', null );
+		$bare_args       = ( new Raynet_Elementor_Forms_Admin() )->apply_to_pages( array( $bare_apply_page => array( 'aform1' ) ), array(), false, false );
+		wp_cache_flush();
+		check( 'atomový bez kontaktu se počítá zvlášť', array( $bare_args['raynet_count'], $bare_args['raynet_nocontact'], $bare_args['raynet_nocontact_atomic'] ), array( 1, 0, 1 ) );
+		$bare_notice = req( '/wp-admin/admin.php?page=raynet-elementor-forms&raynet_done=applied&raynet_count=1&raynet_nocontact_atomic=1', null, true )['body'];
+		check( 'hláška atomového bez kontaktu vede na Namapovat pole', false !== strpos( $bare_notice, 'Namapujte pole přes Namapovat pole v tabulce' ), true );
+		check( 'hláška atomového bez kontaktu nevede do Elementoru', false !== strpos( $bare_notice, 'sekce RAYNET CRM' ), false );
+		check( 'klasická hláška beze změny', false !== strpos( req( '/wp-admin/admin.php?page=raynet-elementor-forms&raynet_done=applied&raynet_count=1&raynet_nocontact=1', null, true )['body'], '1 nastavený formulář nemá namapovaný e-mail ani telefon, takže z něj lead nevznikne. Namapujte pole v Elementoru (sekce RAYNET CRM); formulář je v tabulce označený.' ), true );
+
+		// A classic widget whose stored settings carry the atomic marker stays
+		// classic, and the marker is gone after the next write.
+		$forged_page = (int) wp_insert_post( array( 'post_type' => 'page', 'post_title' => 'Podvržená značka', 'post_status' => 'publish' ) );
+		update_post_meta( $forged_page, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $forged_page, '_elementor_data', wp_slash( wp_json_encode( $form_layout( 'forgedform', 'Podvržený', array( Raynet_Elementor_Forms::ATOMIC_KEY => true ) ) ) ) );
+		check( 'podvržená značka: řádek klasický', Raynet_Elementor_Forms::forms_in_post( $forged_page )[0]['atomic'], false );
+		check( 'podvržená značka: import ji nebere za atomovou', Raynet_Elementor_Forms::is_atomic( Raynet_Elementor_Forms::form_settings( $forged_page, 'forgedform' ) ), false );
+		Raynet_Elementor_Forms::apply( $forged_page, 'forgedform', array(), true );
+		check( 'podvržená značka zmizela ze stránky', false !== strpos( (string) get_post_meta( $forged_page, '_elementor_data', true ), Raynet_Elementor_Forms::ATOMIC_KEY ), false );
+
+		wp_delete_post( $forged_page, true );
+		wp_delete_post( $bare_apply_page, true );
 		wp_delete_post( $amap_page, true );
 		wp_delete_post( $amap_bare_page, true );
 

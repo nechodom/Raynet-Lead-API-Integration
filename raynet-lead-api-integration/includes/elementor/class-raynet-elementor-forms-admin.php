@@ -23,6 +23,34 @@ class Raynet_Elementor_Forms_Admin {
 	const NONCE = 'raynet_elementor_forms';
 
 	/**
+	 * Whether Elementor Pro can run the atomic form action, when fixed.
+	 *
+	 * @var bool|null Null asks Raynet_Elementor_Atomic_Forms::supported().
+	 */
+	private $atomic_supported;
+
+	/**
+	 * Sets up the screen.
+	 *
+	 * @param bool|null $atomic_supported Fixes the answer to "does Elementor
+	 *                                    Pro have the atomic action registry",
+	 *                                    for tests on a site that has it; null
+	 *                                    asks Elementor Pro.
+	 */
+	public function __construct( $atomic_supported = null ) {
+		$this->atomic_supported = null === $atomic_supported ? null : (bool) $atomic_supported;
+	}
+
+	/**
+	 * Tells whether the RAYNET action can run on an atomic form.
+	 *
+	 * @return bool True when Elementor Pro has the atomic action registry.
+	 */
+	private function atomic_supported() {
+		return null === $this->atomic_supported ? Raynet_Elementor_Atomic_Forms::supported() : $this->atomic_supported;
+	}
+
+	/**
 	 * Hooks the screen into WordPress.
 	 *
 	 * @return void
@@ -560,6 +588,7 @@ class Raynet_Elementor_Forms_Admin {
 		$failed = isset( $_GET['raynet_failed'] ) ? absint( wp_unslash( $_GET['raynet_failed'] ) ) : 0;
 		$bare   = isset( $_GET['raynet_nocontact'] ) ? absint( wp_unslash( $_GET['raynet_nocontact'] ) ) : 0;
 		$atomic = isset( $_GET['raynet_atomic'] ) ? absint( wp_unslash( $_GET['raynet_atomic'] ) ) : 0;
+		$bare_a = isset( $_GET['raynet_nocontact_atomic'] ) ? absint( wp_unslash( $_GET['raynet_nocontact_atomic'] ) ) : 0;
 		$error  = isset( $_GET['raynet_error'] ) ? sanitize_key( wp_unslash( $_GET['raynet_error'] ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
@@ -619,19 +648,6 @@ class Raynet_Elementor_Forms_Admin {
 				);
 			}
 
-			if ( $atomic > 0 ) {
-				printf(
-					'<div class="notice notice-warning"><p>%s</p></div>',
-					esc_html(
-						sprintf(
-							/* translators: %d: number of forms. */
-							_n( '%d atomový formulář se nenastavil: tato verze Elementoru Pro akce atomového formuláře neumí.', '%d atomových formulářů se nenastavilo: tato verze Elementoru Pro akce atomového formuláře neumí.', $atomic, 'raynet-lead-api-integration' ),
-							$atomic
-						)
-					)
-				);
-			}
-
 			if ( $bare > 0 ) {
 				printf(
 					'<div class="notice notice-warning"><p>%s</p></div>',
@@ -644,6 +660,35 @@ class Raynet_Elementor_Forms_Admin {
 					)
 				);
 			}
+
+			// An atomic form has no RAYNET CRM section in Elementor; its
+			// mapping is on this plugin's screen.
+			if ( $bare_a > 0 ) {
+				printf(
+					'<div class="notice notice-warning"><p>%s</p></div>',
+					esc_html(
+						sprintf(
+							/* translators: %d: number of forms. */
+							_n( '%d nastavený atomový formulář nemá namapovaný e-mail ani telefon, takže z něj lead nevznikne a návštěvník po odeslání uvidí chybu. Namapujte pole přes Namapovat pole v tabulce; formulář je v ní označený.', '%d nastavených atomových formulářů nemá namapovaný e-mail ani telefon, takže z nich leady nevzniknou a návštěvníci po odeslání uvidí chybu. Namapujte pole přes Namapovat pole v tabulce; formuláře jsou v ní označené.', $bare_a, 'raynet-lead-api-integration' ),
+							$bare_a
+						)
+					)
+				);
+			}
+		}
+
+		// Shown even when nothing was applied: then it is the only outcome.
+		if ( $atomic > 0 ) {
+			printf(
+				'<div class="notice notice-warning"><p>%s</p></div>',
+				esc_html(
+					sprintf(
+						/* translators: %d: number of forms. */
+						_n( '%d atomový formulář se nenastavil: tato verze Elementoru Pro akce atomového formuláře neumí.', '%d atomových formulářů se nenastavilo: tato verze Elementoru Pro akce atomového formuláře neumí.', $atomic, 'raynet-lead-api-integration' ),
+						$atomic
+					)
+				)
+			);
 		}
 
 		$messages = array(
@@ -729,23 +774,38 @@ class Raynet_Elementor_Forms_Admin {
 			$this->back( array( 'raynet_error' => 'no_targets' ) );
 		}
 
-		$automap = ! empty( $_POST['automap'] );
-		$rest    = ! empty( $_POST['notice_rest'] );
-		$done    = 0;
-		$failed  = 0;
-		$bare    = 0;
-		$atomic  = 0;
+		$this->back( $this->apply_to_pages( $pages, $templates[ $slug ]['lead'], ! empty( $_POST['automap'] ), ! empty( $_POST['notice_rest'] ) ) );
+	}
+
+	/**
+	 * Applies a template's lead settings to forms on several pages.
+	 *
+	 * @param array<int,string[]>  $pages   Post id => form element ids.
+	 * @param array<string,mixed>  $lead    Lead settings from the template.
+	 * @param bool                 $automap Fill the field mapping by guessing.
+	 * @param bool                 $rest    Send fields without a target to the note.
+	 * @return array<string,int|string> Query arguments describing the outcome.
+	 */
+	public function apply_to_pages( array $pages, array $lead, $automap, $rest ) {
+		$supported = $this->atomic_supported();
+		$done      = 0;
+		$failed    = 0;
+		$bare      = 0;
+		$bare_a    = 0;
+		$atomic    = 0;
 
 		foreach ( $pages as $post_id => $widget_ids ) {
-			$widget_ids = array_values( array_unique( $widget_ids ) );
+			$widget_ids = array_values( array_unique( array_map( 'strval', $widget_ids ) ) );
 
-			// An atomic form is refused here when Elementor Pro has no action
-			// registry, and counted apart, so the notice can say why rather
-			// than ask whether the page still holds the form.
-			foreach ( Raynet_Elementor_Forms::forms_in_post( $post_id ) as $form ) {
-				if ( $form['atomic'] && empty( $form['supported'] ) && in_array( $form['widget_id'], $widget_ids, true ) ) {
-					$widget_ids = array_values( array_diff( $widget_ids, array( $form['widget_id'] ) ) );
-					$atomic++;
+			// Without the action registry an atomic form is refused here and
+			// counted apart, so the notice can say why rather than ask whether
+			// the page still holds the form. The page is scanned only then.
+			if ( ! $supported ) {
+				foreach ( Raynet_Elementor_Forms::forms_in_post( $post_id ) as $form ) {
+					if ( $form['atomic'] && in_array( $form['widget_id'], $widget_ids, true ) ) {
+						$widget_ids = array_values( array_diff( $widget_ids, array( $form['widget_id'] ) ) );
+						$atomic++;
+					}
 				}
 			}
 
@@ -753,7 +813,7 @@ class Raynet_Elementor_Forms_Admin {
 				continue;
 			}
 
-			$result = Raynet_Elementor_Forms::apply( $post_id, $widget_ids, $templates[ $slug ]['lead'], $automap, $rest );
+			$result = Raynet_Elementor_Forms::apply( $post_id, $widget_ids, $lead, $automap, $rest );
 
 			if ( is_wp_error( $result ) && 'raynet_atomic_unsupported' === $result->get_error_code() ) {
 				$atomic += count( $widget_ids );
@@ -772,19 +832,27 @@ class Raynet_Elementor_Forms_Admin {
 
 			foreach ( Raynet_Elementor_Forms::forms_in_post( $post_id ) as $form ) {
 				if ( in_array( $form['widget_id'], $result, true ) && ! $form['has_contact'] ) {
-					$bare++;
+					if ( $form['atomic'] ) {
+						$bare_a++;
+					} else {
+						$bare++;
+					}
 				}
 			}
 		}
 
-		$this->back(
-			array(
-				'raynet_done'      => 'applied',
-				'raynet_count'     => $done,
-				'raynet_failed'    => $failed,
-				'raynet_nocontact' => $bare,
-				'raynet_atomic'    => $atomic,
-			)
+		// Every target refused for the registry: there is no apply to report.
+		if ( 0 === $done && 0 === $failed && $atomic > 0 ) {
+			return array( 'raynet_atomic' => $atomic );
+		}
+
+		return array(
+			'raynet_done'             => 'applied',
+			'raynet_count'            => $done,
+			'raynet_failed'           => $failed,
+			'raynet_nocontact'        => $bare,
+			'raynet_nocontact_atomic' => $bare_a,
+			'raynet_atomic'           => $atomic,
 		);
 	}
 
@@ -828,12 +896,25 @@ class Raynet_Elementor_Forms_Admin {
 			$widget_id = $parts[2];
 			$settings  = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
 		}
+
+		$atomic      = null !== $settings && Raynet_Elementor_Forms::is_atomic( $settings );
+		$unsupported = $atomic && ! $this->atomic_supported();
+
+		// A save refused for the same reason left its message behind; the
+		// screen says it once, and nothing is kept for a later visit.
+		if ( $unsupported ) {
+			delete_transient( $this->flash_key() );
+		}
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Mapování polí formuláře', 'raynet-lead-api-integration' ); ?></h1>
 			<p><a href="<?php echo esc_url( $back ); ?>">&larr; <?php esc_html_e( 'Zpět na přehled formulářů', 'raynet-lead-api-integration' ); ?></a></p>
 
-			<?php $this->notices(); ?>
+			<?php
+			if ( ! $unsupported ) {
+				$this->notices();
+			}
+			?>
 
 			<?php if ( null === $settings ) : ?>
 				<div class="notice notice-error"><p><?php esc_html_e( 'Formulář se nenašel. Stránka ho možná už neobsahuje.', 'raynet-lead-api-integration' ); ?></p></div>
@@ -842,9 +923,7 @@ class Raynet_Elementor_Forms_Admin {
 				return;
 			endif;
 
-			$atomic = Raynet_Elementor_Forms::is_atomic( $settings );
-
-			if ( $atomic && ! Raynet_Elementor_Atomic_Forms::supported() ) :
+			if ( $unsupported ) :
 				?>
 				<div class="notice notice-error"><p><?php esc_html_e( 'Tato verze Elementoru Pro akce atomového formuláře neumí, proto tento formulář nejde nastavit.', 'raynet-lead-api-integration' ); ?></p></div>
 			</div>
@@ -1114,7 +1193,7 @@ class Raynet_Elementor_Forms_Admin {
 			$this->back( array( 'raynet_error' => 'no_targets' ) );
 		}
 
-		$result = Raynet_Elementor_Forms::save_targets( (int) $parts[1], $parts[2], $targets, $enable );
+		$result = $this->save_mapping( (int) $parts[1], $parts[2], $targets, $enable );
 
 		if ( is_wp_error( $result ) ) {
 			set_transient(
@@ -1132,6 +1211,25 @@ class Raynet_Elementor_Forms_Admin {
 		}
 
 		$this->back( array( 'mapovat' => $key, 'raynet_done' => 'mapped' ) );
+	}
+
+	/**
+	 * Saves the targets chosen for one form on the mapping screen.
+	 *
+	 * @param int                  $post_id   Page id.
+	 * @param string               $widget_id Form element id.
+	 * @param array<string,string> $targets   Field id => target.
+	 * @param bool                 $enable    Turn the RAYNET action on as well.
+	 * @return true|WP_Error True on success.
+	 */
+	public function save_mapping( $post_id, $widget_id, array $targets, $enable ) {
+		$settings = Raynet_Elementor_Forms::form_settings( $post_id, $widget_id );
+
+		if ( null !== $settings && Raynet_Elementor_Forms::is_atomic( $settings ) && ! $this->atomic_supported() ) {
+			return new WP_Error( 'raynet_atomic_unsupported', __( 'Tato verze Elementoru Pro akce atomového formuláře neumí.', 'raynet-lead-api-integration' ) );
+		}
+
+		return Raynet_Elementor_Forms::save_targets( $post_id, $widget_id, $targets, $enable );
 	}
 
 	/**

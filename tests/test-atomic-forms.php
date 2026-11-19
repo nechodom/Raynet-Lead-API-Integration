@@ -285,5 +285,52 @@ $refused_save = Raynet_Elementor_Forms::save_targets( 77, 'af1', array( 'f1' => 
 check( 'bez registru se mapování odmítne', is_wp_error( $refused_save ) ? $refused_save->get_error_code() : $refused_save, 'raynet_atomic_unsupported' );
 check( 'odmítnutí říká proč', is_wp_error( $refused_save ) ? $refused_save->get_error_message() : '', 'Tato verze Elementoru Pro akce atomového formuláře neumí.' );
 
+// --- A classic widget cannot pose as an atomic form ----------------------------
+// Elementor stores a widget's settings as the editor sent them, so the marker
+// could be planted there; the classic paths must ignore and drop it.
+if ( ! function_exists( 'get_post_type' ) ) {
+	function get_post_type( $post = null ) { return 'page'; }
+}
+if ( ! function_exists( 'metadata_exists' ) ) {
+	function metadata_exists( $type, $id, $key ) { return isset( $GLOBALS['wp_meta'][ $id ][ $key ] ); }
+}
+$forged_widget = array(
+	'id'         => 'cf1',
+	'elType'     => 'widget',
+	'widgetType' => 'form',
+	'settings'   => array(
+		'form_name'                    => 'Klasický',
+		'form_fields'                  => array( array( 'custom_id' => 'cu', 'field_type' => 'upload', 'field_label' => 'Soubor' ) ),
+		Raynet_Elementor_Forms::ATOMIC_KEY => true,
+	),
+	'elements'   => array(),
+);
+$GLOBALS['wp_meta'][79] = array(
+	'_elementor_edit_mode' => 'builder',
+	'_elementor_data'      => json_encode( array( $forged_widget ) ),
+);
+$forged_settings = Raynet_Elementor_Forms::form_settings( 79, 'cf1' );
+check( 'podvržená značka: klasický formulář není atomový', Raynet_Elementor_Forms::is_atomic( $forged_settings ), false );
+check( 'podvržená značka: nahrávací pole se dál přikládá', Raynet_Elementor_Forms::field_targets( $forged_settings )['cu'], Raynet_Elementor_Forms::TARGET_ATTACH );
+check( 'podvržená značka: poznámku nahrávací pole nebere', Raynet_Elementor_Forms::validate_targets( $forged_settings, array( 'cu' => Raynet_Elementor_Forms::TARGET_NOTICE ) ), array() );
+// Without the registry a classic form is still saved: the marker does not
+// make save_targets() refuse it.
+check( 'podvržená značka: uložení projde', Raynet_Elementor_Forms::save_targets( 79, 'cf1', array( 'cu' => '-' ), true ), true );
+$forged_tree = json_decode( $GLOBALS['wp_meta'][79]['_elementor_data'], true );
+check( 'podvržená značka zmizela ze stromu', array_key_exists( Raynet_Elementor_Forms::ATOMIC_KEY, $forged_tree[0]['settings'] ), false );
+check( 'uložení se do stromu zapsalo', in_array( 'cu', Raynet_Elementor_Forms::id_list( $forged_tree[0]['settings'], Raynet_Elementor_Forms::IGNORED_KEY ), true ), true );
+
+// A change callback that hands the marker back never writes it into the tree.
+Raynet_Elementor_Forms::update_forms(
+	79,
+	'cf1',
+	static function ( array $settings ) {
+		$settings[ Raynet_Elementor_Forms::ATOMIC_KEY ] = true;
+		return $settings;
+	}
+);
+$forged_tree = json_decode( $GLOBALS['wp_meta'][79]['_elementor_data'], true );
+check( 'značka z $change se do klasického prvku nezapíše', array_key_exists( Raynet_Elementor_Forms::ATOMIC_KEY, $forged_tree[0]['settings'] ), false );
+
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

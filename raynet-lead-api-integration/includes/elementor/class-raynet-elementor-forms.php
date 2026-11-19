@@ -362,7 +362,7 @@ class Raynet_Elementor_Forms {
 					return;
 				}
 
-				$found[] = self::row( $post_id, $element, isset( $element['settings'] ) ? (array) $element['settings'] : array(), false );
+				$found[] = self::row( $post_id, $element, self::classic_settings( $element ), false );
 			}
 		);
 
@@ -390,6 +390,24 @@ class Raynet_Elementor_Forms {
 	private static function atomic_settings( $post_id, array $element ) {
 		$settings                     = Raynet_Elementor_Atomic_Forms::settings( $post_id, $element );
 		$settings[ self::ATOMIC_KEY ] = true;
+
+		return $settings;
+	}
+
+	/**
+	 * A Form widget's settings as stored, without the atomic marker.
+	 *
+	 * Elementor stores a widget's settings as the editor sent them, so the
+	 * marker could be planted there; a classic form must never pass for an
+	 * atomic one.
+	 *
+	 * @param array<string,mixed> $element Form widget element.
+	 * @return array<string,mixed> Settings.
+	 */
+	private static function classic_settings( array $element ) {
+		$settings = isset( $element['settings'] ) ? (array) $element['settings'] : array();
+
+		unset( $settings[ self::ATOMIC_KEY ] );
 
 		return $settings;
 	}
@@ -911,7 +929,12 @@ class Raynet_Elementor_Forms {
 						return;
 					}
 
-					$settings                         = $change( self::atomic_settings( $post_id, $element ) );
+					$settings = $change( self::atomic_settings( $post_id, $element ) );
+
+					// Only the actions reach the element and only raynet_crm_*
+					// keys the meta; the marker goes before either.
+					unset( $settings[ self::ATOMIC_KEY ] );
+
 					$element                          = Raynet_Elementor_Atomic_Forms::apply( $element, $settings, 0 );
 					$atomic[ (string) $element['id'] ] = $settings;
 					$configured[]                     = (string) $element['id'];
@@ -922,7 +945,11 @@ class Raynet_Elementor_Forms {
 					return;
 				}
 
-				$element['settings'] = $change( isset( $element['settings'] ) ? (array) $element['settings'] : array() );
+				$element['settings'] = $change( self::classic_settings( $element ) );
+
+				// The marker belongs to the settings this class hands out, never
+				// to a stored layout.
+				unset( $element['settings'][ self::ATOMIC_KEY ] );
 				$configured[]        = (string) $element['id'];
 			}
 		);
@@ -975,7 +1002,7 @@ class Raynet_Elementor_Forms {
 				if ( isset( $element['elType'] ) && self::ATOMIC_TYPE === $element['elType'] ) {
 					$found = self::atomic_settings( $post_id, $element );
 				} elseif ( isset( $element['widgetType'] ) && 'form' === $element['widgetType'] ) {
-					$found = isset( $element['settings'] ) ? (array) $element['settings'] : array();
+					$found = self::classic_settings( $element );
 				}
 			}
 		);
