@@ -24,6 +24,10 @@ $raynet_options = array(
 	'raynet_lead_custom_fields',
 	'raynet_lead_users',
 	'raynet_import_idx_gen',
+	// AI review of the import: the OpenAI key, model and business text.
+	'raynet_lead_openai_key',
+	'raynet_lead_openai_model',
+	'raynet_lead_openai_business',
 	// Legacy 1.x options.
 	'raynet_username',
 	'raynet_api_key',
@@ -69,15 +73,17 @@ foreach ( $raynet_forms as $raynet_form_id ) {
 }
 
 // Throttle transients are per IP, import indexes per form, import locks and
-// import attempt records per submission, so they have to be matched by prefix.
+// import attempt records and AI verdicts per submission, so they have to be
+// matched by prefix.
 $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery -- One-off cleanup on uninstall.
 	$wpdb->prepare(
-		"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
+		"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s OR option_name LIKE %s",
 		$wpdb->esc_like( '_transient_raynet_lead_throttle_' ) . '%',
 		$wpdb->esc_like( '_transient_timeout_raynet_lead_throttle_' ) . '%',
 		$wpdb->esc_like( '_transient_raynet_import_idx_' ) . '%',
 		$wpdb->esc_like( '_transient_timeout_raynet_import_idx_' ) . '%',
 		$wpdb->esc_like( 'raynet_import_lock_' ) . '%',
-		$wpdb->esc_like( 'raynet_import_attempt_' ) . '%'
+		$wpdb->esc_like( 'raynet_import_attempt_' ) . '%',
+		$wpdb->esc_like( 'raynet_import_ai_' ) . '%'
 	)
 );

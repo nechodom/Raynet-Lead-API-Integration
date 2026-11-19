@@ -42,6 +42,9 @@ $plugin_options = array(
 	'raynet_lead_custom_fields'       => array( 'connection' => 'abc', 'fields' => array() ),
 	'raynet_lead_users'               => array( 'connection' => 'abc', 'people' => array( 11 => array( 'name' => 'Jana', 'login' => 'jana@firma.cz' ) ) ),
 	'raynet_import_idx_gen'           => 3,
+	'raynet_lead_openai_key'          => 'sk-test-0000',
+	'raynet_lead_openai_model'        => 'gpt-6-luna',
+	'raynet_lead_openai_business'     => 'Střechy.',
 	// Legacy 1.x options.
 	'raynet_username'                 => 'legacy',
 	'raynet_api_key'                  => 'legacy',
@@ -80,6 +83,7 @@ $kept = uninstall( false );
 check( 'bez volby zůstane nastavení', isset( $GLOBALS['wp_options']['raynet_lead_settings'] ), true );
 check( 'bez volby zůstanou uživatelé', isset( $GLOBALS['wp_options']['raynet_lead_users'] ), true );
 check( 'bez volby zůstanou vlastní pole', isset( $GLOBALS['wp_options']['raynet_lead_custom_fields'] ), true );
+check( 'bez volby zůstane klíč OpenAI', isset( $GLOBALS['wp_options']['raynet_lead_openai_key'] ), true );
 check( 'bez volby zůstanou formuláře', isset( $GLOBALS['wp_posts'][1] ), true );
 check( 'bez volby žádný dotaz', $kept->queries, array() );
 
@@ -100,6 +104,6 @@ check( 'smaže uložené indexy importu', (bool) preg_grep( '/\'\\\\_transient\\
 check( 'smaže expirace indexů importu', (bool) preg_grep( '/\'\\\\_transient\\\\_timeout\\\\_raynet\\\\_import\\\\_idx\\\\_%\'/', $deleted->queries ), true );
 check( 'smaže zámky importu', (bool) preg_grep( '/\'raynet\\\\_import\\\\_lock\\\\_%\'/', $deleted->queries ), true );
 check( 'smaže záznamy pokusů o import', (bool) preg_grep( '/\'raynet\\\\_import\\\\_attempt\\\\_%\'/', $deleted->queries ), true );
-
+check( 'smaže verdikty AI', (bool) preg_grep( '/\'raynet\\\\_import\\\\_ai\\\\_%\'/', $deleted->queries ), true );
 printf( "\n%d passed, %d failed\n", $pass, $fail );
 exit( $fail > 0 ? 1 : 0 );

@@ -10,6 +10,12 @@
 
 defined( 'ABSPATH' ) || exit;
 
+// The suite stores a value here to stand in for the wp-config.php constant
+// that wins over the stored OpenAI key.
+if ( get_option( 'raynet_test_openai_constant' ) && ! defined( 'RAYNET_OPENAI_API_KEY' ) ) {
+	define( 'RAYNET_OPENAI_API_KEY', (string) get_option( 'raynet_test_openai_constant' ) );
+}
+
 add_filter(
 	'pre_http_request',
 	function ( $preempt, $args, $url ) {
@@ -18,13 +24,95 @@ add_filter(
 			return $preempt;
 		}
 
+		$auth    = isset( $args['headers']['Authorization'] ) ? (string) $args['headers']['Authorization'] : '';
 		$calls   = get_option( 'raynet_test_http_calls', array() );
 		$calls[] = array(
 			'url'    => $url,
 			'method' => isset( $args['method'] ) ? $args['method'] : 'GET',
 			'body'   => isset( $args['body'] ) ? $args['body'] : '',
+			// Only whether a bearer token went out, never the token: this
+			// option outlives the request.
+			'bearer' => 0 === strpos( $auth, 'Bearer ' ) && strlen( $auth ) > 7,
 		);
 		update_option( 'raynet_test_http_calls', $calls, false );
+
+		// OpenAI's Responses API, answering from a script the suite stores
+		// in `raynet_test_openai`: status, mode (results, refusal, text,
+		// timeout), verdicts by id ('skip' leaves an id out), a default
+		// verdict for the rest, and extra rows for ids not in the batch.
+		if ( 'api.openai.com' === (string) wp_parse_url( $url, PHP_URL_HOST ) ) {
+			$script = get_option( 'raynet_test_openai', array() );
+			$script = is_array( $script ) ? $script : array();
+			$status = isset( $script['status'] ) ? (int) $script['status'] : 200;
+			$mode   = isset( $script['mode'] ) ? (string) $script['mode'] : 'results';
+
+			if ( 'timeout' === $mode ) {
+				return new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out after 30001 milliseconds' );
+			}
+
+			if ( 200 !== $status ) {
+				$messages = array(
+					401 => 'Incorrect API key provided: ' . substr( $auth, 7, 6 ) . '****. You can find your API key at https://platform.openai.com/account/api-keys.',
+					429 => 'Rate limit reached for requests.',
+				);
+
+				return array(
+					'headers'  => array(),
+					'body'     => wp_json_encode( array( 'error' => array( 'message' => isset( $messages[ $status ] ) ? $messages[ $status ] : 'The server had an error.', 'type' => 'test' ) ) ),
+					'response' => array( 'code' => $status, 'message' => 'Error' ),
+					'cookies'  => array(),
+					'filename' => null,
+				);
+			}
+
+			$request = json_decode( isset( $args['body'] ) ? (string) $args['body'] : '', true );
+			$batch   = isset( $request['input'][1]['content'] ) ? json_decode( (string) $request['input'][1]['content'], true ) : array();
+			$results = array();
+
+			foreach ( isset( $batch['submissions'] ) && is_array( $batch['submissions'] ) ? $batch['submissions'] : array() as $item ) {
+				$id      = isset( $item['id'] ) ? (int) $item['id'] : 0;
+				$verdict = isset( $script['verdicts'][ $id ] ) ? (string) $script['verdicts'][ $id ] : ( isset( $script['default'] ) ? (string) $script['default'] : 'import' );
+
+				if ( 'skip' === $verdict ) {
+					continue;
+				}
+
+				$results[] = array(
+					'id'      => $id,
+					'verdict' => $verdict,
+					'reason'  => isset( $script['reasons'][ $id ] ) ? (string) $script['reasons'][ $id ] : 'Testovací důvod ' . $id . '.',
+				);
+			}
+
+			if ( isset( $script['extra'] ) && is_array( $script['extra'] ) ) {
+				$results = array_merge( $results, $script['extra'] );
+			}
+
+			if ( 'refusal' === $mode ) {
+				$part = array( 'type' => 'refusal', 'refusal' => 'I can not help with that.' );
+			} elseif ( 'text' === $mode ) {
+				$part = array( 'type' => 'output_text', 'text' => 'Import all of them.' );
+			} else {
+				$part = array( 'type' => 'output_text', 'text' => wp_json_encode( array( 'results' => $results ) ) );
+			}
+
+			return array(
+				'headers'  => array(),
+				'body'     => wp_json_encode(
+					array(
+						'id'     => 'resp_test',
+						'object' => 'response',
+						'status' => 'completed',
+						'output' => array(
+							array( 'type' => 'message', 'role' => 'assistant', 'status' => 'completed', 'content' => array( $part ) ),
+						),
+					)
+				),
+				'response' => array( 'code' => 200, 'message' => 'OK' ),
+				'cookies'  => array(),
+				'filename' => null,
+			);
+		}
 
 		// The custom field configuration of an imaginary instance, one field of
 		// each kind a form can fill.

@@ -99,6 +99,38 @@ class Raynet_Lead_Admin {
 				'default'           => Raynet_Lead_Settings::defaults(),
 			)
 		);
+
+		// The OpenAI options live in their own rows, outside the settings
+		// array: the key must not be autoloaded with everything else, and
+		// uninstall and the import screen read them on their own. They share
+		// the group so the one settings form saves them.
+		register_setting(
+			Raynet_Lead_Settings::GROUP,
+			Raynet_OpenAI_Client::KEY_OPTION,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( 'Raynet_OpenAI_Client', 'sanitize_key_option' ),
+				'show_in_rest'      => false,
+			)
+		);
+		register_setting(
+			Raynet_Lead_Settings::GROUP,
+			Raynet_OpenAI_Client::MODEL_OPTION,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( 'Raynet_OpenAI_Client', 'sanitize_model_option' ),
+				'show_in_rest'      => false,
+			)
+		);
+		register_setting(
+			Raynet_Lead_Settings::GROUP,
+			Raynet_OpenAI_Client::BUSINESS_OPTION,
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( 'Raynet_OpenAI_Client', 'sanitize_business_option' ),
+				'show_in_rest'      => false,
+			)
+		);
 	}
 
 	/**
@@ -622,9 +654,81 @@ class Raynet_Lead_Admin {
 					</tr>
 				</table>
 
+				<?php $this->render_ai_section(); ?>
+
 				<?php submit_button(); ?>
 			</form>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Renders the OpenAI fields of the settings form.
+	 *
+	 * The key is never printed back, not even into the value attribute: the
+	 * field is always empty and only its last four characters are shown.
+	 *
+	 * @return void
+	 */
+	private function render_ai_section() {
+		$key_option = Raynet_OpenAI_Client::KEY_OPTION;
+		$hint       = Raynet_OpenAI_Client::key_hint();
+		?>
+		<h2><?php esc_html_e( 'Posouzení importu pomocí AI (OpenAI)', 'raynet-lead-api-integration' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'Volitelné. S klíčem nabídne obrazovka importu tlačítko, které na vaše kliknutí pošle uložená odeslání k posouzení do OpenAI. Odchází jméno, firma, předmět, text zprávy a poznámková pole; e-mailové adresy a telefonní čísla se nahradí značkou, posílá se jen doména e-mailu a země předvolby. Bez klíče se nic neposílá.', 'raynet-lead-api-integration' ); ?>
+		</p>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><label for="raynet-openai-key"><?php esc_html_e( 'API klíč OpenAI', 'raynet-lead-api-integration' ); ?></label></th>
+				<td>
+					<?php if ( Raynet_OpenAI_Client::from_constant() ) : ?>
+						<p class="raynet-openai-constant">
+							<?php
+							printf(
+								/* translators: 1: constant name, 2: last characters of the key. */
+								esc_html__( 'Klíč je zadaný konstantou %1$s ve wp-config.php (%2$s) a tady ho změnit nejde.', 'raynet-lead-api-integration' ),
+								'<code>' . esc_html( Raynet_OpenAI_Client::KEY_CONSTANT ) . '</code>',
+								esc_html( $hint )
+							);
+							?>
+						</p>
+					<?php else : ?>
+						<input type="password" class="regular-text" id="raynet-openai-key" name="<?php echo esc_attr( $key_option ); ?>[value]" value="" autocomplete="new-password" />
+						<?php if ( '' !== $hint ) : ?>
+							<p class="raynet-openai-stored">
+								<?php
+								printf(
+									/* translators: %s: last characters of the stored key. */
+									esc_html__( 'uloženo (%s)', 'raynet-lead-api-integration' ),
+									esc_html( $hint )
+								);
+								?>
+							</p>
+							<label>
+								<input type="checkbox" name="<?php echo esc_attr( $key_option ); ?>[delete]" value="1" />
+								<?php esc_html_e( 'Smazat uložený klíč', 'raynet-lead-api-integration' ); ?>
+							</label>
+						<?php endif; ?>
+						<p class="description"><?php esc_html_e( 'Klíč se nikdy nezobrazuje zpět. Prázdné pole znamená „ponechat stávající“. Klíč lze zadat i konstantou RAYNET_OPENAI_API_KEY ve wp-config.php.', 'raynet-lead-api-integration' ); ?></p>
+					<?php endif; ?>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="raynet-openai-model"><?php esc_html_e( 'Model', 'raynet-lead-api-integration' ); ?></label></th>
+				<td>
+					<input type="text" class="regular-text" id="raynet-openai-model" name="<?php echo esc_attr( Raynet_OpenAI_Client::MODEL_OPTION ); ?>" value="<?php echo esc_attr( Raynet_OpenAI_Client::model() ); ?>" placeholder="<?php echo esc_attr( Raynet_OpenAI_Client::DEFAULT_MODEL ); ?>" />
+					<p class="description"><?php esc_html_e( 'ID modelu podle stránky modelů OpenAI. Prázdné pole = výchozí model.', 'raynet-lead-api-integration' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="raynet-openai-business"><?php esc_html_e( 'Čím se firma zabývá', 'raynet-lead-api-integration' ); ?></label></th>
+				<td>
+					<textarea id="raynet-openai-business" class="large-text" rows="3" maxlength="<?php echo esc_attr( (string) Raynet_OpenAI_Client::BUSINESS_MAX ); ?>" name="<?php echo esc_attr( Raynet_OpenAI_Client::BUSINESS_OPTION ); ?>"><?php echo esc_textarea( Raynet_OpenAI_Client::business() ); ?></textarea>
+					<p class="description"><?php esc_html_e( 'Doporučené. Pár vět o tom, co firma nabízí, pomůže modelu poznat, která poptávka dává smysl. Nejvýš 1000 znaků.', 'raynet-lead-api-integration' ); ?></p>
+				</td>
+			</tr>
+		</table>
 		<?php
 	}
 }

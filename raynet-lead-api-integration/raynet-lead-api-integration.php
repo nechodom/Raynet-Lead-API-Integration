@@ -29,6 +29,7 @@ require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-definition.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-post-type.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-form-renderer.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-api-client.php';
+require_once RAYNET_LEAD_PATH . 'includes/class-raynet-openai-client.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-lead-fields.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-lead-users.php';
 require_once RAYNET_LEAD_PATH . 'includes/class-raynet-lead-form.php';
@@ -43,6 +44,7 @@ require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-forms
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-attachments.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-submission-spam-score.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-submissions.php';
+require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-import-ai.php';
 require_once RAYNET_LEAD_PATH . 'includes/elementor/class-raynet-elementor-import-admin.php';
 
 /**

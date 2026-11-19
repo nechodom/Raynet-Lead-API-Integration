@@ -213,6 +213,9 @@ function wp_remote_request( $url, $args ) {
 	$GLOBALS['wp_next_response'] = null;
 	return null === $next ? array( 'code' => 200, 'body' => '{}' ) : $next;
 }
+function wp_remote_post( $url, $args = array() ) {
+	return wp_remote_request( $url, array_merge( array( 'method' => 'POST' ), $args ) );
+}
 function wp_remote_retrieve_response_code( $r ) { return is_array( $r ) ? $r['code'] : 0; }
 function wp_remote_retrieve_body( $r ) { return is_array( $r ) ? $r['body'] : ''; }
 
@@ -234,3 +237,5 @@ require_once $raynet_includes . 'elementor/class-raynet-elementor-attachments.ph
 require_once $raynet_includes . 'elementor/class-raynet-submission-spam-score.php';
 require_once $raynet_includes . 'elementor/class-raynet-elementor-submissions.php';
 require_once $raynet_includes . 'class-raynet-lead-form.php';
+require_once $raynet_includes . 'class-raynet-openai-client.php';
+require_once $raynet_includes . 'elementor/class-raynet-import-ai.php';
